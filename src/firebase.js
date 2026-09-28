@@ -1,24 +1,29 @@
-import { initializeApp } from 'firebase/app';
-import { getDatabase, ref, set, onValue } from 'firebase/database';
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+import { getDatabase, ref, set, onValue } from "firebase/database";
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "dummy-key",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "hotel-pos.firebaseapp.com",
-  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL || "https://hotel-pos-default-rtdb.firebaseio.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "hotel-pos",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "hotel-pos.appspot.com",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "000000000",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:000000000:web:000000000"
+  apiKey: "AIzaSyCU84gJirHE9c1s7Bqh90pzyOtjdaR5uus",
+  authDomain: "hotel-pos-app.firebaseapp.com",
+  databaseURL: "https://hotel-pos-app-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "hotel-pos-app",
+  storageBucket: "hotel-pos-app.firebasestorage.app",
+  messagingSenderId: "44475111004",
+  appId: "1:44475111004:web:58cc62ea1e050e2f767899",
+  measurementId: "G-KWG9FMP5Q7"
 };
 
 const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
+
+// Initialize analytics only if running in a browser environment
+export const analytics = typeof window !== "undefined" ? getAnalytics(app) : null;
+export const db = getDatabase(app);
 
 export const syncToCloud = (path, data) => {
   try {
     set(ref(db, path), data);
   } catch (err) {
-    console.warn("Firebase sync fallback:", err);
+    console.warn("Firebase sync error:", err);
   }
 };
 
@@ -29,7 +34,7 @@ export const subscribeToCloud = (path, callback) => {
       callback(snapshot.val());
     });
   } catch (err) {
-    console.warn("Firebase listener fallback:", err);
+    console.warn("Firebase subscribe error:", err);
     return () => {};
   }
 };
