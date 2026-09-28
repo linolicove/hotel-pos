@@ -2,7 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, set, onValue } from 'firebase/database';
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "mock-key",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "dummy-key",
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "hotel-pos.firebaseapp.com",
   databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL || "https://hotel-pos-default-rtdb.firebaseio.com",
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "hotel-pos",
@@ -18,7 +18,7 @@ export const syncToCloud = (path, data) => {
   try {
     set(ref(db, path), data);
   } catch (err) {
-    console.warn("Firebase sync error:", err);
+    console.warn("Firebase sync fallback:", err);
   }
 };
 
@@ -29,7 +29,7 @@ export const subscribeToCloud = (path, callback) => {
       callback(snapshot.val());
     });
   } catch (err) {
-    console.warn("Firebase listener error:", err);
+    console.warn("Firebase listener fallback:", err);
     return () => {};
   }
 };
