@@ -38,7 +38,9 @@ import {
   Briefcase,
   DollarSign,
   Calendar,
-  FileCheck
+  LogIn,
+  LogOut,
+  FileSpreadsheet
 } from "lucide-react";
 
 // --- 1. FIREBASE CONFIGURATION (REALTIME DATABASE) ---
@@ -77,10 +79,62 @@ const INITIAL_INVENTORY_SEEDS = [
 ];
 
 const INITIAL_STAFF_SEEDS = [
-  { id: "s1", name: "Kailani Silva", role: "Manager", pin: "1001", type: "Full-Time", hourlyRate: 35, hoursWorked: 40, paid: true, phone: "+1 808-555-0112" },
-  { id: "s2", name: "Noah Jensen", role: "Front Desk", pin: "2044", type: "Full-Time", hourlyRate: 22, hoursWorked: 38, paid: false, phone: "+1 808-555-0123" },
-  { id: "s3", name: "Leilani Kea", role: "Housekeeping", pin: "3055", type: "Part-Time", hourlyRate: 20, hoursWorked: 25, paid: false, phone: "+1 808-555-0145" },
-  { id: "s4", name: "Akamu Flores", role: "Maintenance", pin: "4088", type: "Casual", hourlyRate: 24, hoursWorked: 16, paid: true, phone: "+1 808-555-0189" }
+  { 
+    id: "s1", 
+    name: "Kailani Silva", 
+    role: "Manager", 
+    pin: "1001", 
+    type: "Full-Time", 
+    hourlyRate: 35, 
+    hoursWorked: 40, 
+    paid: true, 
+    phone: "+1 808-555-0112",
+    clockIn: "08:00 AM",
+    clockOut: "04:30 PM",
+    isOnDuty: false
+  },
+  { 
+    id: "s2", 
+    name: "Noah Jensen", 
+    role: "Front Desk", 
+    pin: "2044", 
+    type: "Full-Time", 
+    hourlyRate: 22, 
+    hoursWorked: 38, 
+    paid: false, 
+    phone: "+1 808-555-0123",
+    clockIn: "07:30 AM",
+    clockOut: "",
+    isOnDuty: true
+  },
+  { 
+    id: "s3", 
+    name: "Leilani Kea", 
+    role: "Housekeeping", 
+    pin: "3055", 
+    type: "Part-Time", 
+    hourlyRate: 20, 
+    hoursWorked: 25, 
+    paid: false, 
+    phone: "+1 808-555-0145",
+    clockIn: "09:00 AM",
+    clockOut: "",
+    isOnDuty: true
+  },
+  { 
+    id: "s4", 
+    name: "Akamu Flores", 
+    role: "Maintenance", 
+    pin: "4088", 
+    type: "Casual", 
+    hourlyRate: 24, 
+    hoursWorked: 16, 
+    paid: true, 
+    phone: "+1 808-555-0189",
+    clockIn: "",
+    clockOut: "",
+    isOnDuty: false
+  }
 ];
 
 // --- 2. PROGRAMMATIC ISOLATED PRINT ENGINE ---
@@ -403,6 +457,78 @@ function buildPayslipHtml({ settings, staffMember }) {
   `;
 }
 
+// Built-in Official A4 Daily Attendance Sheet Generator
+function buildDailyAttendanceHtml({ settings, staffList }) {
+  const todayStr = new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  return `
+    <div class="a4-container">
+      <div style="border-bottom: 3px double #091D26; padding-bottom: 16px; display: flex; justify-content: space-between; align-items: flex-start;">
+        <div>
+          <h1 style="font-size: 24px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; margin: 0; color: #091D26;">
+            ${settings.hotelName}
+          </h1>
+          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; text-transform: uppercase; color: #555; letter-spacing: 1px;">
+            Daily Employee Shift & Attendance Sheet
+          </p>
+          <p style="margin: 4px 0 0 0; font-size: 11px; color: #333;">
+            ${settings.address} | Tel: ${settings.phone}
+          </p>
+        </div>
+        <div style="text-align: right;">
+          <div style="display: inline-block; border: 2px solid #091D26; padding: 6px 14px; font-weight: bold; font-size: 12px; text-transform: uppercase;">
+            ATTENDANCE LOG
+          </div>
+          <p style="margin: 8px 0 0 0; font-size: 12px;"><b>Date:</b> ${todayStr}</p>
+        </div>
+      </div>
+
+      <div style="margin: 20px 0 10px 0;">
+        <span style="font-size: 12px; font-weight: bold; text-transform: uppercase; color: #0F766E;">
+          Logged Duty Roster (${staffList.length} Active Personnel)
+        </span>
+      </div>
+
+      <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px;">
+        <thead>
+          <tr style="border-bottom: 2px solid #091D26; background: #F3EFE6;">
+            <th style="padding: 10px 6px; text-align: left;">Employee Name</th>
+            <th style="padding: 10px 6px; text-align: left;">Designated Role</th>
+            <th style="padding: 10px 6px; text-align: center;">Shift In</th>
+            <th style="padding: 10px 6px; text-align: center;">Shift Out</th>
+            <th style="padding: 10px 6px; text-align: center;">Duty Status</th>
+            <th style="padding: 10px 6px; text-align: center;">Staff Signature</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${staffList.map((member) => `
+            <tr style="border-bottom: 1px solid #ddd;">
+              <td style="padding: 10px 6px; font-weight: bold;">${member.name}</td>
+              <td style="padding: 10px 6px;">${member.role} (${member.type})</td>
+              <td style="padding: 10px 6px; text-align: center; font-family: monospace;">${member.clockIn || "--:--"}</td>
+              <td style="padding: 10px 6px; text-align: center; font-family: monospace;">${member.clockOut || "--:--"}</td>
+              <td style="padding: 10px 6px; text-align: center; font-weight: bold; color: ${member.isOnDuty ? "#0D9488" : "#888"};">
+                ${member.isOnDuty ? "ON DUTY" : member.clockOut ? "COMPLETED" : "OFF DUTY"}
+              </td>
+              <td style="padding: 10px 6px; text-align: center; border-bottom: 1px solid #aaa; width: 120px;"></td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+
+      <div style="margin-top: 50px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; font-size: 11px;">
+        <div>
+          <p style="font-weight: bold; text-transform: uppercase; margin-bottom: 30px;">Shift Supervisor Verification:</p>
+          <div style="border-bottom: 1px solid #000; width: 80%;"></div>
+        </div>
+        <div style="text-align: right;">
+          <p style="font-weight: bold; text-transform: uppercase; margin-bottom: 30px;">General Manager Sign-off:</p>
+          <div style="border-bottom: 1px solid #000; width: 80%; margin-left: auto;"></div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState("frontdesk");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -460,9 +586,10 @@ export default function App() {
     stock: "",
   });
 
-  // Staff & Payroll Management State
+  // Staff & Attendance State
   const [showAddStaffModal, setShowAddStaffModal] = useState(false);
   const [staffSearchQuery, setStaffSearchQuery] = useState("");
+  const [staffViewSubTab, setStaffViewSubTab] = useState("roster"); // "roster" | "attendance"
   const [newStaffForm, setNewStaffForm] = useState({
     name: "",
     role: "Front Desk",
@@ -480,11 +607,13 @@ export default function App() {
     hourlyRate: "",
     hoursWorked: "",
     phone: "",
+    clockIn: "",
+    clockOut: ""
   });
 
   // --- REALTIME DATABASE LISTENERS ---
   useEffect(() => {
-    // A. Hotel Settings Listener
+    // Settings Listener
     const settingsRef = ref(rtdb, "hotel_config/profile");
     const unsubSettings = onValue(settingsRef, (snapshot) => {
       const data = snapshot.val();
@@ -492,7 +621,7 @@ export default function App() {
       else set(settingsRef, DEFAULT_SETTINGS);
     });
 
-    // B. Rooms & Active Orders Listener
+    // Rooms Listener
     const roomsRef = ref(rtdb, "rooms");
     const unsubRooms = onValue(roomsRef, (snapshot) => {
       const data = snapshot.val();
@@ -528,11 +657,7 @@ export default function App() {
             ? rawItems
             : Object.keys(rawItems).map((k) => ({ ...rawItems[k], id: k }));
 
-          return {
-            ...roomObj,
-            id: key,
-            orderItems: orderItemsArray,
-          };
+          return { ...roomObj, id: key, orderItems: orderItemsArray };
         });
 
         setRooms(loadedRooms.sort((a, b) => String(a.number).localeCompare(String(b.number))));
@@ -543,7 +668,7 @@ export default function App() {
       }
     });
 
-    // C. Inventory Listener
+    // Inventory Listener
     const invRef = ref(rtdb, "inventory");
     const unsubInv = onValue(invRef, (snapshot) => {
       const data = snapshot.val();
@@ -567,7 +692,7 @@ export default function App() {
       }
     });
 
-    // D. Staff & Payroll Listener
+    // Staff Listener
     const staffRef = ref(rtdb, "staff");
     const unsubStaff = onValue(staffRef, (snapshot) => {
       const data = snapshot.val();
@@ -581,7 +706,10 @@ export default function App() {
           id: k,
           hourlyRate: Number(data[k].hourlyRate) || 0,
           hoursWorked: Number(data[k].hoursWorked) || 0,
-          paid: Boolean(data[k].paid)
+          paid: Boolean(data[k].paid),
+          clockIn: data[k].clockIn || "",
+          clockOut: data[k].clockOut || "",
+          isOnDuty: Boolean(data[k].isOnDuty)
         }));
         setStaff(staffList);
       }
@@ -603,7 +731,7 @@ export default function App() {
   const printTargetRoom = settleOrderRoom || currentRoom;
   const printTargetTotal = calculateTotal(printTargetRoom);
 
-  // --- ISOLATED PRINT HANDLERS ---
+  // --- PRINT DRIVERS ---
   const handlePrintTemporaryBill = (room) => {
     setSelectedRoomId(room.id);
     const total = calculateTotal(room);
@@ -643,7 +771,59 @@ export default function App() {
     printIsolatedDocument(html, "a4");
   };
 
-  // --- INVENTORY ACTIONS ---
+  const handlePrintDailyAttendance = () => {
+    const html = buildDailyAttendanceHtml({ settings, staffList: staff });
+    printIsolatedDocument(html, "a4");
+  };
+
+  // --- TIMECLOCK & ATTENDANCE ACTIONS ---
+  const formatTimeNow = () => {
+    const d = new Date();
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  // One-tap Clock In
+  const handleClockIn = (staffId) => {
+    const timeStr = formatTimeNow();
+    setStaff((prev) =>
+      prev.map((s) => (s.id === staffId ? { ...s, clockIn: timeStr, clockOut: "", isOnDuty: true } : s))
+    );
+    update(ref(rtdb, `staff/${staffId}`), {
+      clockIn: timeStr,
+      clockOut: "",
+      isOnDuty: true
+    });
+  };
+
+  // One-tap Clock Out & Auto-Add Shift Hours
+  const handleClockOut = (staffId) => {
+    const member = staff.find((s) => s.id === staffId);
+    if (!member) return;
+    const timeStr = formatTimeNow();
+
+    // Default to +8 hrs shift or estimate duration
+    const addedShiftHours = 8; 
+    const updatedTotalHours = Math.max(0, (member.hoursWorked || 0) + addedShiftHours);
+
+    setStaff((prev) =>
+      prev.map((s) => (s.id === staffId ? { 
+        ...s, 
+        clockOut: timeStr, 
+        isOnDuty: false, 
+        hoursWorked: updatedTotalHours, 
+        paid: false 
+      } : s))
+    );
+
+    update(ref(rtdb, `staff/${staffId}`), {
+      clockOut: timeStr,
+      isOnDuty: false,
+      hoursWorked: updatedTotalHours,
+      paid: false
+    });
+  };
+
+  // --- STAFF & INVENTORY HANDLERS ---
   const handleUpdateStockLevel = (itemId, delta) => {
     if (!itemId) return;
     const target = inventory.find((i) => i.id === itemId);
@@ -732,7 +912,6 @@ export default function App() {
     if (item.stock > 0) handleUpdateStockLevel(item.id, -1);
   };
 
-  // --- STAFF & PAYROLL ACTIONS ---
   const handleCreateStaff = (e) => {
     e.preventDefault();
     if (!newStaffForm.name.trim()) return;
@@ -750,6 +929,9 @@ export default function App() {
       hoursWorked: 0,
       paid: false,
       phone: newStaffForm.phone || "",
+      clockIn: "",
+      clockOut: "",
+      isOnDuty: false
     };
 
     setStaff((prev) => [...prev, newStaff]);
@@ -776,6 +958,8 @@ export default function App() {
       hourlyRate: String(member.hourlyRate ?? 20),
       hoursWorked: String(member.hoursWorked ?? 0),
       phone: member.phone || "",
+      clockIn: member.clockIn || "",
+      clockOut: member.clockOut || ""
     });
   };
 
@@ -793,6 +977,8 @@ export default function App() {
       hourlyRate: isNaN(cleanRate) || cleanRate < 0 ? 0 : cleanRate,
       hoursWorked: isNaN(cleanHours) || cleanHours < 0 ? 0 : cleanHours,
       phone: editStaffForm.phone || "",
+      clockIn: editStaffForm.clockIn || "",
+      clockOut: editStaffForm.clockOut || ""
     };
 
     setStaff((prev) =>
@@ -810,24 +996,12 @@ export default function App() {
     update(ref(rtdb, `staff/${staffId}`), { paid: nextStatus });
   };
 
-  const handleQuickAddHours = (staffId, additionalHours) => {
-    const member = staff.find((s) => s.id === staffId);
-    if (!member) return;
-    const newHours = Math.max(0, (member.hoursWorked || 0) + additionalHours);
-
-    setStaff((prev) =>
-      prev.map((s) => (s.id === staffId ? { ...s, hoursWorked: newHours, paid: false } : s))
-    );
-    update(ref(rtdb, `staff/${staffId}`), { hoursWorked: newHours, paid: false });
-  };
-
   const handleDeleteStaff = (member) => {
     if (!window.confirm(`Permanently remove ${member.name} from staff records?`)) return;
     setStaff((prev) => prev.filter((s) => s.id !== member.id));
     remove(ref(rtdb, `staff/${member.id}`));
   };
 
-  // --- GENERAL ACTIONS ---
   const handleSaveSettings = (updated) => {
     setSettings(updated);
     set(ref(rtdb, "hotel_config/profile"), updated);
@@ -954,16 +1128,25 @@ export default function App() {
     }
   };
 
-  // Filtered staff list
+  // Filtered queries
+  const filteredInventory = inventory.filter((item) => {
+    const matchesCategory =
+      inventoryCategoryFilter === "all" || item.category === inventoryCategoryFilter;
+    const matchesSearch = (item.name || "")
+      .toLowerCase()
+      .includes(inventorySearchQuery.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
+
   const filteredStaff = staff.filter((s) => {
     const q = staffSearchQuery.toLowerCase();
     return s.name.toLowerCase().includes(q) || s.role.toLowerCase().includes(q);
   });
 
-  // Payroll Metrics
+  // Payroll & Attendance Metrics
   const totalPayrollGross = staff.reduce((acc, s) => acc + (s.hourlyRate * s.hoursWorked), 0);
   const totalHoursLogged = staff.reduce((acc, s) => acc + s.hoursWorked, 0);
-  const pendingPayouts = staff.filter((s) => !s.paid && s.hoursWorked > 0).length;
+  const onDutyCount = staff.filter((s) => s.isOnDuty).length;
 
   const parsedTendered = parseFloat(cashTendered) || 0;
   const changeDue = Math.max(0, parsedTendered - printTargetTotal);
@@ -999,7 +1182,7 @@ export default function App() {
             { id: "active-orders", label: "Active Bills & Tabs", icon: Receipt },
             { id: "inventory", label: "Stock & Minibar", icon: Boxes },
             { id: "room-admin", label: "Room Management", icon: SlidersHorizontal },
-            { id: "staff", label: "Staff & Payroll", icon: Users },
+            { id: "staff", label: "Staff & Attendance", icon: Users },
             { id: "settings", label: "Hotel Settings", icon: Settings },
           ].map(({ id, label, icon: Icon }) => (
             <button
@@ -1042,7 +1225,7 @@ export default function App() {
               { id: "active-orders", label: "Active Bills & Tabs" },
               { id: "inventory", label: "Stock & Minibar" },
               { id: "room-admin", label: "Room Management" },
-              { id: "staff", label: "Staff & Payroll" },
+              { id: "staff", label: "Staff & Attendance" },
               { id: "settings", label: "Hotel Settings" },
             ].map((item) => (
               <button
@@ -1726,275 +1909,373 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 5: STAFF MANAGEMENT & PAYROLL (NEW MODULE) */}
+          {/* TAB 5: STAFF MANAGEMENT, ATTENDANCE & PAYROLL */}
           {activeTab === "staff" && (
             <div className="max-w-7xl mx-auto space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-2xl font-bold text-[#091D26] tracking-tight">Staff, Employment & Payroll</h2>
+                  <h2 className="text-2xl font-bold text-[#091D26] tracking-tight">Staff, Attendance & Payroll</h2>
                   <p className="text-sm text-slate-500">
-                    Manage team roles, clock-in timesheet hours, calculate gross pay, and disburse official wage slips.
+                    Track daily in/out shift attendance, manage team roles, and disburse official wage slips.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowAddStaffModal(true)}
-                  className="inline-flex items-center gap-2 bg-[#14B8A6] hover:bg-[#0D9488] text-white px-4 py-2.5 rounded-lg text-xs font-bold shadow-sm transition-all"
-                >
-                  <UserPlus className="w-4 h-4" /> Add New Staff Member
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handlePrintDailyAttendance}
+                    className="inline-flex items-center gap-2 bg-[#0F2D3C] hover:bg-[#091D26] text-white px-4 py-2.5 rounded-lg text-xs font-bold shadow-sm transition-all"
+                  >
+                    <FileSpreadsheet className="w-4 h-4 text-[#2DD4BF]" /> Print Daily Attendance
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddStaffModal(true)}
+                    className="inline-flex items-center gap-2 bg-[#14B8A6] hover:bg-[#0D9488] text-white px-4 py-2.5 rounded-lg text-xs font-bold shadow-sm transition-all"
+                  >
+                    <UserPlus className="w-4 h-4" /> Add Staff Member
+                  </button>
+                </div>
               </div>
 
-              {/* Payroll & Roster Executive Metric Cards */}
+              {/* Roster & Attendance Executive Metrics */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div className="bg-white border border-[#E6DFD3] rounded-xl p-4 shadow-sm">
-                  <p className="text-xs font-semibold uppercase text-slate-400">Total Staff Active</p>
+                  <p className="text-xs font-semibold uppercase text-slate-400">Total Personnel</p>
                   <p className="text-2xl font-black text-[#091D26] mt-1">{staff.length}</p>
                 </div>
                 <div className="bg-white border border-[#E6DFD3] rounded-xl p-4 shadow-sm">
-                  <p className="text-xs font-semibold uppercase text-[#0F766E]">Total Hours Logged</p>
-                  <p className="text-2xl font-black text-[#0F766E] mt-1">{totalHoursLogged} hrs</p>
+                  <p className="text-xs font-semibold uppercase text-[#0D9488]">Currently On Duty</p>
+                  <p className="text-2xl font-black text-[#0D9488] mt-1">{onDutyCount} Staff</p>
                 </div>
                 <div className="bg-white border border-[#E6DFD3] rounded-xl p-4 shadow-sm">
-                  <p className="text-xs font-semibold uppercase text-amber-700">Pending Wage Payouts</p>
-                  <p className="text-2xl font-black text-amber-700 mt-1">{pendingPayouts} Staff</p>
+                  <p className="text-xs font-semibold uppercase text-amber-700">Total Hours Logged</p>
+                  <p className="text-2xl font-black text-amber-700 mt-1">{totalHoursLogged} hrs</p>
                 </div>
                 <div className="bg-white border border-[#E6DFD3] rounded-xl p-4 shadow-sm">
-                  <p className="text-xs font-semibold uppercase text-[#F43F5E]">Est. Period Payroll</p>
-                  <p className="text-2xl font-black text-[#0D9488] mt-1">
+                  <p className="text-xs font-semibold uppercase text-[#F43F5E]">Est. Gross Payroll</p>
+                  <p className="text-2xl font-black text-[#091D26] mt-1">
                     {settings.currency}{totalPayrollGross.toFixed(2)}
                   </p>
                 </div>
               </div>
 
-              {/* Search Bar */}
-              <div className="relative w-full sm:w-80">
-                <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Search staff by name or role..."
-                  value={staffSearchQuery}
-                  onChange={(e) => setStaffSearchQuery(e.target.value)}
-                  className="w-full bg-white border border-[#E6DFD3] rounded-lg pl-9 pr-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
-                />
-              </div>
+              {/* View Switcher: Daily Attendance vs Payroll Roster */}
+              <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
+                <div className="flex bg-[#F3EFE6] p-1 rounded-lg border border-[#E6DFD3]">
+                  <button
+                    type="button"
+                    onClick={() => setStaffViewSubTab("attendance")}
+                    className={`px-4 py-1.5 rounded-md text-xs font-bold flex items-center gap-1.5 transition-all ${
+                      staffViewSubTab === "attendance" ? "bg-[#0F2D3C] text-white shadow-sm" : "text-slate-600 hover:text-black"
+                    }`}
+                  >
+                    <Clock className="w-3.5 h-3.5 text-[#2DD4BF]" /> Daily In/Out Attendance Sheet
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStaffViewSubTab("roster")}
+                    className={`px-4 py-1.5 rounded-md text-xs font-bold flex items-center gap-1.5 transition-all ${
+                      staffViewSubTab === "roster" ? "bg-[#0F2D3C] text-white shadow-sm" : "text-slate-600 hover:text-black"
+                    }`}
+                  >
+                    <DollarSign className="w-3.5 h-3.5 text-[#2DD4BF]" /> Employment & Payroll
+                  </button>
+                </div>
 
-              {/* Staff Management & Payroll Table */}
-              <div className="bg-white rounded-xl border border-[#E6DFD3] shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-[#F3EFE6] border-b border-[#E6DFD3] uppercase font-semibold text-slate-500">
-                      <tr>
-                        <th className="p-3.5">Staff Details</th>
-                        <th className="p-3.5">Role & Term</th>
-                        <th className="p-3.5">Hourly Rate</th>
-                        <th className="p-3.5 text-center">Hours Worked</th>
-                        <th className="p-3.5 text-right">Gross Pay</th>
-                        <th className="p-3.5 text-center">Payout Status</th>
-                        <th className="p-3.5 text-center">Payslip</th>
-                        <th className="p-3.5 text-center">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#F3EFE6]">
-                      {filteredStaff.map((member) => {
-                        const isEditing = editingStaffId === member.id;
-                        const grossPay = (member.hourlyRate || 0) * (member.hoursWorked || 0);
-
-                        return (
-                          <tr key={member.id} className="hover:bg-[#FAF9F5] transition-colors">
-                            {/* Staff Name & Phone */}
-                            <td className="p-3.5 font-bold text-[#091D26]">
-                              {isEditing ? (
-                                <div className="space-y-1">
-                                  <input
-                                    type="text"
-                                    className="w-full border border-[#14B8A6] rounded px-2 py-1 text-xs bg-white"
-                                    value={editStaffForm.name}
-                                    onChange={(e) => setEditStaffForm({ ...editStaffForm, name: e.target.value })}
-                                  />
-                                  <input
-                                    type="text"
-                                    placeholder="Phone"
-                                    className="w-full border border-[#D3C8B7] rounded px-2 py-1 text-[11px] bg-white"
-                                    value={editStaffForm.phone}
-                                    onChange={(e) => setEditStaffForm({ ...editStaffForm, phone: e.target.value })}
-                                  />
-                                </div>
-                              ) : (
-                                <div>
-                                  <div className="text-sm font-bold text-[#091D26]">{member.name}</div>
-                                  <div className="text-[11px] text-slate-400 font-mono">PIN: ****{member.pin.slice(-2)} | {member.phone || "No phone"}</div>
-                                </div>
-                              )}
-                            </td>
-
-                            {/* Role & Term */}
-                            <td className="p-3.5">
-                              {isEditing ? (
-                                <div className="space-y-1">
-                                  <select
-                                    value={editStaffForm.role}
-                                    onChange={(e) => setEditStaffForm({ ...editStaffForm, role: e.target.value })}
-                                    className="w-full border border-[#14B8A6] rounded px-1.5 py-1 text-xs bg-white"
-                                  >
-                                    <option value="Manager">Manager</option>
-                                    <option value="Front Desk">Front Desk</option>
-                                    <option value="Housekeeping">Housekeeping</option>
-                                    <option value="Maintenance">Maintenance</option>
-                                    <option value="F&B / Restaurant">F&B / Restaurant</option>
-                                    <option value="Bartender">Bartender</option>
-                                    <option value="Security">Security</option>
-                                  </select>
-                                  <select
-                                    value={editStaffForm.type}
-                                    onChange={(e) => setEditStaffForm({ ...editStaffForm, type: e.target.value })}
-                                    className="w-full border border-[#D3C8B7] rounded px-1.5 py-1 text-[11px] bg-white"
-                                  >
-                                    <option value="Full-Time">Full-Time</option>
-                                    <option value="Part-Time">Part-Time</option>
-                                    <option value="Casual">Casual</option>
-                                    <option value="Contractor">Contractor</option>
-                                  </select>
-                                </div>
-                              ) : (
-                                <div>
-                                  <span className="font-semibold text-[#091D26] block">{member.role}</span>
-                                  <span className="bg-[#CCFBF1] text-[#0F766E] text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">
-                                    {member.type || "Full-Time"}
-                                  </span>
-                                </div>
-                              )}
-                            </td>
-
-                            {/* Hourly Rate */}
-                            <td className="p-3.5 font-medium text-slate-800">
-                              {isEditing ? (
-                                <input
-                                  type="number"
-                                  step="0.5"
-                                  className="w-20 border border-[#14B8A6] rounded px-2 py-1 text-xs bg-white"
-                                  value={editStaffForm.hourlyRate}
-                                  onChange={(e) => setEditStaffForm({ ...editStaffForm, hourlyRate: e.target.value })}
-                                />
-                              ) : (
-                                `${settings.currency}${Number(member.hourlyRate).toFixed(2)}/hr`
-                              )}
-                            </td>
-
-                            {/* Hours Worked */}
-                            <td className="p-3.5 text-center">
-                              {isEditing ? (
-                                <input
-                                  type="number"
-                                  className="w-16 border border-[#14B8A6] rounded px-2 py-1 text-xs text-center bg-white"
-                                  value={editStaffForm.hoursWorked}
-                                  onChange={(e) => setEditStaffForm({ ...editStaffForm, hoursWorked: e.target.value })}
-                                />
-                              ) : (
-                                <div className="inline-flex items-center gap-1.5">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleQuickAddHours(member.id, -1)}
-                                    className="px-1.5 py-0.5 border border-[#D3C8B7] rounded hover:bg-slate-100 font-bold"
-                                  >
-                                    -
-                                  </button>
-                                  <span className="font-bold text-[#091D26] w-12 text-center">{member.hoursWorked || 0} hrs</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleQuickAddHours(member.id, 1)}
-                                    className="px-1.5 py-0.5 border border-[#D3C8B7] rounded hover:bg-slate-100 font-bold"
-                                  >
-                                    +
-                                  </button>
-                                </div>
-                              )}
-                            </td>
-
-                            {/* Gross Pay */}
-                            <td className="p-3.5 text-right font-black text-sm text-[#0D9488]">
-                              {settings.currency}{grossPay.toFixed(2)}
-                            </td>
-
-                            {/* Payout Status Toggle */}
-                            <td className="p-3.5 text-center">
-                              <button
-                                type="button"
-                                onClick={() => handleToggleStaffPayout(member.id, member.paid)}
-                                className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase transition-all ${
-                                  member.paid
-                                    ? "bg-[#CCFBF1] text-[#0F766E] border border-[#2DD4BF]"
-                                    : "bg-[#FFE4E6] text-[#F43F5E] border border-coral-200 hover:bg-coral-100"
-                                }`}
-                              >
-                                {member.paid ? "Paid" : "Mark Paid"}
-                              </button>
-                            </td>
-
-                            {/* Official Payslip Print */}
-                            <td className="p-3.5 text-center">
-                              <button
-                                type="button"
-                                onClick={() => handlePrintPayslip(member)}
-                                className="p-1.5 bg-[#0F2D3C] hover:bg-[#091D26] text-white rounded-lg text-xs font-semibold inline-flex items-center gap-1"
-                                title="Print Official Payslip"
-                              >
-                                <Printer className="w-3.5 h-3.5 text-[#2DD4BF]" /> Slip
-                              </button>
-                            </td>
-
-                            {/* Actions */}
-                            <td className="p-3.5 text-center">
-                              {isEditing ? (
-                                <div className="inline-flex items-center gap-1">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleSaveStaffEdit(member.id)}
-                                    className="p-1 bg-[#14B8A6] hover:bg-[#0D9488] text-white rounded"
-                                  >
-                                    <Check className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => setEditingStaffId(null)}
-                                    className="p-1 bg-slate-200 hover:bg-slate-300 text-slate-600 rounded"
-                                  >
-                                    <X className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className="inline-flex items-center gap-1.5">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleStartEditStaff(member)}
-                                    className="text-slate-400 hover:text-[#0D9488] p-1"
-                                  >
-                                    <Edit2 className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteStaff(member)}
-                                    className="text-[#F43F5E] hover:text-[#E11D48] p-1"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                      {filteredStaff.length === 0 && (
-                        <tr>
-                          <td colSpan={8} className="p-8 text-center text-slate-400">
-                            No team members found matching your search.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
+                <div className="relative w-full sm:w-72">
+                  <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search staff by name or role..."
+                    value={staffSearchQuery}
+                    onChange={(e) => setStaffSearchQuery(e.target.value)}
+                    className="w-full bg-white border border-[#E6DFD3] rounded-lg pl-9 pr-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
+                  />
                 </div>
               </div>
+
+              {/* VIEW 1: DAILY IN/OUT ATTENDANCE SHEET */}
+              {staffViewSubTab === "attendance" && (
+                <div className="bg-white rounded-xl border border-[#E6DFD3] shadow-sm overflow-hidden">
+                  <div className="p-4 border-b border-[#F3EFE6] flex justify-between items-center bg-[#FAF9F5]">
+                    <div>
+                      <h3 className="font-bold text-sm text-[#091D26]">Daily Shift Time-Clock Log</h3>
+                      <p className="text-[11px] text-slate-500">Record employee clock-in and clock-out timestamps for today</p>
+                    </div>
+                    <span className="text-xs font-mono font-bold text-[#0F766E] bg-[#CCFBF1] px-2.5 py-1 rounded">
+                      {new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                    </span>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-[#F3EFE6] border-b border-[#E6DFD3] uppercase font-semibold text-slate-500">
+                        <tr>
+                          <th className="p-3.5">Employee</th>
+                          <th className="p-3.5">Role</th>
+                          <th className="p-3.5 text-center">Clock-In Time</th>
+                          <th className="p-3.5 text-center">Clock-Out Time</th>
+                          <th className="p-3.5 text-center">Current Status</th>
+                          <th className="p-3.5 text-center">Time-Clock Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#F3EFE6]">
+                        {filteredStaff.map((member) => (
+                          <tr key={member.id} className="hover:bg-[#FAF9F5] transition-colors">
+                            <td className="p-3.5 font-bold text-[#091D26]">
+                              <div className="text-sm">{member.name}</div>
+                              <div className="text-[10px] text-slate-400 font-mono">PIN: ****{member.pin.slice(-2)}</div>
+                            </td>
+                            <td className="p-3.5">
+                              <span className="font-semibold text-slate-800 block">{member.role}</span>
+                              <span className="text-[10px] text-slate-500">{member.type}</span>
+                            </td>
+                            <td className="p-3.5 text-center font-mono font-bold text-slate-800">
+                              {member.clockIn ? (
+                                <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded">
+                                  {member.clockIn}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 italic">--:--</span>
+                              )}
+                            </td>
+                            <td className="p-3.5 text-center font-mono font-bold text-slate-800">
+                              {member.clockOut ? (
+                                <span className="bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded">
+                                  {member.clockOut}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 italic">--:--</span>
+                              )}
+                            </td>
+                            <td className="p-3.5 text-center">
+                              <span
+                                className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
+                                  member.isOnDuty
+                                    ? "bg-[#CCFBF1] text-[#0F766E] border border-[#2DD4BF]"
+                                    : member.clockOut
+                                    ? "bg-slate-100 text-slate-600"
+                                    : "bg-[#FFE4E6] text-[#F43F5E]"
+                                }`}
+                              >
+                                {member.isOnDuty ? "On Duty" : member.clockOut ? "Completed" : "Off Duty"}
+                              </span>
+                            </td>
+                            <td className="p-3.5 text-center">
+                              <div className="inline-flex gap-1.5">
+                                {!member.isOnDuty ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleClockIn(member.id)}
+                                    className="px-3 py-1.5 bg-[#0D9488] hover:bg-[#0F766E] text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-sm"
+                                  >
+                                    <LogIn className="w-3.5 h-3.5" /> Clock In
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleClockOut(member.id)}
+                                    className="px-3 py-1.5 bg-[#F43F5E] hover:bg-[#E11D48] text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-sm"
+                                  >
+                                    <LogOut className="w-3.5 h-3.5" /> Clock Out
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* VIEW 2: EMPLOYMENT ROSTER & PAYROLL */}
+              {staffViewSubTab === "roster" && (
+                <div className="bg-white rounded-xl border border-[#E6DFD3] shadow-sm overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-[#F3EFE6] border-b border-[#E6DFD3] uppercase font-semibold text-slate-500">
+                        <tr>
+                          <th className="p-3.5">Staff Details</th>
+                          <th className="p-3.5">Role & Term</th>
+                          <th className="p-3.5">Hourly Rate</th>
+                          <th className="p-3.5 text-center">Hours Worked</th>
+                          <th className="p-3.5 text-right">Gross Pay</th>
+                          <th className="p-3.5 text-center">Payout Status</th>
+                          <th className="p-3.5 text-center">Payslip</th>
+                          <th className="p-3.5 text-center">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#F3EFE6]">
+                        {filteredStaff.map((member) => {
+                          const isEditing = editingStaffId === member.id;
+                          const grossPay = (member.hourlyRate || 0) * (member.hoursWorked || 0);
+
+                          return (
+                            <tr key={member.id} className="hover:bg-[#FAF9F5] transition-colors">
+                              <td className="p-3.5 font-bold text-[#091D26]">
+                                {isEditing ? (
+                                  <div className="space-y-1">
+                                    <input
+                                      type="text"
+                                      className="w-full border border-[#14B8A6] rounded px-2 py-1 text-xs bg-white"
+                                      value={editStaffForm.name}
+                                      onChange={(e) => setEditStaffForm({ ...editStaffForm, name: e.target.value })}
+                                    />
+                                    <input
+                                      type="text"
+                                      placeholder="Phone"
+                                      className="w-full border border-[#D3C8B7] rounded px-2 py-1 text-[11px] bg-white"
+                                      value={editStaffForm.phone}
+                                      onChange={(e) => setEditStaffForm({ ...editStaffForm, phone: e.target.value })}
+                                    />
+                                  </div>
+                                ) : (
+                                  <div>
+                                    <div className="text-sm font-bold text-[#091D26]">{member.name}</div>
+                                    <div className="text-[11px] text-slate-400 font-mono">PIN: ****{member.pin.slice(-2)} | {member.phone || "No phone"}</div>
+                                  </div>
+                                )}
+                              </td>
+
+                              <td className="p-3.5">
+                                {isEditing ? (
+                                  <div className="space-y-1">
+                                    <select
+                                      value={editStaffForm.role}
+                                      onChange={(e) => setEditStaffForm({ ...editStaffForm, role: e.target.value })}
+                                      className="w-full border border-[#14B8A6] rounded px-1.5 py-1 text-xs bg-white"
+                                    >
+                                      <option value="Manager">Manager</option>
+                                      <option value="Front Desk">Front Desk</option>
+                                      <option value="Housekeeping">Housekeeping</option>
+                                      <option value="Maintenance">Maintenance</option>
+                                      <option value="F&B / Restaurant">F&B / Restaurant</option>
+                                      <option value="Bartender">Bartender</option>
+                                      <option value="Security">Security</option>
+                                    </select>
+                                    <select
+                                      value={editStaffForm.type}
+                                      onChange={(e) => setEditStaffForm({ ...editStaffForm, type: e.target.value })}
+                                      className="w-full border border-[#D3C8B7] rounded px-1.5 py-1 text-[11px] bg-white"
+                                    >
+                                      <option value="Full-Time">Full-Time</option>
+                                      <option value="Part-Time">Part-Time</option>
+                                      <option value="Casual">Casual</option>
+                                      <option value="Contractor">Contractor</option>
+                                    </select>
+                                  </div>
+                                ) : (
+                                  <div>
+                                    <span className="font-semibold text-[#091D26] block">{member.role}</span>
+                                    <span className="bg-[#CCFBF1] text-[#0F766E] text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">
+                                      {member.type || "Full-Time"}
+                                    </span>
+                                  </div>
+                                )}
+                              </td>
+
+                              <td className="p-3.5 font-medium text-slate-800">
+                                {isEditing ? (
+                                  <input
+                                    type="number"
+                                    step="0.5"
+                                    className="w-20 border border-[#14B8A6] rounded px-2 py-1 text-xs bg-white"
+                                    value={editStaffForm.hourlyRate}
+                                    onChange={(e) => setEditStaffForm({ ...editStaffForm, hourlyRate: e.target.value })}
+                                  />
+                                ) : (
+                                  `${settings.currency}${Number(member.hourlyRate).toFixed(2)}/hr`
+                                )}
+                              </td>
+
+                              <td className="p-3.5 text-center">
+                                {isEditing ? (
+                                  <input
+                                    type="number"
+                                    className="w-16 border border-[#14B8A6] rounded px-2 py-1 text-xs text-center bg-white"
+                                    value={editStaffForm.hoursWorked}
+                                    onChange={(e) => setEditStaffForm({ ...editStaffForm, hoursWorked: e.target.value })}
+                                  />
+                                ) : (
+                                  <span className="font-bold text-[#091D26]">{member.hoursWorked || 0} hrs</span>
+                                )}
+                              </td>
+
+                              <td className="p-3.5 text-right font-black text-sm text-[#0D9488]">
+                                {settings.currency}{grossPay.toFixed(2)}
+                              </td>
+
+                              <td className="p-3.5 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleStaffPayout(member.id, member.paid)}
+                                  className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase transition-all ${
+                                    member.paid
+                                      ? "bg-[#CCFBF1] text-[#0F766E] border border-[#2DD4BF]"
+                                      : "bg-[#FFE4E6] text-[#F43F5E] border border-coral-200 hover:bg-coral-100"
+                                  }`}
+                                >
+                                  {member.paid ? "Paid" : "Mark Paid"}
+                                </button>
+                              </td>
+
+                              <td className="p-3.5 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handlePrintPayslip(member)}
+                                  className="p-1.5 bg-[#0F2D3C] hover:bg-[#091D26] text-white rounded-lg text-xs font-semibold inline-flex items-center gap-1"
+                                >
+                                  <Printer className="w-3.5 h-3.5 text-[#2DD4BF]" /> Slip
+                                </button>
+                              </td>
+
+                              <td className="p-3.5 text-center">
+                                {isEditing ? (
+                                  <div className="inline-flex items-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSaveStaffEdit(member.id)}
+                                      className="p-1 bg-[#14B8A6] hover:bg-[#0D9488] text-white rounded"
+                                    >
+                                      <Check className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditingStaffId(null)}
+                                      className="p-1 bg-slate-200 hover:bg-slate-300 text-slate-600 rounded"
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="inline-flex items-center gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleStartEditStaff(member)}
+                                      className="text-slate-400 hover:text-[#0D9488] p-1"
+                                    >
+                                      <Edit2 className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteStaff(member)}
+                                      className="text-[#F43F5E] hover:text-[#E11D48] p-1"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -2320,7 +2601,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL 4: ADD INVENTORY ITEM */}
+      {/* MODAL 4: ADD INVENTORY / MINIBAR ITEM */}
       {showAddInventoryModal && (
         <div className="no-print fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-[#E6DFD3]">
@@ -2400,7 +2681,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL 5: ADD STAFF MEMBER & ROLE (NEW) */}
+      {/* MODAL 5: ADD STAFF MEMBER */}
       {showAddStaffModal && (
         <div className="no-print fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-[#E6DFD3]">
