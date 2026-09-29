@@ -30,7 +30,8 @@ import {
   Banknote,
   ArrowRight,
   Clock,
-  ShoppingBag
+  ShoppingBag,
+  FileText
 } from "lucide-react";
 
 // --- 1. FIREBASE CONFIGURATION ---
@@ -69,9 +70,10 @@ export default function App() {
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Active Order Selection & Print State
+  // Active Selection & Print Mode State
   const [selectedRoomId, setSelectedRoomId] = useState("");
-  const [printFormat, setPrintFormat] = useState("thermal");
+  const [printFormat, setPrintFormat] = useState("thermal"); // 'thermal' or 'a4'
+  const [isTemporaryBill, setIsTemporaryBill] = useState(false); // true for interim check, false for settled tax invoice
 
   // Front Desk Modals
   const [checkInModalRoom, setCheckInModalRoom] = useState(null);
@@ -142,7 +144,7 @@ export default function App() {
         snap.forEach((d) => loaded.push(d.data()));
         setRooms(loaded.sort((a, b) => a.number.localeCompare(b.number)));
         if (!selectedRoomId && loaded.length > 0) {
-          const firstOccupied = loaded.find(r => r.status === "occupied");
+          const firstOccupied = loaded.find((r) => r.status === "occupied");
           setSelectedRoomId(firstOccupied ? firstOccupied.id : loaded[0].id);
         }
       }
@@ -221,7 +223,7 @@ export default function App() {
     const nights = guestForm.nights || 1;
     const now = new Date();
     const orderId = `ORD-${checkInModalRoom.number}-${Date.now().toString().slice(-4)}`;
-    
+
     const initialOrderItems = [
       {
         id: `itm_${Date.now()}`,
@@ -229,7 +231,7 @@ export default function App() {
         quantity: nights,
         unitPrice: checkInModalRoom.rate,
         total: checkInModalRoom.rate * nights,
-        timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`,
+        timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
       },
     ];
 
@@ -263,7 +265,7 @@ export default function App() {
       quantity,
       unitPrice,
       total: unitPrice * quantity,
-      timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`,
+      timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
     };
 
     const updatedItems = [...(currentRoom.orderItems || []), newItem];
@@ -285,7 +287,7 @@ export default function App() {
       quantity: 1,
       unitPrice: item.price,
       total: item.price,
-      timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`,
+      timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
     };
 
     const updatedItems = [...(currentRoom.orderItems || []), newItem];
@@ -310,10 +312,48 @@ export default function App() {
     setCashTendered("");
   };
 
-  // Settle Order and Release Room to Cleaning
+  // DELETE / VOID an Active Bill
+  const handleDeleteActiveBill = async (room) => {
+    if (
+      window.confirm(
+        `Are you sure you want to delete/void the active bill for Room #${room.number}? This will cancel the order and return the room to Available.`
+      )
+    ) {
+      await updateDoc(doc(db, "rooms", room.id), {
+        status: "available",
+        orderId: null,
+        openedAt: null,
+        guestName: "",
+        guestPhone: "",
+        checkIn: "",
+        checkOut: "",
+        orderItems: [],
+      });
+    }
+  };
+
+  // PRINT TEMPORARY PRE-CHECK BILL
+  const handlePrintTemporaryBill = (room) => {
+    setSelectedRoomId(room.id);
+    setIsTemporaryBill(true);
+    setTimeout(() => {
+      window.print();
+    }, 120);
+  };
+
+  // AUTO PRINT FINAL INVOICE & CONFIRM SETTLEMENT
   const handleConfirmOrderSettlement = async () => {
     if (!settleOrderRoom) return;
 
+    // 1. Prepare print context as final official tax invoice
+    setIsTemporaryBill(false);
+
+    // 2. Trigger auto print directly
+    setTimeout(() => {
+      window.print();
+    }, 150);
+
+    // 3. Clear active bill in Firestore and move room to Housekeeping
     await updateDoc(doc(db, "rooms", settleOrderRoom.id), {
       status: "cleaning",
       orderId: null,
@@ -367,13 +407,6 @@ export default function App() {
     }
   };
 
-  const handlePrint = (format) => {
-    setPrintFormat(format);
-    setTimeout(() => {
-      window.print();
-    }, 150);
-  };
-
   // Calculation for Cash Change in Settlement
   const parsedTendered = parseFloat(cashTendered) || 0;
   const changeDue = Math.max(0, parsedTendered - printTargetTotal);
@@ -406,7 +439,7 @@ export default function App() {
         <nav className="flex-1 px-3 py-6 space-y-1.5 overflow-y-auto">
           {[
             { id: "frontdesk", label: "Front Desk & Status", icon: Bed },
-            { id: "active-orders", label: "Active Orders / Tabs", icon: Receipt },
+            { id: "active-orders", label: "Active Bills & Tabs", icon: Receipt },
             { id: "room-admin", label: "Room Management", icon: SlidersHorizontal },
             { id: "inventory", label: "Stock & Minibar", icon: Boxes },
             { id: "staff", label: "Staff & Access", icon: Users },
@@ -448,7 +481,7 @@ export default function App() {
           <div className="no-print md:hidden bg-[#091D26] border-b border-[#0F2D3C] p-4 space-y-2 z-50 text-white">
             {[
               { id: "frontdesk", label: "Front Desk" },
-              { id: "active-orders", label: "Active Orders" },
+              { id: "active-orders", label: "Active Bills & Tabs" },
               { id: "room-admin", label: "Room Management" },
               { id: "inventory", label: "Stock & Minibar" },
               { id: "staff", label: "Staff & Access" },
@@ -456,7 +489,10 @@ export default function App() {
             ].map((item) => (
               <button
                 key={item.id}
-                onClick={() => { setActiveTab(item.id); setMobileMenuOpen(false); }}
+                onClick={() => {
+                  setActiveTab(item.id);
+                  setMobileMenuOpen(false);
+                }}
                 className={`w-full text-left py-2 px-3 rounded text-sm ${activeTab === item.id ? "bg-[#0D9488]" : ""}`}
               >
                 {item.label}
@@ -472,14 +508,14 @@ export default function App() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <h2 className="text-2xl font-bold text-[#091D26] tracking-tight">Front Desk Operations</h2>
-                  <p className="text-sm text-slate-500">Guest check-ins, room turnover, and active order settlements</p>
+                  <p className="text-sm text-slate-500">Guest check-ins, room turnover, and active bill settlements</p>
                 </div>
                 <div className="flex items-center gap-2 text-xs">
                   <span className="bg-white border border-[#E6DFD3] px-3 py-1.5 rounded-lg shadow-sm">
                     Total Rooms: <b>{rooms.length}</b>
                   </span>
                   <span className="bg-[#F0FDF4] border border-[#CCFBF1] text-[#0F766E] px-3 py-1.5 rounded-lg">
-                    Active Orders: <b>{rooms.filter((r) => r.status === "occupied").length}</b>
+                    Active Bills: <b>{rooms.filter((r) => r.status === "occupied").length}</b>
                   </span>
                 </div>
               </div>
@@ -576,22 +612,39 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 2: ACTIVE ORDERS / OPEN TABS */}
+          {/* TAB 2: ACTIVE BILLS / OPEN TABS */}
           {activeTab === "active-orders" && (
             <div className="max-w-7xl mx-auto space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-2xl font-bold text-[#091D26]">Active Orders & Guest Tabs</h2>
-                  <p className="text-sm text-slate-500">Live order tickets for currently occupied rooms. Add food/drinks or settle.</p>
+                  <h2 className="text-2xl font-bold text-[#091D26]">Active Bills & Guest Tabs</h2>
+                  <p className="text-sm text-slate-500">
+                    Print temporary guest check bills, add minibar items, settle invoices, or void orders.
+                  </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-white border border-[#E6DFD3]">
-                    Open Orders: <b>{rooms.filter((r) => r.status === "occupied").length}</b>
-                  </span>
+                {/* Print Format Switcher */}
+                <div className="flex items-center gap-2 bg-white border border-[#E6DFD3] p-1.5 rounded-lg text-xs">
+                  <span className="font-semibold text-slate-500 pl-1 text-[11px] uppercase">Format:</span>
+                  <button
+                    onClick={() => setPrintFormat("thermal")}
+                    className={`px-2.5 py-1 rounded font-bold transition-all ${
+                      printFormat === "thermal" ? "bg-[#0F2D3C] text-white" : "text-slate-600 hover:bg-slate-100"
+                    }`}
+                  >
+                    80mm Thermal
+                  </button>
+                  <button
+                    onClick={() => setPrintFormat("a4")}
+                    className={`px-2.5 py-1 rounded font-bold transition-all ${
+                      printFormat === "a4" ? "bg-[#0F2D3C] text-white" : "text-slate-600 hover:bg-slate-100"
+                    }`}
+                  >
+                    A4 Paper
+                  </button>
                 </div>
               </div>
 
-              {/* ACTIVE ORDER CARDS (BY ROOM) */}
+              {/* ACTIVE BILL CARDS */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                 {rooms
                   .filter((r) => r.status === "occupied")
@@ -607,7 +660,7 @@ export default function App() {
                         }`}
                       >
                         <div>
-                          {/* Order Ticket Header */}
+                          {/* Order Header */}
                           <div className="flex justify-between items-start mb-3 pb-2 border-b border-[#F3EFE6]">
                             <div>
                               <div className="flex items-center gap-1.5 text-xs text-[#0F766E] font-bold">
@@ -632,10 +685,10 @@ export default function App() {
                             </p>
                           </div>
 
-                          {/* Line Items List */}
+                          {/* Line Items Preview */}
                           <div className="bg-[#FAF9F5] p-3 rounded-lg border border-[#E6DFD3] mb-4">
                             <span className="text-[11px] font-bold uppercase text-slate-500 block mb-1.5">
-                              Ordered Items ({room.orderItems?.length || 0})
+                              Items on Bill ({room.orderItems?.length || 0})
                             </span>
                             <div className="max-h-28 overflow-y-auto space-y-1.5 text-xs">
                               {room.orderItems?.map((item) => (
@@ -643,7 +696,6 @@ export default function App() {
                                   <div className="truncate pr-2">
                                     <span className="font-bold text-[#091D26] mr-1">{item.quantity}x</span>
                                     <span>{item.description}</span>
-                                    {item.timestamp && <span className="text-[10px] text-slate-400 block">{item.timestamp}</span>}
                                   </div>
                                   <span className="font-semibold text-[#091D26] shrink-0">
                                     {settings.currency}{item.total.toFixed(2)}
@@ -651,30 +703,47 @@ export default function App() {
                                 </div>
                               ))}
                               {(!room.orderItems || room.orderItems.length === 0) && (
-                                <p className="text-slate-400 italic">No items posted to this order</p>
+                                <p className="text-slate-400 italic">No items posted to this bill</p>
                               )}
                             </div>
                           </div>
                         </div>
 
-                        {/* Order Actions */}
-                        <div className="flex gap-2 pt-2 border-t border-[#F3EFE6]">
-                          <button
-                            onClick={() => setSelectedRoomId(room.id)}
-                            className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors ${
-                              isSelected
-                                ? "bg-[#0F2D3C] text-white"
-                                : "bg-[#F3EFE6] hover:bg-[#E6DFD3] text-[#091D26]"
-                            }`}
-                          >
-                            {isSelected ? "Adding to Order" : "Add Items"}
-                          </button>
-                          <button
-                            onClick={() => handleInitiateSettleOrder(room)}
-                            className="flex-1 bg-[#F43F5E] hover:bg-[#E11D48] text-white py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1 shadow-sm"
-                          >
-                            Settle Order <ArrowRight className="w-3.5 h-3.5" />
-                          </button>
+                        {/* Bill Actions: Temp Print, Settle, Delete */}
+                        <div className="space-y-2 pt-2 border-t border-[#F3EFE6]">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handlePrintTemporaryBill(room)}
+                              className="flex-1 bg-[#0F2D3C] hover:bg-[#091D26] text-white py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 transition-colors"
+                              title="Print pre-check bill for guest review"
+                            >
+                              <Printer className="w-3.5 h-3.5 text-[#2DD4BF]" /> Print Temp Bill
+                            </button>
+                            <button
+                              onClick={() => setSelectedRoomId(room.id)}
+                              className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors ${
+                                isSelected ? "bg-[#14B8A6] text-white" : "bg-[#F3EFE6] hover:bg-[#E6DFD3] text-[#091D26]"
+                              }`}
+                            >
+                              {isSelected ? "Posting Items" : "Add Items"}
+                            </button>
+                          </div>
+
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleInitiateSettleOrder(room)}
+                              className="flex-3 bg-[#0D9488] hover:bg-[#0F766E] text-white py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1 shadow-sm"
+                            >
+                              Settle Bill <ArrowRight className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteActiveBill(room)}
+                              className="p-2 border border-coral-200 text-coral-600 hover:bg-coral-50 rounded-lg text-xs transition-colors"
+                              title="Delete / Void this active bill"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );
@@ -684,7 +753,7 @@ export default function App() {
               {rooms.filter((r) => r.status === "occupied").length === 0 && (
                 <div className="bg-white rounded-xl border border-[#E6DFD3] p-12 text-center">
                   <Receipt className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                  <h3 className="font-bold text-lg text-[#091D26]">No Active Orders</h3>
+                  <h3 className="font-bold text-lg text-[#091D26]">No Active Bills</h3>
                   <p className="text-xs text-slate-500 mt-1">There are no occupied rooms with open tabs at this time.</p>
                 </div>
               )}
@@ -695,7 +764,7 @@ export default function App() {
                   <div className="flex justify-between items-center mb-4">
                     <div>
                       <h3 className="text-lg font-bold text-[#091D26]">
-                        Posting to Order: {currentRoom.orderId || `ORD-${currentRoom.number}`} (Room #{currentRoom.number})
+                        Posting Charges to Room #{currentRoom.number} ({currentRoom.guestName})
                       </h3>
                       <p className="text-xs text-slate-500">Post extra amenities, food orders, or minibar consumables</p>
                     </div>
@@ -1166,7 +1235,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL 2: ORDER SETTLEMENT CONSOLE (Front Desk Checkout) */}
+      {/* MODAL 2: ORDER SETTLEMENT CONSOLE (AUTO-PRINTS ON CONFIRM) */}
       {settleOrderRoom && (
         <div className="no-print fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-[#E6DFD3]">
@@ -1196,7 +1265,7 @@ export default function App() {
                 </div>
               ))}
               <div className="pt-2 flex justify-between font-black text-sm text-[#091D26]">
-                <span>Total Order Balance:</span>
+                <span>Total Balance to Settle:</span>
                 <span className="text-[#0D9488] text-base">
                   {settings.currency}{calculateTotal(settleOrderRoom).toFixed(2)}
                 </span>
@@ -1250,27 +1319,12 @@ export default function App() {
               </div>
             )}
 
-            {/* Print Options */}
-            <div className="bg-[#CCFBF1]/30 p-3 rounded-xl border border-[#2DD4BF]/50 mb-5">
-              <span className="text-[11px] font-bold uppercase text-[#0F766E] block mb-2">
-                Print Final Invoice / Bill
+            {/* Automated Final Print Notice */}
+            <div className="bg-sand-100 p-2.5 rounded-lg border border-sand-200 text-xs text-slate-600 mb-5 flex items-center gap-2">
+              <Printer className="w-4 h-4 text-[#0D9488]" />
+              <span>
+                Final tax invoice ({printFormat === "thermal" ? "80mm Thermal" : "A4 Sheet"}) will auto-print upon confirmation.
               </span>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => handlePrint("thermal")}
-                  className="flex items-center justify-center gap-1.5 bg-[#0F2D3C] hover:bg-[#091D26] text-white py-2 rounded-lg text-xs font-bold shadow-sm"
-                >
-                  <Printer className="w-3.5 h-3.5 text-[#2DD4BF]" /> 80mm Thermal
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handlePrint("a4")}
-                  className="flex items-center justify-center gap-1.5 bg-[#14B8A6] hover:bg-[#0D9488] text-white py-2 rounded-lg text-xs font-bold shadow-sm"
-                >
-                  <Receipt className="w-3.5 h-3.5" /> Official A4
-                </button>
-              </div>
             </div>
 
             {/* Settle Action */}
@@ -1285,9 +1339,9 @@ export default function App() {
               <button
                 type="button"
                 onClick={handleConfirmOrderSettlement}
-                className="flex-2 bg-[#F43F5E] hover:bg-[#E11D48] text-white py-3 px-6 rounded-lg text-xs font-bold shadow-md"
+                className="flex-2 bg-[#0D9488] hover:bg-[#0F766E] text-white py-3 px-6 rounded-lg text-xs font-bold shadow-md flex items-center justify-center gap-1.5"
               >
-                Settle Order & Release Room
+                <Check className="w-4 h-4" /> Confirm Payment & Settle
               </button>
             </div>
           </div>
@@ -1371,23 +1425,23 @@ export default function App() {
       )}
 
       {/* =========================================================
-          PLAIN MONOCHROME PRINT ENGINE (NO BACKGROUNDS)
+          PRINT ENGINE CONTAINER (MONOCHROME / NO BACKGROUNDS)
+          Auto-Prints Settled Invoice OR Temporary Pre-check Bill
           ========================================================= */}
       <div className="printable-area hidden">
         {printFormat === "thermal" ? (
-          /* THERMAL 80MM / 58MM PLAIN RECEIPT */
+          /* 80mm THERMAL RECEIPT */
           <div className="thermal-mode">
-            {/* Header */}
-            <div style={{ textAlign: "center", paddingBottom: "8px", borderBottom: "1px dashed #000" }}>
-              <div style={{ fontWeight: "bold", fontSize: "14px", textTransform: "uppercase", letterSpacing: "1px" }}>
-                {settings.hotelName}
-              </div>
-              <div style={{ fontSize: "10px", marginTop: "2px" }}>{settings.address}</div>
+            <div style={{ textAlign: "center", paddingBottom: "6px", borderBottom: "1px dashed #000" }}>
+              <div style={{ fontWeight: "bold", fontSize: "14px", textTransform: "uppercase" }}>{settings.hotelName}</div>
+              <div style={{ fontSize: "10px" }}>{settings.address}</div>
               <div style={{ fontSize: "10px" }}>Tel: {settings.phone}</div>
               <div style={{ fontSize: "10px" }}>Tax Reg: {settings.taxNumber}</div>
+              <div style={{ marginTop: "4px", fontWeight: "bold", fontSize: "11px" }}>
+                {isTemporaryBill ? "*** TEMPORARY GUEST CHECK ***" : "OFFICIAL TAX RECEIPT"}
+              </div>
             </div>
 
-            {/* Metadata */}
             <div style={{ padding: "6px 0", borderBottom: "1px dashed #000", fontSize: "10px" }}>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <span>ORDER: {printTargetRoom?.orderId || `ORD-${printTargetRoom?.number}`}</span>
@@ -1395,12 +1449,11 @@ export default function App() {
               </div>
               <div>GUEST: {printTargetRoom?.guestName || "Walk-In"}</div>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>METHOD: {settlementMethod}</span>
+                <span>STATUS: {isTemporaryBill ? "PENDING SETTLEMENT" : `PAID (${settlementMethod})`}</span>
                 <span>{new Date().toLocaleDateString()}</span>
               </div>
             </div>
 
-            {/* Line Items */}
             <table style={{ width: "100%", textAlign: "left", margin: "6px 0", borderCollapse: "collapse", fontSize: "11px" }}>
               <thead>
                 <tr style={{ borderBottom: "1px solid #000" }}>
@@ -1424,23 +1477,20 @@ export default function App() {
               </tbody>
             </table>
 
-            {/* Totals */}
             <div style={{ borderTop: "1px dashed #000", paddingTop: "6px", fontSize: "12px", fontWeight: "bold" }}>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>TOTAL PAID:</span>
+                <span>{isTemporaryBill ? "BALANCE DUE:" : "TOTAL PAID:"}</span>
                 <span>{settings.currency}{printTargetTotal.toFixed(2)}</span>
               </div>
             </div>
 
-            {/* Footer */}
-            <div style={{ textAlign: "center", marginTop: "14px", paddingTop: "8px", borderTop: "1px dashed #000", fontSize: "10px" }}>
-              <div>{settings.footerNote}</div>
+            <div style={{ textAlign: "center", marginTop: "12px", paddingTop: "6px", borderTop: "1px dashed #000", fontSize: "10px" }}>
+              <div>{isTemporaryBill ? "Please review before checkout" : settings.footerNote}</div>
             </div>
           </div>
         ) : (
-          /* PLAIN A4 INVOICE / FOLIO (NO TINT, NO GRAY BACKGROUNDS) */
+          /* A4 CLEAN DOCUMENT */
           <div className="a4-mode">
-            {/* Top Company & Title Header */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", paddingBottom: "14px", borderBottom: "2px solid #000" }}>
               <div>
                 <h1 style={{ fontSize: "22px", fontWeight: "bold", textTransform: "uppercase", margin: 0, color: "#000" }}>
@@ -1451,14 +1501,13 @@ export default function App() {
               </div>
               <div style={{ textAlign: "right" }}>
                 <div style={{ border: "1px solid #000", padding: "4px 10px", fontSize: "11px", fontWeight: "bold", textTransform: "uppercase" }}>
-                  TAX INVOICE / SETTLEMENT
+                  {isTemporaryBill ? "PRE-CHECK / TEMPORARY BILL" : "FINAL TAX INVOICE"}
                 </div>
-                <p style={{ margin: "8px 0 0 0", fontSize: "12px" }}><b>Invoice Date:</b> {new Date().toLocaleDateString()}</p>
+                <p style={{ margin: "8px 0 0 0", fontSize: "12px" }}><b>Date:</b> {new Date().toLocaleDateString()}</p>
                 <p style={{ margin: "2px 0 0 0", fontSize: "12px" }}><b>Order Ref:</b> {printTargetRoom?.orderId || `ORD-${printTargetRoom?.number}`}</p>
               </div>
             </div>
 
-            {/* Guest & Room Details Grid (Plain Border, White BG) */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", margin: "18px 0", padding: "10px 0", borderBottom: "1px solid #000" }}>
               <div>
                 <p style={{ margin: 0, fontSize: "10px", textTransform: "uppercase", fontWeight: "bold" }}>Guest Information</p>
@@ -1466,13 +1515,12 @@ export default function App() {
                 <p style={{ margin: "2px 0 0 0" }}>{printTargetRoom?.guestPhone || "No contact recorded"}</p>
               </div>
               <div style={{ textAlign: "right" }}>
-                <p style={{ margin: 0, fontSize: "10px", textTransform: "uppercase", fontWeight: "bold" }}>Accommodation Details</p>
+                <p style={{ margin: 0, fontSize: "10px", textTransform: "uppercase", fontWeight: "bold" }}>Stay Information</p>
                 <p style={{ margin: "4px 0 0 0", fontSize: "14px", fontWeight: "bold" }}>Room #{printTargetRoom?.number} - {printTargetRoom?.type}</p>
                 <p style={{ margin: "2px 0 0 0" }}>Period: {printTargetRoom?.checkIn} to {printTargetRoom?.checkOut}</p>
               </div>
             </div>
 
-            {/* Line Items Table */}
             <table style={{ width: "100%", borderCollapse: "collapse", margin: "16px 0", fontSize: "12px" }}>
               <thead>
                 <tr style={{ borderBottom: "1.5px solid #000", textAlign: "left" }}>
@@ -1494,19 +1542,19 @@ export default function App() {
               </tbody>
             </table>
 
-            {/* Grand Total & Settlement Rule */}
             <div style={{ borderTop: "2px solid #000", borderBottom: "1px solid #000", padding: "10px 0", margin: "16px 0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontSize: "13px", fontWeight: "bold", textTransform: "uppercase" }}>
-                Total Paid ({settlementMethod}):
+                {isTemporaryBill ? "Current Balance Due:" : `Total Settled (${settlementMethod}):`}
               </span>
               <span style={{ fontSize: "18px", fontWeight: "bold" }}>
                 {settings.currency}{printTargetTotal.toFixed(2)}
               </span>
             </div>
 
-            {/* Simple Clean Footer */}
             <div style={{ marginTop: "40px", textAlign: "center", fontSize: "11px" }}>
-              <p style={{ margin: 0 }}>{settings.footerNote}</p>
+              <p style={{ margin: 0 }}>
+                {isTemporaryBill ? "This is a statement of account, not an official tax invoice." : settings.footerNote}
+              </p>
             </div>
           </div>
         )}
