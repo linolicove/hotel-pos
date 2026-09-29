@@ -346,7 +346,102 @@ function buildA4Html({ settings, room, isTemporary, settlementMethod, total }) {
   `;
 }
 
-// --- 3. MAIN APP ---
+// Built-in Official A4 Payslip Generator
+function buildPayslipHtml({ settings, staffMember }) {
+  const base = Number(staffMember.baseSalary) || 0;
+  const allowances = Number(staffMember.allowances) || 0;
+  const serviceCharge = Number(staffMember.serviceCharge) || 0;
+  const bonus = Number(staffMember.bonus) || 0;
+  const grossPay = base + allowances + serviceCharge + bonus;
+
+  return `
+    <div class="a4-container">
+      <div style="border-bottom: 3px double #091D26; padding-bottom: 16px; display: flex; justify-content: space-between;">
+        <div>
+          <h1 style="font-size: 24px; font-weight: 900; text-transform: uppercase; margin: 0; color: #091D26;">${settings.hotelName}</h1>
+          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; color: #555;">Monthly Remuneration Statement</p>
+        </div>
+        <div style="text-align: right;">
+          <div style="display: inline-block; border: 2px solid #091D26; padding: 6px 14px; font-weight: bold; font-size: 12px;">
+            OFFICIAL PAYSLIP
+          </div>
+          <p style="margin: 8px 0 0 0; font-size: 12px;"><b>Date:</b> ${new Date().toLocaleDateString()}</p>
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 20px 0; padding: 12px 16px; border: 1px solid #091D26; border-radius: 4px;">
+        <div>
+          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Employee</p>
+          <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold;">${staffMember.name}</p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;">Role: <b>${staffMember.role}</b></p>
+        </div>
+        <div style="text-align: right;">
+          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Status</p>
+          <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold;">${staffMember.type}</p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;">Payout: <b>${staffMember.paid ? "PAID" : "PENDING"}</b></p>
+        </div>
+      </div>
+      <table style="margin: 20px 0; font-size: 12px;">
+        <thead>
+          <tr style="border-bottom: 2px solid #091D26; background: #F3EFE6;">
+            <th style="padding: 10px 8px; text-align: left;">Earnings Component</th>
+            <th style="padding: 10px 8px; text-align: right;">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom: 1px solid #ddd;"><td style="padding: 10px 8px;">Base Monthly Salary</td><td style="padding: 10px 8px; text-align: right;">${settings.currency}${base.toFixed(2)}</td></tr>
+          <tr style="border-bottom: 1px solid #ddd;"><td style="padding: 10px 8px;">Allowances (Housing/Meals)</td><td style="padding: 10px 8px; text-align: right;">${settings.currency}${allowances.toFixed(2)}</td></tr>
+          <tr style="border-bottom: 1px solid #ddd;"><td style="padding: 10px 8px;">Service Charge Pool</td><td style="padding: 10px 8px; text-align: right;">${settings.currency}${serviceCharge.toFixed(2)}</td></tr>
+          <tr style="border-bottom: 1px solid #ddd;"><td style="padding: 10px 8px;">Bonus & Incentives</td><td style="padding: 10px 8px; text-align: right;">${settings.currency}${bonus.toFixed(2)}</td></tr>
+        </tbody>
+      </table>
+      <div style="border-top: 2px solid #091D26; padding: 14px 8px; display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 14px; font-weight: bold;">Total Net Remittance:</span>
+        <span style="font-size: 22px; font-weight: 900; color: #0D9488;">${settings.currency}${grossPay.toFixed(2)}</span>
+      </div>
+    </div>
+  `;
+}
+
+// Built-in Official A4 Daily Attendance Sheet Generator
+function buildDailyAttendanceHtml({ settings, staffList, dateStr }) {
+  return `
+    <div class="a4-container">
+      <div style="border-bottom: 3px double #091D26; padding-bottom: 16px; display: flex; justify-content: space-between;">
+        <div>
+          <h1 style="font-size: 24px; font-weight: 900; text-transform: uppercase; margin: 0; color: #091D26;">${settings.hotelName}</h1>
+          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; color: #555;">Daily Staff Shift & Attendance Sheet</p>
+        </div>
+        <div style="text-align: right;">
+          <p style="margin: 0; font-size: 12px;"><b>Date:</b> ${dateStr}</p>
+        </div>
+      </div>
+      <table style="width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px;">
+        <thead>
+          <tr style="border-bottom: 2px solid #091D26; background: #F3EFE6;">
+            <th style="padding: 10px 6px; text-align: left;">Employee Name</th>
+            <th style="padding: 10px 6px; text-align: left;">Role</th>
+            <th style="padding: 10px 6px; text-align: center;">In</th>
+            <th style="padding: 10px 6px; text-align: center;">Out</th>
+            <th style="padding: 10px 6px; text-align: center;">Duty Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${staffList.map((m) => `
+            <tr style="border-bottom: 1px solid #ddd;">
+              <td style="padding: 10px 6px; font-weight: bold;">${m.name}</td>
+              <td style="padding: 10px 6px;">${m.role}</td>
+              <td style="padding: 10px 6px; text-align: center;">${m.clockIn || "--:--"}</td>
+              <td style="padding: 10px 6px; text-align: center;">${m.clockOut || "--:--"}</td>
+              <td style="padding: 10px 6px; text-align: center;">${m.isOnDuty ? "ON DUTY" : m.clockOut ? "COMPLETED" : "OFF DUTY"}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+// --- 3. MAIN COMPONENT ---
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [pinInput, setPinInput] = useState("");
@@ -369,7 +464,7 @@ export default function App() {
   const [printFormat, setPrintFormat] = useState("thermal");
   const [isTemporaryBill, setIsTemporaryBill] = useState(false);
 
-  // Modals & Camera State
+  // Front Desk Modals & Camera/File State
   const [checkInModalRoom, setCheckInModalRoom] = useState(null);
   const [settleOrderRoom, setSettleOrderRoom] = useState(null);
   const [settlementMethod, setSettlementMethod] = useState("Credit Card");
@@ -378,10 +473,16 @@ export default function App() {
   const [guestPhoto, setGuestPhoto] = useState(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
 
+  // Refs for WebCam streaming & Canvas snapshot
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const mediaStreamRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  // Custom Item Inputs for Folio
+  const [newItemDesc, setNewItemDesc] = useState("");
+  const [newItemPrice, setNewItemPrice] = useState("");
+  const [newItemQty, setNewItemQty] = useState("1");
 
   // Settings State Form
   const [settingsForm, setSettingsForm] = useState(DEFAULT_SETTINGS);
@@ -393,7 +494,23 @@ export default function App() {
   const [showAddInventoryModal, setShowAddInventoryModal] = useState(false);
   const [newInventoryForm, setNewInventoryForm] = useState({ name: "", category: "minibar", price: "850", stock: "20" });
 
-  // Permissions Map
+  // Staff & Compensation Management State
+  const [showAddStaffModal, setShowAddStaffModal] = useState(false);
+  const [staffSearchQuery, setStaffSearchQuery] = useState("");
+  const [staffViewSubTab, setStaffViewSubTab] = useState("roster"); // "roster" | "attendance"
+  const [newStaffForm, setNewStaffForm] = useState({
+    name: "",
+    role: "Front Desk",
+    pin: "1234",
+    type: "Full-Time",
+    baseSalary: "75000",
+    allowances: "15000",
+    serviceCharge: "35000",
+    bonus: "8000",
+    phone: "",
+  });
+
+  // Role Permissions
   const isManager = currentUser?.role?.toLowerCase().includes("manager");
   const isFrontDesk = currentUser?.role?.toLowerCase().includes("front desk");
   const isHousekeeping = currentUser?.role?.toLowerCase().includes("housekeeping");
@@ -410,7 +527,114 @@ export default function App() {
     return false;
   };
 
-  // --- REALTIME LISTENERS ---
+  // --- CAMERA & FILE UPLOAD ENGINE ---
+  const startCamera = async () => {
+    try {
+      setIsCameraActive(true);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
+      });
+      mediaStreamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
+      }
+    } catch (err) {
+      alert("Unable to open device camera. Please check camera permissions in browser.");
+      setIsCameraActive(false);
+    }
+  };
+
+  const stopCamera = () => {
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+    }
+    setIsCameraActive(false);
+  };
+
+  const takeSnapshot = () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const base64Image = canvas.toDataURL("image/jpeg", 0.7);
+      setGuestPhoto(base64Image);
+      stopCamera();
+    }
+  };
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const MAX_WIDTH = 800;
+        const scale = MAX_WIDTH / img.width;
+        canvas.width = MAX_WIDTH;
+        canvas.height = img.height * scale;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        setGuestPhoto(canvas.toDataURL("image/jpeg", 0.7));
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleCloseCheckInModal = () => {
+    stopCamera();
+    setGuestPhoto(null);
+    setCheckInModalRoom(null);
+  };
+
+  // PIN Operations
+  const handlePinDigit = (digit) => {
+    if (pinInput.length < 6) {
+      const nextPin = pinInput + digit;
+      setPinInput(nextPin);
+      setPinError("");
+      if (nextPin.length >= 4) verifyPin(nextPin);
+    }
+  };
+
+  const handlePinDelete = () => {
+    setPinInput((prev) => prev.slice(0, -1));
+    setPinError("");
+  };
+
+  const handlePinClear = () => {
+    setPinInput("");
+    setPinError("");
+  };
+
+  const verifyPin = (candidatePin) => {
+    const matched = staff.find((s) => String(s.pin) === String(candidatePin));
+    if (matched) {
+      setCurrentUser(matched);
+      setPinInput("");
+      setPinError("");
+      setActiveTab("frontdesk");
+    } else {
+      if (candidatePin.length >= 4) setPinError("Invalid Access PIN");
+    }
+  };
+
+  const handleLogout = () => {
+    stopCamera();
+    setCurrentUser(null);
+    setPinInput("");
+    setPinError("");
+  };
+
+  // --- REALTIME DATABASE LISTENERS ---
   useEffect(() => {
     // 1. Settings Listener
     const settingsRef = ref(rtdb, "hotel_config/profile");
@@ -429,7 +653,31 @@ export default function App() {
     const roomsRef = ref(rtdb, "rooms");
     const unsubRooms = onValue(roomsRef, (snapshot) => {
       const data = snapshot.val();
-      if (data) {
+      if (!data) {
+        const initialRooms = {
+          "101": {
+            id: "101",
+            number: "101",
+            type: "Ocean Breeze King",
+            rate: 22000,
+            status: "occupied",
+            orderId: "ORD-101-9281",
+            openedAt: "2026-09-28 14:30",
+            guestName: "Marina Sterling",
+            guestPhone: "+1 555-0143",
+            checkIn: "2026-09-28",
+            checkOut: "2026-10-02",
+            orderItems: {
+              "i1": { id: "i1", description: "Room Charge (2 Nights)", quantity: 2, unitPrice: 22000, total: 44000, timestamp: "Sep 28, 14:30" },
+              "i2": { id: "i2", description: "Minibar: Artisanal Water", quantity: 2, unitPrice: 850, total: 1700, timestamp: "Sep 29, 10:15" },
+            },
+          },
+          "102": { id: "102", number: "102", type: "Lagoon View Double", rate: 18000, status: "available" },
+          "201": { id: "201", number: "201", type: "Coral Penthouse Suite", rate: 45000, status: "cleaning" },
+          "202": { id: "202", number: "202", type: "Ocean Breeze King", rate: 22000, status: "maintenance" },
+        };
+        set(roomsRef, initialRooms);
+      } else {
         const loadedRooms = Object.keys(data).map((key) => {
           const roomObj = data[key];
           const rawItems = roomObj.orderItems || {};
@@ -439,18 +687,27 @@ export default function App() {
           return { ...roomObj, id: key, orderItems: orderItemsArray };
         });
         setRooms(loadedRooms.sort((a, b) => String(a.number).localeCompare(String(b.number))));
+        if (!selectedRoomId && loadedRooms.length > 0) {
+          const firstOccupied = loadedRooms.find((r) => r.status === "occupied");
+          setSelectedRoomId(firstOccupied ? firstOccupied.id : loadedRooms[0].id);
+        }
       }
     });
 
     // 3. Inventory Listener
     const invRef = ref(rtdb, "inventory");
     const unsubInv = onValue(invRef, (snapshot) => {
-      if (snapshot.exists()) {
+      if (!snapshot.exists()) {
+        const seedMap = {};
+        INITIAL_INVENTORY_SEEDS.forEach((i) => { seedMap[i.id] = i; });
+        update(invRef, seedMap);
+      } else {
         const data = snapshot.val();
         const loaded = Object.keys(data).map((key) => ({
           ...data[key],
           id: key,
-          name: data[key].name || "Unnamed Item",
+          name: data[key].name || data[key].title || "Unnamed Item",
+          category: data[key].category || "minibar",
           price: Number(data[key].price) || 0,
           stock: Number(data[key].stock) || 0,
         }));
@@ -458,15 +715,19 @@ export default function App() {
       }
     });
 
-    // 4. Staff Listener
+    // 4. Staff & Compensation Listener
     const staffRef = ref(rtdb, "staff");
     const unsubStaff = onValue(staffRef, (snapshot) => {
-      if (snapshot.exists()) {
+      if (!snapshot.exists()) {
+        const seedStaffMap = {};
+        INITIAL_STAFF_SEEDS.forEach((s) => { seedStaffMap[s.id] = s; });
+        set(staffRef, seedStaffMap);
+      } else {
         const data = snapshot.val();
         const staffList = Object.keys(data).map((k) => ({
           ...data[k],
           id: k,
-          baseSalary: Number(data[k].baseSalary) || 0,
+          baseSalary: Number(data[k].baseSalary) || 65000,
           allowances: Number(data[k].allowances) || 0,
           serviceCharge: Number(data[k].serviceCharge) || 0,
           bonus: Number(data[k].bonus) || 0,
@@ -477,7 +738,7 @@ export default function App() {
       setLoading(false);
     });
 
-    // 5. Daily Attendance Record Listener (Carried Forward by Date)
+    // 5. Daily Attendance History Listener (Carried Forward Daily)
     const attendanceRef = ref(rtdb, `attendance_history/${selectedDate}`);
     const unsubAttendance = onValue(attendanceRef, (snapshot) => {
       setDailyAttendance(snapshot.val() || {});
@@ -489,13 +750,15 @@ export default function App() {
       unsubInv();
       unsubStaff();
       unsubAttendance();
+      stopCamera();
     };
-  }, [selectedDate]);
+  }, [selectedRoomId, selectedDate]);
 
   const currentRoom = rooms.find((r) => r.id === selectedRoomId) || rooms[0];
   const calculateTotal = (room) => room?.orderItems?.reduce((acc, item) => acc + (Number(item.total) || 0), 0) || 0;
   const printTargetRoom = settleOrderRoom || currentRoom;
   const printTargetTotal = calculateTotal(printTargetRoom);
+  const calculateStaffGross = (s) => (Number(s.baseSalary) || 0) + (Number(s.allowances) || 0) + (Number(s.serviceCharge) || 0) + (Number(s.bonus) || 0);
 
   // --- ACTIONS: SETTINGS SAVE & BACKUP ---
   const handleSaveAllSettings = () => {
@@ -511,7 +774,7 @@ export default function App() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `LinoliCove_Backup_${getTodayKey()}.json`;
+      a.download = `${settings.hotelName.replace(/\s+/g, '_')}_Backup_${getTodayKey()}.json`;
       a.click();
     }, { onlyOnce: true });
   };
@@ -551,7 +814,7 @@ export default function App() {
     }
   };
 
-  // --- DAILY ATTENDANCE & PERSISTENCE ---
+  // --- DAILY ATTENDANCE CLOCK IN / OUT ACTIONS ---
   const formatTimeNow = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   const handleClockIn = (staffMember) => {
@@ -578,57 +841,259 @@ export default function App() {
     });
   };
 
-  // PIN Login & Camera Handlers
-  const handlePinDigit = (digit) => {
-    if (pinInput.length < 6) {
-      const nextPin = pinInput + digit;
-      setPinInput(nextPin);
-      if (nextPin.length >= 4) {
-        const matched = staff.find((s) => String(s.pin) === String(nextPin));
-        if (matched) {
-          setCurrentUser(matched);
-          setPinInput("");
-          setPinError("");
-        } else {
-          setPinError("Invalid PIN");
-        }
-      }
+  // Print Handlers
+  const handlePrintTemporaryBill = (room) => {
+    setSelectedRoomId(room.id);
+    const total = calculateTotal(room);
+    const html = printFormat === "thermal"
+      ? buildThermalHtml({ settings, room, isTemporary: true, settlementMethod: "Pending", total })
+      : buildA4Html({ settings, room, isTemporary: true, settlementMethod: "Pending", total });
+    printIsolatedDocument(html, printFormat);
+  };
+
+  const handleConfirmOrderSettlement = () => {
+    if (!settleOrderRoom) return;
+    const total = calculateTotal(settleOrderRoom);
+    const html = printFormat === "thermal"
+      ? buildThermalHtml({ settings, room: settleOrderRoom, isTemporary: false, settlementMethod, total })
+      : buildA4Html({ settings, room: settleOrderRoom, isTemporary: false, settlementMethod, total });
+    printIsolatedDocument(html, printFormat);
+
+    update(ref(rtdb, `rooms/${settleOrderRoom.id}`), {
+      status: "cleaning",
+      orderId: null,
+      openedAt: null,
+      guestName: "",
+      guestPhone: "",
+      guestPhoto: null,
+      checkIn: "",
+      checkOut: "",
+      orderItems: null,
+    });
+    setSettleOrderRoom(null);
+  };
+
+  const handlePrintPayslip = (staffMember) => {
+    const html = buildPayslipHtml({ settings, staffMember });
+    printIsolatedDocument(html, "a4");
+  };
+
+  const handlePrintDailyAttendance = () => {
+    const combinedList = staff.map(m => {
+      const record = dailyAttendance[m.id] || {};
+      return {
+        ...m,
+        clockIn: record.clockIn || "",
+        clockOut: record.clockOut || "",
+        isOnDuty: Boolean(record.isOnDuty)
+      };
+    });
+    const html = buildDailyAttendanceHtml({ settings, staffList: combinedList, dateStr: selectedDate });
+    printIsolatedDocument(html, "a4");
+  };
+
+  // Staff & Room & Inventory Actions
+  const handleUpdateStockLevel = (itemId, delta) => {
+    if (!itemId) return;
+    const target = inventory.find((i) => i.id === itemId);
+    const currentStock = Number(target?.stock) || 0;
+    const newStock = Math.max(0, currentStock + delta);
+    setInventory((prev) => prev.map((item) => (item.id === itemId ? { ...item, stock: newStock } : item)));
+    update(ref(rtdb, `inventory/${itemId}`), { stock: newStock });
+  };
+
+  const handleCreateInventoryItem = (e) => {
+    e.preventDefault();
+    if (!newInventoryForm.name.trim()) return;
+    const itemId = `inv_${Date.now()}`;
+    const cleanPrice = parseFloat(newInventoryForm.price);
+    const cleanStock = parseInt(newInventoryForm.stock, 10);
+    const newItem = {
+      id: itemId,
+      name: newInventoryForm.name.trim(),
+      category: newInventoryForm.category || "minibar",
+      price: isNaN(cleanPrice) || cleanPrice < 0 ? 0 : cleanPrice,
+      stock: isNaN(cleanStock) || cleanStock < 0 ? 0 : cleanStock,
+    };
+    setInventory((prev) => [...prev, newItem].sort((a, b) => a.name.localeCompare(b.name)));
+    setShowAddInventoryModal(false);
+    setNewInventoryForm({ name: "", category: "minibar", price: "850", stock: "20" });
+    set(ref(rtdb, `inventory/${itemId}`), newItem);
+  };
+
+  const handleQuickAddMinibar = (item) => {
+    if (!currentRoom) return;
+    const now = new Date();
+    const itemId = `itm_${Date.now()}`;
+    const newItem = {
+      id: itemId,
+      description: `Minibar: ${item.name}`,
+      quantity: 1,
+      unitPrice: item.price,
+      total: item.price,
+      timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
+    };
+    set(ref(rtdb, `rooms/${currentRoom.id}/orderItems/${itemId}`), newItem);
+    if (item.stock > 0) handleUpdateStockLevel(item.id, -1);
+  };
+
+  const handleCreateStaff = (e) => {
+    e.preventDefault();
+    if (!newStaffForm.name.trim()) return;
+    const staffId = `stf_${Date.now()}`;
+    const newStaff = {
+      id: staffId,
+      name: newStaffForm.name.trim(),
+      role: newStaffForm.role || "Front Desk",
+      pin: newStaffForm.pin || "0000",
+      type: newStaffForm.type || "Full-Time",
+      baseSalary: parseFloat(newStaffForm.baseSalary) || 0,
+      allowances: parseFloat(newStaffForm.allowances) || 0,
+      serviceCharge: parseFloat(newStaffForm.serviceCharge) || 0,
+      bonus: parseFloat(newStaffForm.bonus) || 0,
+      paid: false,
+      phone: newStaffForm.phone || "",
+    };
+    setStaff((prev) => [...prev, newStaff]);
+    setShowAddStaffModal(false);
+    set(ref(rtdb, `staff/${staffId}`), newStaff);
+  };
+
+  const handleToggleStaffPayout = (staffId, currentStatus) => {
+    const nextStatus = !currentStatus;
+    setStaff((prev) => prev.map((s) => (s.id === staffId ? { ...s, paid: nextStatus } : s)));
+    update(ref(rtdb, `staff/${staffId}`), { paid: nextStatus });
+  };
+
+  const handleDeleteStaff = (member) => {
+    if (!window.confirm(`Permanently remove ${member.name}?`)) return;
+    setStaff((prev) => prev.filter((s) => s.id !== member.id));
+    remove(ref(rtdb, `staff/${member.id}`));
+  };
+
+  const updateRoomStatus = (roomId, status) => {
+    update(ref(rtdb, `rooms/${roomId}`), { status });
+  };
+
+  const handleOpenOrderAndCheckIn = (e) => {
+    e.preventDefault();
+    if (!checkInModalRoom || !guestForm.name) return;
+    stopCamera();
+
+    const nights = guestForm.nights || 1;
+    const now = new Date();
+    const orderId = `ORD-${checkInModalRoom.number}-${Date.now().toString().slice(-4)}`;
+    const itemId = `itm_${Date.now()}`;
+    const initialOrderItem = {
+      id: itemId,
+      description: `Room Stay (${nights} Night${nights > 1 ? "s" : ""})`,
+      quantity: nights,
+      unitPrice: checkInModalRoom.rate,
+      total: checkInModalRoom.rate * nights,
+      timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
+    };
+    const roomPayload = {
+      status: "occupied",
+      orderId,
+      openedAt: now.toLocaleString(),
+      guestName: guestForm.name,
+      guestPhone: guestForm.phone,
+      guestPhoto: guestPhoto || null,
+      checkIn: now.toISOString().split("T")[0],
+      checkOut: new Date(Date.now() + nights * 86400000).toISOString().split("T")[0],
+      orderItems: { [itemId]: initialOrderItem },
+    };
+    update(ref(rtdb, `rooms/${checkInModalRoom.id}`), roomPayload);
+    setGuestPhoto(null);
+    setCheckInModalRoom(null);
+    setGuestForm({ name: "", phone: "", nights: 1 });
+  };
+
+  const handleAddItemToOrder = (e) => {
+    e.preventDefault();
+    if (!newItemDesc || !newItemPrice || !currentRoom) return;
+    const unitPrice = parseFloat(newItemPrice);
+    const quantity = parseInt(newItemQty, 10) || 1;
+    const now = new Date();
+    const itemId = `itm_${Date.now()}`;
+    const newItem = {
+      id: itemId,
+      description: newItemDesc,
+      quantity,
+      unitPrice,
+      total: unitPrice * quantity,
+      timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
+    };
+    set(ref(rtdb, `rooms/${currentRoom.id}/orderItems/${itemId}`), newItem);
+    setNewItemDesc("");
+    setNewItemPrice("");
+    setNewItemQty("1");
+  };
+
+  const handleRemoveOrderItem = (itemId) => {
+    if (!currentRoom) return;
+    remove(ref(rtdb, `rooms/${currentRoom.id}/orderItems/${itemId}`));
+  };
+
+  const handleInitiateSettleOrder = (room) => {
+    setSelectedRoomId(room.id);
+    setActiveTab("frontdesk");
+    setSettleOrderRoom(room);
+    setCashTendered("");
+  };
+
+  const handleDeleteActiveBill = (room) => {
+    if (window.confirm(`Void active bill for Room #${room.number}?`)) {
+      update(ref(rtdb, `rooms/${room.id}`), {
+        status: "available",
+        orderId: null,
+        openedAt: null,
+        guestName: "",
+        guestPhone: "",
+        guestPhoto: null,
+        checkIn: "",
+        checkOut: "",
+        orderItems: null,
+      });
     }
   };
 
-  const startCamera = async () => {
-    try {
-      setIsCameraActive(true);
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-      mediaStreamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
-      }
-    } catch (err) {
-      alert("Camera permission denied or camera unavailable.");
-      setIsCameraActive(false);
+  const handleCreateRoom = (e) => {
+    e.preventDefault();
+    if (!newRoomForm.number) return;
+    const roomId = String(newRoomForm.number).trim();
+    const newRoomData = {
+      id: roomId,
+      number: roomId,
+      type: newRoomForm.type,
+      rate: Number(newRoomForm.rate) || 18000,
+      status: newRoomForm.status,
+    };
+    set(ref(rtdb, `rooms/${roomId}`), newRoomData);
+    setShowAddRoomModal(false);
+    setNewRoomForm({ number: "", type: "Ocean Breeze King", rate: 18000, status: "available" });
+  };
+
+  const handleDeleteRoom = (roomId, roomNumber) => {
+    if (window.confirm(`Delete Room #${roomNumber}?`)) {
+      remove(ref(rtdb, `rooms/${roomId}`));
     }
   };
 
-  const stopCamera = () => {
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
-      mediaStreamRef.current = null;
-    }
-    setIsCameraActive(false);
-  };
+  const filteredStaff = staff.filter((s) => {
+    const q = staffSearchQuery.toLowerCase();
+    return s.name.toLowerCase().includes(q) || s.role.toLowerCase().includes(q);
+  });
 
-  const takeSnapshot = () => {
-    if (videoRef.current && canvasRef.current) {
-      const canvas = canvasRef.current;
-      canvas.width = 640;
-      canvas.height = 480;
-      canvas.getContext("2d").drawImage(videoRef.current, 0, 0, 640, 480);
-      setGuestPhoto(canvas.toDataURL("image/jpeg", 0.7));
-      stopCamera();
-    }
-  };
+  const totalPayrollGross = staff.reduce((acc, s) => acc + calculateStaffGross(s), 0);
+  const totalServiceCharges = staff.reduce((acc, s) => acc + (Number(s.serviceCharge) || 0), 0);
+  const onDutyCount = staff.filter((s) => {
+    const record = dailyAttendance[s.id];
+    return record && record.isOnDuty;
+  }).length;
+
+  const parsedTendered = parseFloat(cashTendered) || 0;
+  const changeDue = Math.max(0, parsedTendered - printTargetTotal);
 
   if (loading) {
     return (
@@ -638,7 +1103,7 @@ export default function App() {
     );
   }
 
-  // PIN LOCK SCREEN
+  // PIN TERMINAL LOCK SCREEN
   if (!currentUser) {
     return (
       <div className="flex min-h-screen bg-gradient-to-br from-[#06151E] via-[#091D26] to-[#0F2D3C] text-white items-center justify-center p-4">
@@ -646,7 +1111,7 @@ export default function App() {
           <div className="w-14 h-14 rounded-2xl bg-[#14B8A6] flex items-center justify-center text-white mb-4 shadow-lg shadow-[#14B8A6]/30">
             <Waves className="w-8 h-8" />
           </div>
-          <h1 className="text-xl font-bold tracking-tight">{settings.hotelName}</h1>
+          <h1 className="text-xl font-bold tracking-tight text-center">{settings.hotelName}</h1>
           <p className="text-xs text-[#2DD4BF] font-medium mt-0.5">{settings.tagline}</p>
 
           <div className="my-6 flex flex-col items-center">
@@ -686,15 +1151,15 @@ export default function App() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#FAF9F5] text-[#091D26]">
-      {/* SIDEBAR */}
+      {/* DESKTOP SIDEBAR */}
       <aside className="no-print hidden md:flex flex-col w-64 bg-[#091D26] border-r border-[#0F2D3C] text-white shrink-0">
         <div className="p-6 border-b border-[#0F2D3C] flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-[#14B8A6] flex items-center justify-center text-white font-bold">
             <Building2 className="w-5 h-5" />
           </div>
-          <div>
+          <div className="truncate">
             <h1 className="text-base font-bold leading-tight truncate">{settings.hotelName}</h1>
-            <p className="text-[11px] text-[#2DD4BF] font-medium">{settings.tagline}</p>
+            <p className="text-[11px] text-[#2DD4BF] font-medium truncate">{settings.tagline}</p>
           </div>
         </div>
 
@@ -707,7 +1172,7 @@ export default function App() {
           </div>
           <button
             type="button"
-            onClick={() => setCurrentUser(null)}
+            onClick={handleLogout}
             className="p-1.5 rounded-lg bg-white/10 hover:bg-[#F43F5E] text-slate-300 hover:text-white"
             title="Lock Terminal"
           >
@@ -749,9 +1214,14 @@ export default function App() {
             <Building2 className="w-5 h-5 text-[#2DD4BF]" />
             <span className="font-bold text-sm truncate">{settings.hotelName}</span>
           </div>
-          <button type="button" onClick={() => setCurrentUser(null)} className="p-1 rounded bg-white/10 text-slate-300">
-            <Lock className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={handleLogout} className="p-1 rounded bg-white/10 text-slate-300">
+              <Lock className="w-4 h-4" />
+            </button>
+            <button type="button" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-1 rounded text-slate-300">
+              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
+          </div>
         </header>
 
         <main className="no-print flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
@@ -823,7 +1293,7 @@ export default function App() {
           )}
 
           {/* TAB 2: ACTIVE BILLS */}
-          {activeTab === "active-orders" && (
+          {activeTab === "active-orders" && canAccessTab("active-orders") && (
             <div className="max-w-7xl mx-auto space-y-6">
               <div className="flex justify-between items-center">
                 <div>
@@ -875,17 +1345,19 @@ export default function App() {
           )}
 
           {/* TAB 3: INVENTORY */}
-          {activeTab === "inventory" && (
+          {activeTab === "inventory" && canAccessTab("inventory") && (
             <div className="max-w-7xl mx-auto space-y-6">
               <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold">Inventory & Minibar Stock</h2>
-                <button
-                  type="button"
-                  onClick={() => setShowAddInventoryModal(true)}
-                  className="bg-[#14B8A6] text-white px-4 py-2 rounded-lg text-xs font-bold"
-                >
-                  + Add Stock Item
-                </button>
+                {isManager && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAddInventoryModal(true)}
+                    className="bg-[#14B8A6] text-white px-4 py-2 rounded-lg text-xs font-bold"
+                  >
+                    + Add Stock Item
+                  </button>
+                )}
               </div>
 
               <div className="bg-white rounded-xl border border-[#E6DFD3] overflow-hidden">
@@ -937,15 +1409,15 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 5: STAFF & ATTENDANCE WITH DAILY PERSISTENCE */}
-          {activeTab === "staff" && (
+          {/* TAB 5: STAFF & ATTENDANCE WITH DAILY PERSISTENCE & SALARY */}
+          {activeTab === "staff" && canAccessTab("staff") && (
             <div className="max-w-7xl mx-auto space-y-6">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                  <h2 className="text-2xl font-bold">Daily Staff Attendance & Shift Log</h2>
+                  <h2 className="text-2xl font-bold">Daily Staff Attendance & Payroll</h2>
                   <p className="text-sm text-slate-500">Attendance history is archived daily into cloud storage</p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex gap-2 items-center">
                   <span className="text-xs font-semibold text-slate-500">Pick Date:</span>
                   <input
                     type="date"
@@ -953,64 +1425,162 @@ export default function App() {
                     onChange={(e) => setSelectedDate(e.target.value)}
                     className="border border-[#D3C8B7] rounded-lg px-2.5 py-1 text-xs bg-white font-mono"
                   />
+                  <button
+                    type="button"
+                    onClick={handlePrintDailyAttendance}
+                    className="inline-flex items-center gap-2 bg-[#0F2D3C] text-white px-3 py-1.5 rounded-lg text-xs font-bold"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-[#2DD4BF]" /> Print Attendance
+                  </button>
+                  {isManager && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAddStaffModal(true)}
+                      className="inline-flex items-center gap-2 bg-[#14B8A6] text-white px-3 py-1.5 rounded-lg text-xs font-bold"
+                    >
+                      <UserPlus className="w-3.5 h-3.5" /> Add Staff
+                    </button>
+                  )}
                 </div>
               </div>
 
-              <div className="bg-white rounded-xl border border-[#E6DFD3] overflow-hidden">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-[#F3EFE6] uppercase font-semibold text-slate-500">
-                    <tr>
-                      <th className="p-3.5">Employee Name</th>
-                      <th className="p-3.5">Role</th>
-                      <th className="p-3.5 text-center">In Time</th>
-                      <th className="p-3.5 text-center">Out Time</th>
-                      <th className="p-3.5 text-center">Duty Status</th>
-                      <th className="p-3.5 text-center">Shift Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#F3EFE6]">
-                    {staff.map((m) => {
-                      const record = dailyAttendance[m.id] || {};
-                      const isClockedIn = record.isOnDuty;
+              {/* View Switcher: Daily Attendance vs Compensation Roster */}
+              <div className="flex bg-[#F3EFE6] p-1 rounded-lg border border-[#E6DFD3] w-fit">
+                <button
+                  type="button"
+                  onClick={() => setStaffViewSubTab("attendance")}
+                  className={`px-4 py-1.5 rounded-md text-xs font-bold flex items-center gap-1.5 transition-all ${
+                    staffViewSubTab === "attendance" ? "bg-[#0F2D3C] text-white shadow-sm" : "text-slate-600 hover:text-black"
+                  }`}
+                >
+                  <Clock className="w-3.5 h-3.5 text-[#2DD4BF]" /> Daily In/Out Attendance
+                </button>
+                {isManager && (
+                  <button
+                    type="button"
+                    onClick={() => setStaffViewSubTab("roster")}
+                    className={`px-4 py-1.5 rounded-md text-xs font-bold flex items-center gap-1.5 transition-all ${
+                      staffViewSubTab === "roster" ? "bg-[#0F2D3C] text-white shadow-sm" : "text-slate-600 hover:text-black"
+                    }`}
+                  >
+                    <Coins className="w-3.5 h-3.5 text-[#2DD4BF]" /> Salary, Allowances & Bonuses
+                  </button>
+                )}
+              </div>
 
-                      return (
-                        <tr key={m.id} className="hover:bg-[#FAF9F5]">
-                          <td className="p-3.5 font-bold">{m.name}</td>
-                          <td className="p-3.5">{m.role}</td>
-                          <td className="p-3.5 text-center font-mono font-bold text-slate-800">{record.clockIn || "--:--"}</td>
-                          <td className="p-3.5 text-center font-mono font-bold text-slate-800">{record.clockOut || "--:--"}</td>
+              {/* ATTENDANCE SHEET */}
+              {staffViewSubTab === "attendance" && (
+                <div className="bg-white rounded-xl border border-[#E6DFD3] overflow-hidden">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#F3EFE6] uppercase font-semibold text-slate-500">
+                      <tr>
+                        <th className="p-3.5">Employee Name</th>
+                        <th className="p-3.5">Role</th>
+                        <th className="p-3.5 text-center">In Time</th>
+                        <th className="p-3.5 text-center">Out Time</th>
+                        <th className="p-3.5 text-center">Duty Status</th>
+                        <th className="p-3.5 text-center">Shift Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#F3EFE6]">
+                      {staff.map((m) => {
+                        const record = dailyAttendance[m.id] || {};
+                        const isClockedIn = record.isOnDuty;
+
+                        return (
+                          <tr key={m.id} className="hover:bg-[#FAF9F5]">
+                            <td className="p-3.5 font-bold">{m.name}</td>
+                            <td className="p-3.5">{m.role}</td>
+                            <td className="p-3.5 text-center font-mono font-bold text-slate-800">{record.clockIn || "--:--"}</td>
+                            <td className="p-3.5 text-center font-mono font-bold text-slate-800">{record.clockOut || "--:--"}</td>
+                            <td className="p-3.5 text-center">
+                              <span className={`px-2.5 py-0.5 rounded-full font-bold uppercase text-[10px] ${
+                                isClockedIn ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"
+                              }`}>
+                                {isClockedIn ? "On Duty" : record.clockOut ? "Completed" : "Off Duty"}
+                              </span>
+                            </td>
+                            <td className="p-3.5 text-center">
+                              {!isClockedIn ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleClockIn(m)}
+                                  className="px-3 py-1 bg-[#0D9488] text-white rounded text-xs font-bold"
+                                >
+                                  Clock In
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleClockOut(m)}
+                                  className="px-3 py-1 bg-coral-500 text-white rounded text-xs font-bold"
+                                >
+                                  Clock Out
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* SALARY & COMPENSATION VIEW (MANAGER ONLY) */}
+              {staffViewSubTab === "roster" && isManager && (
+                <div className="bg-white rounded-xl border border-[#E6DFD3] shadow-sm overflow-hidden">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#F3EFE6] border-b border-[#E6DFD3] uppercase font-semibold text-slate-500">
+                      <tr>
+                        <th className="p-3.5">Staff & Role</th>
+                        <th className="p-3.5 text-right">Base Monthly</th>
+                        <th className="p-3.5 text-right">Allowances</th>
+                        <th className="p-3.5 text-right">Service Charge</th>
+                        <th className="p-3.5 text-right">Bonus</th>
+                        <th className="p-3.5 text-right">Total Gross</th>
+                        <th className="p-3.5 text-center">Status</th>
+                        <th className="p-3.5 text-center">Slip</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#F3EFE6]">
+                      {filteredStaff.map((member) => (
+                        <tr key={member.id}>
+                          <td className="p-3.5 font-bold text-[#091D26]">
+                            {member.name}
+                            <div className="text-[10px] text-slate-400 font-mono">{member.role}</div>
+                          </td>
+                          <td className="p-3.5 text-right">{settings.currency}{Number(member.baseSalary).toFixed(2)}</td>
+                          <td className="p-3.5 text-right">{settings.currency}{Number(member.allowances).toFixed(2)}</td>
+                          <td className="p-3.5 text-right">{settings.currency}{Number(member.serviceCharge).toFixed(2)}</td>
+                          <td className="p-3.5 text-right">{settings.currency}{Number(member.bonus).toFixed(2)}</td>
+                          <td className="p-3.5 text-right font-black text-[#0D9488]">{settings.currency}{calculateStaffGross(member).toFixed(2)}</td>
                           <td className="p-3.5 text-center">
-                            <span className={`px-2.5 py-0.5 rounded-full font-bold uppercase text-[10px] ${
-                              isClockedIn ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"
-                            }`}>
-                              {isClockedIn ? "On Duty" : record.clockOut ? "Completed" : "Off Duty"}
-                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleStaffPayout(member.id, member.paid)}
+                              className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                                member.paid ? "bg-[#CCFBF1] text-[#0F766E]" : "bg-[#FFE4E6] text-[#F43F5E]"
+                              }`}
+                            >
+                              {member.paid ? "Paid" : "Pending"}
+                            </button>
                           </td>
                           <td className="p-3.5 text-center">
-                            {!isClockedIn ? (
-                              <button
-                                type="button"
-                                onClick={() => handleClockIn(m)}
-                                className="px-3 py-1 bg-[#0D9488] text-white rounded text-xs font-bold"
-                              >
-                                Clock In
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => handleClockOut(m)}
-                                className="px-3 py-1 bg-coral-500 text-white rounded text-xs font-bold"
-                              >
-                                Clock Out
-                              </button>
-                            )}
+                            <button
+                              type="button"
+                              onClick={() => handlePrintPayslip(member)}
+                              className="p-1 bg-[#0F2D3C] text-white rounded text-xs"
+                            >
+                              Slip
+                            </button>
                           </td>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
 
@@ -1021,10 +1591,10 @@ export default function App() {
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-[#E6DFD3] pb-4">
                 <div>
                   <h2 className="text-2xl font-bold flex items-center gap-2">
-                    <Settings className="w-6 h-6 text-[#14B8A6]" /> System, Business & Peripheral Settings
+                    <Settings className="w-6 h-6 text-[#14B8A6]" /> System, Business & Peripheral Settings[cite: 3]
                   </h2>
                   <p className="text-xs text-slate-500">
-                    Manage company identity, thermal printing options, automated cash drawer solenoid, and database backup files.
+                    Manage company identity, thermal printing options, automated cash drawer solenoid, and database backup files[cite: 3].
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -1033,14 +1603,14 @@ export default function App() {
                     onClick={handleDownloadBackup}
                     className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[#D3C8B7] bg-white hover:bg-slate-50 text-xs font-bold shadow-sm"
                   >
-                    <Download className="w-4 h-4 text-slate-500" /> Download Backup
+                    <Download className="w-4 h-4 text-slate-500" /> Download Backup[cite: 3]
                   </button>
                   <button
                     type="button"
                     onClick={handleSaveAllSettings}
                     className="flex items-center gap-1.5 px-5 py-2 rounded-lg bg-[#0D9488] hover:bg-[#0F766E] text-white text-xs font-bold shadow-md transition-all"
                   >
-                    <Save className="w-4 h-4" /> Save Changes
+                    <Save className="w-4 h-4" /> Save Changes[cite: 3]
                   </button>
                 </div>
               </div>
@@ -1492,39 +2062,13 @@ export default function App() {
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-[#E6DFD3] my-8">
             <div className="flex justify-between items-center mb-4 pb-2 border-b">
               <h3 className="font-bold text-lg">Check In - Room #{checkInModalRoom.number}</h3>
-              <button type="button" onClick={() => { stopCamera(); setCheckInModalRoom(null); }}>
-                <X className="w-5 h-5 text-slate-400" />
+              <button type="button" onClick={handleCloseCheckInModal} className="text-slate-400">
+                <X className="w-5 h-5" />
               </button>
             </div>
             <canvas ref={canvasRef} className="hidden" />
 
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              stopCamera();
-              const orderId = `ORD-${checkInModalRoom.number}-${Date.now().toString().slice(-4)}`;
-              const itemId = `itm_${Date.now()}`;
-              const roomPayload = {
-                status: "occupied",
-                orderId,
-                guestName: guestForm.name,
-                guestPhone: guestForm.phone,
-                guestPhoto: guestPhoto || null,
-                checkIn: new Date().toISOString().split("T")[0],
-                checkOut: new Date(Date.now() + (guestForm.nights || 1) * 86400000).toISOString().split("T")[0],
-                orderItems: {
-                  [itemId]: {
-                    id: itemId,
-                    description: `Room Stay (${guestForm.nights} Nights)`,
-                    quantity: guestForm.nights,
-                    unitPrice: checkInModalRoom.rate,
-                    total: checkInModalRoom.rate * guestForm.nights,
-                  }
-                }
-              };
-              update(ref(rtdb, `rooms/${checkInModalRoom.id}`), roomPayload);
-              setCheckInModalRoom(null);
-            }} className="space-y-4 text-xs">
-              {/* Photo Box */}
+            <form onSubmit={handleOpenOrderAndCheckIn} className="space-y-4 text-xs">
               <div className="bg-[#FAF9F5] p-3 rounded-xl border space-y-2">
                 <span className="font-bold text-[11px] block">Guest Photo / Passport</span>
                 {isCameraActive ? (
@@ -1552,16 +2096,10 @@ export default function App() {
                     <label className="flex-1 p-3 border border-dashed rounded-lg bg-white text-slate-700 font-bold flex flex-col items-center gap-1 cursor-pointer">
                       <Upload className="w-4 h-4" /> Pick File
                       <input
+                        ref={fileInputRef}
                         type="file"
                         accept="image/*"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            const reader = new FileReader();
-                            reader.onload = (ev) => setGuestPhoto(ev.target.result);
-                            reader.readAsDataURL(file);
-                          }
-                        }}
+                        onChange={handleFileUpload}
                         className="hidden"
                       />
                     </label>
@@ -1590,6 +2128,18 @@ export default function App() {
                 />
               </div>
 
+              <div>
+                <label className="block font-semibold mb-1">Nights Duration</label>
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  value={guestForm.nights}
+                  onChange={(e) => setGuestForm({ ...guestForm, nights: parseInt(e.target.value, 10) || 1 })}
+                  className="w-full border rounded-lg p-2"
+                />
+              </div>
+
               <button type="submit" className="w-full bg-[#14B8A6] text-white font-bold py-3 rounded-xl shadow">
                 Complete Check In
               </button>
@@ -1598,23 +2148,44 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL 2: ADD INVENTORY */}
+      {/* MODAL 2: SETTLEMENT */}
+      {settleOrderRoom && (
+        <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-[#E6DFD3]">
+            <div className="flex justify-between items-start mb-4 pb-3 border-b">
+              <div>
+                <span className="text-xs uppercase font-bold text-[#0F766E]">Order Settlement</span>
+                <h3 className="font-black text-xl">Room #{settleOrderRoom.number}</h3>
+              </div>
+              <button type="button" onClick={() => setSettleOrderRoom(null)} className="text-slate-400">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="text-xs mb-4">Total Settling: <b>{settings.currency}{calculateTotal(settleOrderRoom).toFixed(2)}</b></div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleConfirmOrderSettlement}
+                className="w-full bg-[#0D9488] hover:bg-[#0F766E] text-white py-3 rounded-lg text-xs font-bold"
+              >
+                Confirm Payment & Settle
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: ADD INVENTORY */}
       {showAddInventoryModal && isManager && (
         <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 border shadow-2xl">
-            <h3 className="font-bold text-lg mb-4">Add Inventory Item</h3>
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              const itemId = `inv_${Date.now()}`;
-              set(ref(rtdb, `inventory/${itemId}`), {
-                id: itemId,
-                name: newInventoryForm.name,
-                category: newInventoryForm.category,
-                price: parseFloat(newInventoryForm.price) || 0,
-                stock: parseInt(newInventoryForm.stock, 10) || 0,
-              });
-              setShowAddInventoryModal(false);
-            }} className="space-y-4 text-xs">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-bold text-lg">Add Inventory Item</h3>
+              <button type="button" onClick={() => setShowAddInventoryModal(false)} className="text-slate-400">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleCreateInventoryItem} className="space-y-4 text-xs">
               <input
                 type="text"
                 placeholder="Product Name"
@@ -1647,23 +2218,17 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL 3: ADD ROOM */}
+      {/* MODAL 4: ADD ROOM */}
       {showAddRoomModal && isManager && (
         <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 border shadow-2xl">
-            <h3 className="font-bold text-lg mb-4">Add Hotel Room</h3>
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              const roomId = String(newRoomForm.number).trim();
-              set(ref(rtdb, `rooms/${roomId}`), {
-                id: roomId,
-                number: roomId,
-                type: newRoomForm.type,
-                rate: Number(newRoomForm.rate) || 10000,
-                status: newRoomForm.status,
-              });
-              setShowAddRoomModal(false);
-            }} className="space-y-4 text-xs">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-bold text-lg">Add Hotel Room</h3>
+              <button type="button" onClick={() => setShowAddRoomModal(false)} className="text-slate-400">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleCreateRoom} className="space-y-4 text-xs">
               <input
                 type="text"
                 placeholder="Room Number"
@@ -1682,6 +2247,71 @@ export default function App() {
               />
               <button type="submit" className="w-full bg-[#14B8A6] text-white py-2.5 rounded font-bold">
                 Save Room
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 5: ADD STAFF */}
+      {showAddStaffModal && isManager && (
+        <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-[#E6DFD3]">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-bold text-lg text-[#091D26]">Add Team Member & Remuneration</h3>
+              <button type="button" onClick={() => setShowAddStaffModal(false)} className="text-slate-400">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleCreateStaff} className="space-y-4 text-xs">
+              <input
+                type="text"
+                placeholder="Full Name"
+                required
+                value={newStaffForm.name}
+                onChange={(e) => setNewStaffForm({ ...newStaffForm, name: e.target.value })}
+                className="w-full border rounded p-2"
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <select
+                  value={newStaffForm.role}
+                  onChange={(e) => setNewStaffForm({ ...newStaffForm, role: e.target.value })}
+                  className="w-full border rounded p-2 bg-white"
+                >
+                  <option value="General Manager">General Manager</option>
+                  <option value="Front Desk Supervisor">Front Desk Supervisor</option>
+                  <option value="Front Desk Agent">Front Desk Agent</option>
+                  <option value="Housekeeping Lead">Housekeeping Lead</option>
+                  <option value="Maintenance Technician">Maintenance Technician</option>
+                </select>
+                <input
+                  type="text"
+                  maxLength={6}
+                  placeholder="PIN (4 Digits)"
+                  required
+                  value={newStaffForm.pin}
+                  onChange={(e) => setNewStaffForm({ ...newStaffForm, pin: e.target.value })}
+                  className="w-full border rounded p-2"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="number"
+                  placeholder="Base Monthly Salary"
+                  value={newStaffForm.baseSalary}
+                  onChange={(e) => setNewStaffForm({ ...newStaffForm, baseSalary: e.target.value })}
+                  className="w-full border rounded p-2"
+                />
+                <input
+                  type="number"
+                  placeholder="Allowances"
+                  value={newStaffForm.allowances}
+                  onChange={(e) => setNewStaffForm({ ...newStaffForm, allowances: e.target.value })}
+                  className="w-full border rounded p-2"
+                />
+              </div>
+              <button type="submit" className="w-full bg-[#14B8A6] text-white font-bold py-3 rounded-lg">
+                Register Employee
               </button>
             </form>
           </div>
