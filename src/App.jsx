@@ -2,14 +2,13 @@
 import React, { useState, useEffect } from "react";
 import { initializeApp, getApps, getApp } from "firebase/app";
 import {
-  getFirestore,
-  collection,
-  doc,
-  onSnapshot,
-  setDoc,
-  updateDoc,
-  deleteDoc
-} from "firebase/firestore";
+  getDatabase,
+  ref,
+  onValue,
+  set,
+  update,
+  remove
+} from "firebase/database";
 import {
   Bed,
   Receipt,
@@ -36,7 +35,7 @@ import {
   PackagePlus
 } from "lucide-react";
 
-// --- 1. FIREBASE CONFIGURATION ---
+// --- 1. FIREBASE CONFIGURATION (REALTIME DATABASE) ---
 const firebaseConfig = {
   apiKey: "AIzaSyCU84gJirHE9c1s7Bqh90pzyOtjdaR5uus",
   authDomain: "hotel-pos-app.firebaseapp.com",
@@ -49,7 +48,7 @@ const firebaseConfig = {
 };
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const db = getFirestore(app);
+const rtdb = getDatabase(app);
 
 const DEFAULT_SETTINGS = {
   hotelName: "Azure Cove Boutique Resort",
@@ -61,20 +60,30 @@ const DEFAULT_SETTINGS = {
   footerNote: "Mahalo for staying with us at Azure Cove. Safe travels!",
 };
 
+const INITIAL_INVENTORY_SEEDS = [
+  { id: "inv1", name: "Artisanal Sparkling Water", category: "minibar", price: 6, stock: 48 },
+  { id: "inv2", name: "Organic Coconut Chips", category: "minibar", price: 5, stock: 32 },
+  { id: "inv3", name: "Sea Salt Scrub Pack", category: "amenity", price: 12, stock: 15 },
+  { id: "inv4", name: "Egyptian Cotton Bath Towel", category: "linen", price: 0, stock: 75 },
+  { id: "inv5", name: "Cold Brew Coconut Latte", category: "minibar", price: 7, stock: 18 },
+  { id: "inv6", name: "Local Island Craft Beer", category: "beverage", price: 8, stock: 24 },
+  { id: "inv7", name: "Macadamia Nut Cookie Tin", category: "snack", price: 9, stock: 14 }
+];
+
 export default function App() {
   const [activeTab, setActiveTab] = useState("frontdesk");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Firestore Synchronized State
+  // RTDB Synchronized State
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [rooms, setRooms] = useState([]);
-  const [inventory, setInventory] = useState([]);
+  const [inventory, setInventory] = useState(INITIAL_INVENTORY_SEEDS);
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Active Selection & Print Mode State
   const [selectedRoomId, setSelectedRoomId] = useState("");
-  const [printFormat, setPrintFormat] = useState("thermal");
+  const [printFormat, setPrintFormat] = useState("thermal"); // 'thermal' or 'a4'
   const [isTemporaryBill, setIsTemporaryBill] = useState(false);
 
   // Front Desk Modals
@@ -107,8 +116,8 @@ export default function App() {
   const [newInventoryForm, setNewInventoryForm] = useState({
     name: "",
     category: "minibar",
-    price: "5",
-    stock: "24",
+    price: "6",
+    stock: "20",
   });
   const [editingInventoryId, setEditingInventoryId] = useState(null);
   const [editInventoryForm, setEditInventoryForm] = useState({
@@ -118,24 +127,27 @@ export default function App() {
     stock: "",
   });
 
-  // --- 2. REAL-TIME FIRESTORE HOOKS ---
+  // --- 2. REALTIME DATABASE LISTENERS ---
   useEffect(() => {
-    // Hotel Profile Sync
-    const settingsRef = doc(db, "hotel_config", "profile");
-    const unsubSettings = onSnapshot(settingsRef, async (snap) => {
-      if (snap.exists()) {
-        setSettings(snap.data());
+    // A. Hotel Settings Listener
+    const settingsRef = ref(rtdb, "hotel_config/profile");
+    const unsubSettings = onValue(settingsRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setSettings(data);
       } else {
-        await setDoc(settingsRef, DEFAULT_SETTINGS);
+        set(settingsRef, DEFAULT_SETTINGS);
       }
     });
 
-    // Rooms & Orders Real-time Sync
-    const roomsCol = collection(db, "rooms");
-    const unsubRooms = onSnapshot(roomsCol, async (snap) => {
-      if (snap.empty) {
-        const seedRooms = [
-          {
+    // B. Rooms & Active Orders Listener
+    const roomsRef = ref(rtdb, "rooms");
+    const unsubRooms = onValue(roomsRef, (snapshot) => {
+      const data = snapshot.val();
+      if (!data) {
+        // Seed default rooms if empty
+        const initialRooms = {
+          "101": {
             id: "101",
             number: "101",
             type: "Ocean Breeze King",
@@ -147,74 +159,81 @@ export default function App() {
             guestPhone: "+1 555-0143",
             checkIn: "2026-09-28",
             checkOut: "2026-10-02",
-            orderItems: [
-              { id: "i1", description: "Room Charge (2 Nights)", quantity: 2, unitPrice: 220, total: 440, timestamp: "Sep 28, 14:30" },
-              { id: "i2", description: "Minibar: Artisanal Sparkling Water", quantity: 2, unitPrice: 6, total: 12, timestamp: "Sep 29, 10:15" },
-            ],
+            orderItems: {
+              "i1": { id: "i1", description: "Room Charge (2 Nights)", quantity: 2, unitPrice: 220, total: 440, timestamp: "Sep 28, 14:30" },
+              "i2": { id: "i2", description: "Minibar: Artisanal Water", quantity: 2, unitPrice: 6, total: 12, timestamp: "Sep 29, 10:15" },
+            },
           },
-          { id: "102", number: "102", type: "Lagoon View Double", rate: 180, status: "available", orderItems: [] },
-          { id: "201", number: "201", type: "Coral Penthouse Suite", rate: 450, status: "cleaning", orderItems: [] },
-          { id: "202", number: "202", type: "Ocean Breeze King", rate: 220, status: "maintenance", orderItems: [] },
-        ];
-        for (const r of seedRooms) {
-          await setDoc(doc(db, "rooms", r.id), r);
-        }
+          "102": { id: "102", number: "102", type: "Lagoon View Double", rate: 180, status: "available" },
+          "201": { id: "201", number: "201", type: "Coral Penthouse Suite", rate: 450, status: "cleaning" },
+          "202": { id: "202", number: "202", type: "Ocean Breeze King", rate: 220, status: "maintenance" },
+        };
+        set(roomsRef, initialRooms);
       } else {
-        const loaded = [];
-        snap.forEach((d) => loaded.push({ ...d.data(), id: d.id }));
-        setRooms(loaded.sort((a, b) => a.number.localeCompare(b.number)));
-        if (!selectedRoomId && loaded.length > 0) {
-          const firstOccupied = loaded.find((r) => r.status === "occupied");
-          setSelectedRoomId(firstOccupied ? firstOccupied.id : loaded[0].id);
-        }
-      }
-    });
+        const loadedRooms = Object.keys(data).map((key) => {
+          const roomObj = data[key];
+          // Normalize nested orderItems object to array
+          const rawItems = roomObj.orderItems || {};
+          const orderItemsArray = Array.isArray(rawItems)
+            ? rawItems
+            : Object.keys(rawItems).map((k) => ({ ...rawItems[k], id: k }));
 
-    // Inventory Real-time Sync with robust ID capture
-    const invCol = collection(db, "inventory");
-    const unsubInv = onSnapshot(invCol, async (snap) => {
-      if (snap.empty) {
-        const seedInv = [
-          { id: "inv1", name: "Artisanal Sparkling Water", category: "minibar", price: 6, stock: 48 },
-          { id: "inv2", name: "Organic Coconut Chips", category: "minibar", price: 5, stock: 32 },
-          { id: "inv3", name: "Sea Salt Scrub Pack", category: "amenity", price: 12, stock: 15 },
-          { id: "inv4", name: "Egyptian Cotton Bath Towel", category: "linen", price: 0, stock: 75 },
-          { id: "inv5", name: "Cold Brew Coconut Latte", category: "minibar", price: 7, stock: 18 },
-        ];
-        for (const item of seedInv) {
-          await setDoc(doc(db, "inventory", item.id), item);
-        }
-      } else {
-        const loaded = [];
-        snap.forEach((d) => {
-          const data = d.data();
-          loaded.push({
-            ...data,
-            id: d.id,
-            price: Number(data.price) || 0,
-            stock: Number(data.stock) || 0
-          });
+          return {
+            ...roomObj,
+            id: key,
+            orderItems: orderItemsArray,
+          };
         });
-        setInventory(loaded.sort((a, b) => (a.name || "").localeCompare(b.name || "")));
+
+        setRooms(loadedRooms.sort((a, b) => String(a.number).localeCompare(String(b.number))));
+        if (!selectedRoomId && loadedRooms.length > 0) {
+          const firstOccupied = loadedRooms.find((r) => r.status === "occupied");
+          setSelectedRoomId(firstOccupied ? firstOccupied.id : loadedRooms[0].id);
+        }
       }
     });
 
-    // Staff Real-time Sync
-    const staffCol = collection(db, "staff");
-    const unsubStaff = onSnapshot(staffCol, async (snap) => {
-      if (snap.empty) {
-        const seedStaff = [
-          { id: "s1", name: "Kailani Silva", role: "Manager", pin: "1001", active: true },
-          { id: "s2", name: "Noah Jensen", role: "Front Desk", pin: "2044", active: true },
-          { id: "s3", name: "Leilani Kea", role: "Housekeeping", pin: "3055", active: true },
-        ];
-        for (const member of seedStaff) {
-          await setDoc(doc(db, "staff", member.id), member);
-        }
+    // C. Inventory & Minibar Stock Listener
+    const invRef = ref(rtdb, "inventory");
+    const unsubInv = onValue(invRef, (snapshot) => {
+      const data = snapshot.val();
+      if (!data || Object.keys(data).length <= 1) {
+        // Auto-seed to ensure all items are populated
+        const seedMap = {};
+        INITIAL_INVENTORY_SEEDS.forEach((i) => {
+          seedMap[i.id] = i;
+        });
+        update(invRef, seedMap);
       } else {
-        const loaded = [];
-        snap.forEach((d) => loaded.push({ ...d.data(), id: d.id }));
-        setStaff(loaded);
+        const loaded = Object.keys(data).map((key) => {
+          const item = data[key];
+          return {
+            ...item,
+            id: key,
+            name: item.name || item.title || "Unnamed Item",
+            category: item.category || "minibar",
+            price: Number(item.price) || 0,
+            stock: Number(item.stock) || 0,
+          };
+        });
+        setInventory(loaded.sort((a, b) => a.name.localeCompare(b.name)));
+      }
+    });
+
+    // D. Staff Directory Listener
+    const staffRef = ref(rtdb, "staff");
+    const unsubStaff = onValue(staffRef, (snapshot) => {
+      const data = snapshot.val();
+      if (!data) {
+        const initialStaff = {
+          "s1": { id: "s1", name: "Kailani Silva", role: "Manager", pin: "1001", active: true },
+          "s2": { id: "s2", name: "Noah Jensen", role: "Front Desk", pin: "2044", active: true },
+          "s3": { id: "s3", name: "Leilani Kea", role: "Housekeeping", pin: "3055", active: true },
+        };
+        set(staffRef, initialStaff);
+      } else {
+        const staffList = Object.keys(data).map((k) => ({ ...data[k], id: k }));
+        setStaff(staffList);
       }
       setLoading(false);
     });
@@ -230,40 +249,31 @@ export default function App() {
   const currentRoom = rooms.find((r) => r.id === selectedRoomId) || rooms[0];
 
   // Calculations
-  const calculateTotal = (room) => room?.orderItems?.reduce((acc, item) => acc + item.total, 0) || 0;
+  const calculateTotal = (room) => room?.orderItems?.reduce((acc, item) => acc + (Number(item.total) || 0), 0) || 0;
   const printTargetRoom = settleOrderRoom || currentRoom;
   const printTargetTotal = calculateTotal(printTargetRoom);
 
-  // --- 3. HARDENED INVENTORY & STOCK FUNCTIONS ---
+  // --- 3. REALTIME DATABASE ACTIONS ---
 
-  // Atomic Increment/Decrement with local optimistic rendering and merge safety
-  const handleUpdateStockLevel = async (itemId, delta) => {
+  // Stock Adjustment (+1 / -1)
+  const handleUpdateStockLevel = (itemId, delta) => {
     if (!itemId) return;
 
     const target = inventory.find((i) => i.id === itemId);
     const currentStock = Number(target?.stock) || 0;
     const newStock = Math.max(0, currentStock + delta);
 
-    // Optimistic update
+    // Optimistic UI Update
     setInventory((prev) =>
       prev.map((item) => (item.id === itemId ? { ...item, stock: newStock } : item))
     );
 
-    try {
-      // Use setDoc with merge: true to avoid crashes if document was initialized without ID match
-      await setDoc(doc(db, "inventory", String(itemId)), { stock: newStock }, { merge: true });
-    } catch (err) {
-      console.error("Firestore updateStock failed:", err);
-      // Revert if error
-      setInventory((prev) =>
-        prev.map((item) => (item.id === itemId ? { ...item, stock: currentStock } : item))
-      );
-      alert("Failed to update stock. Check Firebase Firestore Database rules.");
-    }
+    // RTDB Update
+    update(ref(rtdb, `inventory/${itemId}`), { stock: newStock });
   };
 
-  // Create Inventory Item with NaN Protection
-  const handleCreateInventoryItem = async (e) => {
+  // Create Inventory Item
+  const handleCreateInventoryItem = (e) => {
     e.preventDefault();
     if (!newInventoryForm.name.trim()) {
       alert("Please enter a product name.");
@@ -282,22 +292,16 @@ export default function App() {
       stock: isNaN(cleanStock) || cleanStock < 0 ? 0 : cleanStock,
     };
 
-    // Optimistic UI update
     setInventory((prev) => [...prev, newItem].sort((a, b) => a.name.localeCompare(b.name)));
     setShowAddInventoryModal(false);
     setNewInventoryForm({
       name: "",
       category: "minibar",
-      price: "5",
-      stock: "24",
+      price: "6",
+      stock: "20",
     });
 
-    try {
-      await setDoc(doc(db, "inventory", itemId), newItem);
-    } catch (err) {
-      console.error("Error creating inventory item:", err);
-      alert("Failed to save inventory item to cloud. Verify Firestore permissions.");
-    }
+    set(ref(rtdb, `inventory/${itemId}`), newItem);
   };
 
   // Start Edit Mode
@@ -311,8 +315,8 @@ export default function App() {
     });
   };
 
-  // Save Inventory Edit with NaN Protection
-  const handleSaveInventoryEdit = async (itemId) => {
+  // Save Inventory Edit
+  const handleSaveInventoryEdit = (itemId) => {
     if (!editInventoryForm.name.trim()) {
       alert("Item name cannot be empty.");
       return;
@@ -322,97 +326,82 @@ export default function App() {
     const cleanStock = parseInt(editInventoryForm.stock, 10);
 
     const updatedPayload = {
-      id: itemId,
       name: editInventoryForm.name.trim(),
       category: editInventoryForm.category || "minibar",
       price: isNaN(cleanPrice) || cleanPrice < 0 ? 0 : cleanPrice,
       stock: isNaN(cleanStock) || cleanStock < 0 ? 0 : cleanStock,
     };
 
-    // Optimistic UI update
     setInventory((prev) =>
       prev.map((item) => (item.id === itemId ? { ...item, ...updatedPayload } : item))
     );
     setEditingInventoryId(null);
 
-    try {
-      await setDoc(doc(db, "inventory", String(itemId)), updatedPayload, { merge: true });
-    } catch (err) {
-      console.error("Error saving inventory changes:", err);
-      alert("Failed to save changes to cloud.");
-    }
+    update(ref(rtdb, `inventory/${itemId}`), updatedPayload);
   };
 
   // Delete Inventory Item
-  const handleDeleteInventoryItem = async (item) => {
+  const handleDeleteInventoryItem = (item) => {
     if (!window.confirm(`Permanently remove "${item.name}" from inventory?`)) return;
 
     setInventory((prev) => prev.filter((i) => i.id !== item.id));
-
-    try {
-      await deleteDoc(doc(db, "inventory", String(item.id)));
-    } catch (err) {
-      console.error("Error deleting item:", err);
-      alert("Failed to delete item from cloud.");
-    }
+    remove(ref(rtdb, `inventory/${item.id}`));
   };
 
   // Minibar Quick Add with Auto Stock Deduction
-  const handleQuickAddMinibar = async (item) => {
+  const handleQuickAddMinibar = (item) => {
     if (!currentRoom) return;
 
-    try {
-      const now = new Date();
-      const newItem = {
-        id: `itm_${Date.now()}`,
-        description: `Minibar: ${item.name}`,
-        quantity: 1,
-        unitPrice: item.price,
-        total: item.price,
-        timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
-      };
+    const now = new Date();
+    const itemId = `itm_${Date.now()}`;
+    const newItem = {
+      id: itemId,
+      description: `Minibar: ${item.name}`,
+      quantity: 1,
+      unitPrice: item.price,
+      total: item.price,
+      timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
+    };
 
-      const updatedItems = [...(currentRoom.orderItems || []), newItem];
-      await updateDoc(doc(db, "rooms", currentRoom.id), { orderItems: updatedItems });
+    // Push into RTDB under room's orderItems
+    set(ref(rtdb, `rooms/${currentRoom.id}/orderItems/${itemId}`), newItem);
 
-      if (item.stock > 0) {
-        await handleUpdateStockLevel(item.id, -1);
-      }
-    } catch (err) {
-      console.error("Error dispensing minibar item:", err);
+    if (item.stock > 0) {
+      handleUpdateStockLevel(item.id, -1);
     }
   };
 
-  // --- 4. GENERAL POS & BILLING ACTIONS ---
-  const handleSaveSettings = async (updated) => {
+  // General Settings
+  const handleSaveSettings = (updated) => {
     setSettings(updated);
-    await setDoc(doc(db, "hotel_config", "profile"), updated);
+    set(ref(rtdb, "hotel_config/profile"), updated);
   };
 
-  const updateRoomStatus = async (roomId, status) => {
-    await updateDoc(doc(db, "rooms", roomId), { status });
+  // Room Status Update
+  const updateRoomStatus = (roomId, status) => {
+    update(ref(rtdb, `rooms/${roomId}`), { status });
   };
 
-  const handleOpenOrderAndCheckIn = async (e) => {
+  // Open Order / Check In
+  const handleOpenOrderAndCheckIn = (e) => {
     e.preventDefault();
     if (!checkInModalRoom || !guestForm.name) return;
 
     const nights = guestForm.nights || 1;
     const now = new Date();
     const orderId = `ORD-${checkInModalRoom.number}-${Date.now().toString().slice(-4)}`;
+    const itemId = `itm_${Date.now()}`;
 
-    const initialOrderItems = [
-      {
-        id: `itm_${Date.now()}`,
-        description: `Room Stay (${nights} Night${nights > 1 ? "s" : ""})`,
-        quantity: nights,
-        unitPrice: checkInModalRoom.rate,
-        total: checkInModalRoom.rate * nights,
-        timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
-      },
-    ];
+    const initialOrderItem = {
+      id: itemId,
+      description: `Room Stay (${nights} Night${nights > 1 ? "s" : ""})`,
+      quantity: nights,
+      unitPrice: checkInModalRoom.rate,
+      total: checkInModalRoom.rate * nights,
+      timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
+    };
 
-    await updateDoc(doc(db, "rooms", checkInModalRoom.id), {
+    const roomPayload = {
       status: "occupied",
       orderId,
       openedAt: now.toLocaleString(),
@@ -420,23 +409,29 @@ export default function App() {
       guestPhone: guestForm.phone,
       checkIn: now.toISOString().split("T")[0],
       checkOut: new Date(Date.now() + nights * 86400000).toISOString().split("T")[0],
-      orderItems: initialOrderItems,
-    });
+      orderItems: {
+        [itemId]: initialOrderItem,
+      },
+    };
+
+    update(ref(rtdb, `rooms/${checkInModalRoom.id}`), roomPayload);
 
     setCheckInModalRoom(null);
     setGuestForm({ name: "", phone: "", nights: 1 });
   };
 
-  const handleAddItemToOrder = async (e) => {
+  // Add Item to Room Order
+  const handleAddItemToOrder = (e) => {
     e.preventDefault();
     if (!newItemDesc || !newItemPrice || !currentRoom) return;
 
     const unitPrice = parseFloat(newItemPrice);
     const quantity = parseInt(newItemQty, 10) || 1;
     const now = new Date();
+    const itemId = `itm_${Date.now()}`;
 
     const newItem = {
-      id: `itm_${Date.now()}`,
+      id: itemId,
       description: newItemDesc,
       quantity,
       unitPrice,
@@ -444,20 +439,20 @@ export default function App() {
       timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
     };
 
-    const updatedItems = [...(currentRoom.orderItems || []), newItem];
-    await updateDoc(doc(db, "rooms", currentRoom.id), { orderItems: updatedItems });
+    set(ref(rtdb, `rooms/${currentRoom.id}/orderItems/${itemId}`), newItem);
 
     setNewItemDesc("");
     setNewItemPrice("");
     setNewItemQty("1");
   };
 
-  const handleRemoveOrderItem = async (itemId) => {
+  // Remove Item from Order
+  const handleRemoveOrderItem = (itemId) => {
     if (!currentRoom) return;
-    const updatedItems = currentRoom.orderItems.filter((item) => item.id !== itemId);
-    await updateDoc(doc(db, "rooms", currentRoom.id), { orderItems: updatedItems });
+    remove(ref(rtdb, `rooms/${currentRoom.id}/orderItems/${itemId}`));
   };
 
+  // Initiate Settlement Modal
   const handleInitiateSettleOrder = (room) => {
     setSelectedRoomId(room.id);
     setActiveTab("frontdesk");
@@ -465,13 +460,14 @@ export default function App() {
     setCashTendered("");
   };
 
-  const handleDeleteActiveBill = async (room) => {
+  // Delete / Void Order
+  const handleDeleteActiveBill = (room) => {
     if (
       window.confirm(
         `Are you sure you want to delete/void the active bill for Room #${room.number}? This will cancel the order and return the room to Available.`
       )
     ) {
-      await updateDoc(doc(db, "rooms", room.id), {
+      update(ref(rtdb, `rooms/${room.id}`), {
         status: "available",
         orderId: null,
         openedAt: null,
@@ -479,11 +475,12 @@ export default function App() {
         guestPhone: "",
         checkIn: "",
         checkOut: "",
-        orderItems: [],
+        orderItems: null,
       });
     }
   };
 
+  // Print Temporary Bill
   const handlePrintTemporaryBill = (room) => {
     setSelectedRoomId(room.id);
     setIsTemporaryBill(true);
@@ -492,7 +489,8 @@ export default function App() {
     }, 120);
   };
 
-  const handleConfirmOrderSettlement = async () => {
+  // Confirm Settlement & Auto-Print Final Invoice
+  const handleConfirmOrderSettlement = () => {
     if (!settleOrderRoom) return;
     setIsTemporaryBill(false);
 
@@ -500,7 +498,7 @@ export default function App() {
       window.print();
     }, 150);
 
-    await updateDoc(doc(db, "rooms", settleOrderRoom.id), {
+    update(ref(rtdb, `rooms/${settleOrderRoom.id}`), {
       status: "cleaning",
       orderId: null,
       openedAt: null,
@@ -508,27 +506,27 @@ export default function App() {
       guestPhone: "",
       checkIn: "",
       checkOut: "",
-      orderItems: [],
+      orderItems: null,
     });
 
     setSettleOrderRoom(null);
   };
 
-  const handleCreateRoom = async (e) => {
+  // Create Room
+  const handleCreateRoom = (e) => {
     e.preventDefault();
     if (!newRoomForm.number) return;
 
-    const roomId = newRoomForm.number.trim();
+    const roomId = String(newRoomForm.number).trim();
     const newRoomData = {
       id: roomId,
-      number: newRoomForm.number.trim(),
+      number: roomId,
       type: newRoomForm.type,
       rate: Number(newRoomForm.rate) || 100,
       status: newRoomForm.status,
-      orderItems: [],
     };
 
-    await setDoc(doc(db, "rooms", roomId), newRoomData);
+    set(ref(rtdb, `rooms/${roomId}`), newRoomData);
     setShowAddRoomModal(false);
     setNewRoomForm({
       number: "",
@@ -538,20 +536,23 @@ export default function App() {
     });
   };
 
-  const handleSaveRoomRate = async (roomId) => {
+  // Save Room Rate
+  const handleSaveRoomRate = (roomId) => {
     const rateVal = parseFloat(editRoomRate);
     if (!isNaN(rateVal) && rateVal > 0) {
-      await updateDoc(doc(db, "rooms", roomId), { rate: rateVal });
+      update(ref(rtdb, `rooms/${roomId}`), { rate: rateVal });
     }
     setEditingRoomId(null);
   };
 
-  const handleDeleteRoom = async (roomId, roomNumber) => {
+  // Delete Room
+  const handleDeleteRoom = (roomId, roomNumber) => {
     if (window.confirm(`Permanently remove Room #${roomNumber}?`)) {
-      await deleteDoc(doc(db, "rooms", roomId));
+      remove(ref(rtdb, `rooms/${roomId}`));
     }
   };
 
+  // Filtered inventory query
   const filteredInventory = inventory.filter((item) => {
     const matchesCategory =
       inventoryCategoryFilter === "all" || item.category === inventoryCategoryFilter;
@@ -569,7 +570,7 @@ export default function App() {
       <div className="flex h-screen items-center justify-center bg-[#FAF9F5]">
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 border-4 border-[#14B8A6] border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-[#091D26] font-semibold text-sm">Loading Thalassa Active Orders & POS...</p>
+          <p className="text-[#091D26] font-semibold text-sm">Connecting to Thalassa Realtime Database...</p>
         </div>
       </div>
     );
@@ -578,14 +579,14 @@ export default function App() {
   return (
     <div className="flex h-screen overflow-hidden bg-[#FAF9F5] text-[#091D26]">
       {/* DESKTOP SIDEBAR */}
-      <aside className="no-print hidden md:flex flex-col w-64 bg-[#091D26] border-r border-[#0F2D3C] text-white">
+      <aside className="no-print hidden md:flex flex-col w-64 bg-[#091D26] border-r border-[#0F2D3C] text-white shrink-0">
         <div className="p-6 border-b border-[#0F2D3C] flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-[#14B8A6] flex items-center justify-center text-white font-bold shadow-md shadow-[#14B8A6]/20">
             <Building2 className="w-5 h-5" />
           </div>
           <div>
             <h1 className="text-base font-bold tracking-tight leading-tight">Thalassa</h1>
-            <p className="text-[11px] text-[#2DD4BF] font-medium">Hotel OS & POS</p>
+            <p className="text-[11px] text-[#2DD4BF] font-medium">Hotel OS & POS (RTDB)</p>
           </div>
         </div>
 
@@ -600,6 +601,7 @@ export default function App() {
           ].map(({ id, label, icon: Icon }) => (
             <button
               key={id}
+              type="button"
               onClick={() => setActiveTab(id)}
               className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition-all ${
                 activeTab === id ? "bg-[#0D9488] text-white shadow-sm" : "text-slate-300 hover:bg-[#0F2D3C] hover:text-white"
@@ -611,27 +613,27 @@ export default function App() {
         </nav>
 
         <div className="p-4 border-t border-[#0F2D3C] bg-[#06151E]/40">
-          <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Connected Project</p>
-          <p className="text-xs text-[#2DD4BF] font-mono truncate mt-0.5">hotel-pos-app</p>
+          <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Connected Engine</p>
+          <p className="text-xs text-[#2DD4BF] font-mono truncate mt-0.5">Firebase Realtime DB</p>
         </div>
       </aside>
 
       {/* MAIN VIEWPORT */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden">
+      <div className="flex-1 flex flex-col h-full overflow-hidden w-full">
         {/* Mobile Header Bar */}
         <header className="no-print md:hidden flex items-center justify-between p-4 bg-[#091D26] text-white border-b border-[#0F2D3C]">
           <div className="flex items-center gap-2">
             <Building2 className="w-5 h-5 text-[#2DD4BF]" />
             <span className="font-bold text-sm">Thalassa POS</span>
           </div>
-          <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-1 rounded text-slate-300">
+          <button type="button" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-1 rounded text-slate-300">
             {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
         </header>
 
         {/* Mobile Drawer */}
         {mobileMenuOpen && (
-          <div className="no-print md:hidden bg-[#091D26] border-b border-[#0F2D3C] p-4 space-y-2 z-50 text-white">
+          <div className="no-print md:hidden bg-[#091D26] border-b border-[#0F2D3C] p-4 space-y-2 z-50 text-white shadow-xl">
             {[
               { id: "frontdesk", label: "Front Desk" },
               { id: "active-orders", label: "Active Bills & Tabs" },
@@ -642,6 +644,7 @@ export default function App() {
             ].map((item) => (
               <button
                 key={item.id}
+                type="button"
                 onClick={() => {
                   setActiveTab(item.id);
                   setMobileMenuOpen(false);
@@ -854,7 +857,7 @@ export default function App() {
                                     <span>{item.description}</span>
                                   </div>
                                   <span className="font-semibold text-[#091D26] shrink-0">
-                                    {settings.currency}{item.total.toFixed(2)}
+                                    {settings.currency}{Number(item.total).toFixed(2)}
                                   </span>
                                 </div>
                               ))}
@@ -981,8 +984,8 @@ export default function App() {
                                 {item.timestamp && <span className="text-[10px] text-slate-400">{item.timestamp}</span>}
                               </td>
                               <td className="py-3 text-center">{item.quantity}</td>
-                              <td className="py-3 text-right">{settings.currency}{item.unitPrice.toFixed(2)}</td>
-                              <td className="py-3 text-right font-semibold">{settings.currency}{item.total.toFixed(2)}</td>
+                              <td className="py-3 text-right">{settings.currency}{Number(item.unitPrice).toFixed(2)}</td>
+                              <td className="py-3 text-right font-semibold">{settings.currency}{Number(item.total).toFixed(2)}</td>
                               <td className="py-3 text-center">
                                 <button
                                   type="button"
@@ -1015,7 +1018,7 @@ export default function App() {
                                 <span className="font-medium text-[#091D26] block truncate">{item.name}</span>
                                 <span className="text-[10px] text-slate-400">Stock: {item.stock}</span>
                               </div>
-                              <span className="font-bold text-[#0F766E]">{settings.currency}{item.price.toFixed(2)}</span>
+                              <span className="font-bold text-[#0F766E]">{settings.currency}{Number(item.price).toFixed(2)}</span>
                             </button>
                           ))}
                       </div>
@@ -1026,14 +1029,14 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 3: INVENTORY & MINIBAR MANAGEMENT */}
+          {/* TAB 3: INVENTORY & MINIBAR MANAGEMENT (FULLY FUNCTIONAL IN RTDB) */}
           {activeTab === "inventory" && (
             <div className="max-w-7xl mx-auto space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <h2 className="text-2xl font-bold text-[#091D26]">Inventory & Minibar Management</h2>
                   <p className="text-sm text-slate-500">
-                    Add new stock, manage minibar prices, adjust warehouse counts, and monitor low supplies.
+                    Realtime Database synchronization for room minibar consumables and amenities.
                   </p>
                 </div>
                 <button
@@ -1181,7 +1184,7 @@ export default function App() {
                                   }
                                 />
                               ) : item.price > 0 ? (
-                                `${settings.currency}${item.price.toFixed(2)}`
+                                `${settings.currency}${Number(item.price).toFixed(2)}`
                               ) : (
                                 <span className="text-slate-400 italic">Free (Complimentary)</span>
                               )}
@@ -1644,7 +1647,7 @@ export default function App() {
                     <span className="font-semibold text-slate-800">{item.quantity}x {item.description}</span>
                     {item.timestamp && <span className="text-[10px] text-slate-400 block">{item.timestamp}</span>}
                   </div>
-                  <span className="font-semibold text-[#091D26]">{settings.currency}{item.total.toFixed(2)}</span>
+                  <span className="font-semibold text-[#091D26]">{settings.currency}{Number(item.total).toFixed(2)}</span>
                 </div>
               ))}
               <div className="pt-2 flex justify-between font-black text-sm text-[#091D26]">
@@ -1803,7 +1806,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL 4: ADD INVENTORY / MINIBAR ITEM */}
+      {/* MODAL 4: ADD INVENTORY / MINIBAR ITEM (PROPERLY POSITIONED) */}
       {showAddInventoryModal && (
         <div className="no-print fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-[#E6DFD3]">
@@ -1925,7 +1928,7 @@ export default function App() {
                     </td>
                     <td style={{ textAlign: "center", padding: "4px 0" }}>{item.quantity}</td>
                     <td style={{ textAlign: "right", padding: "4px 0" }}>
-                      {settings.currency}{item.total.toFixed(2)}
+                      {settings.currency}{Number(item.total).toFixed(2)}
                     </td>
                   </tr>
                 ))}
@@ -1989,8 +1992,8 @@ export default function App() {
                   <tr key={item.id} style={{ borderBottom: "1px solid #ddd" }}>
                     <td style={{ padding: "8px 0" }}>{item.description}</td>
                     <td style={{ padding: "8px 0", textAlign: "center" }}>{item.quantity}</td>
-                    <td style={{ padding: "8px 0", textAlign: "right" }}>{settings.currency}{item.unitPrice.toFixed(2)}</td>
-                    <td style={{ padding: "8px 0", textAlign: "right", fontWeight: "600" }}>{settings.currency}{item.total.toFixed(2)}</td>
+                    <td style={{ padding: "8px 0", textAlign: "right" }}>{settings.currency}{Number(item.unitPrice).toFixed(2)}</td>
+                    <td style={{ padding: "8px 0", textAlign: "right", fontWeight: "600" }}>{settings.currency}{Number(item.total).toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>
