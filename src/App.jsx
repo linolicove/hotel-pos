@@ -1,5 +1,5 @@
 // src/App.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { initializeApp, getApps, getApp } from "firebase/app";
 import {
   getDatabase,
@@ -41,9 +41,12 @@ import {
   FileSpreadsheet,
   Coins,
   Lock,
-  Unlock,
   ShieldCheck,
-  Delete
+  Delete,
+  Camera,
+  Upload,
+  Image as ImageIcon,
+  RefreshCw
 } from "lucide-react";
 
 // --- 1. FIREBASE CONFIGURATION (REALTIME DATABASE) ---
@@ -283,6 +286,7 @@ function buildA4Html({ settings, room, isTemporary, settlementMethod, total }) {
         <div>
           <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Guest Information</p>
           <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold;">${room?.guestName || "Unregistered Guest"}</p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;">Contact: ${room?.guestPhone || "No contact recorded"}</p>
           <p style="margin: 2px 0 0 0; font-size: 12px;">Payment: <b>${isTemporary ? "Pending" : settlementMethod}</b></p>
         </div>
         <div style="text-align: right;">
@@ -419,7 +423,7 @@ function buildDailyAttendanceHtml({ settings, staffList }) {
 // --- 3. MAIN COMPONENT ---
 export default function App() {
   // Authentication & Permission State
-  const [currentUser, setCurrentUser] = useState(null); // Authenticated Staff Member
+  const [currentUser, setCurrentUser] = useState(null);
   const [pinInput, setPinInput] = useState("");
   const [pinError, setPinError] = useState("");
 
@@ -438,12 +442,20 @@ export default function App() {
   const [printFormat, setPrintFormat] = useState("thermal");
   const [isTemporaryBill, setIsTemporaryBill] = useState(false);
 
-  // Front Desk Modals
+  // Front Desk Modals & Camera/File State
   const [checkInModalRoom, setCheckInModalRoom] = useState(null);
   const [settleOrderRoom, setSettleOrderRoom] = useState(null);
   const [settlementMethod, setSettlementMethod] = useState("Credit Card");
   const [cashTendered, setCashTendered] = useState("");
   const [guestForm, setGuestForm] = useState({ name: "", phone: "", nights: 1 });
+  const [guestPhoto, setGuestPhoto] = useState(null); // Captured / Uploaded photo
+  const [isCameraActive, setIsCameraActive] = useState(false); // Live WebCam Stream Flag
+
+  // Refs for WebCam streaming & Canvas snapshot
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const mediaStreamRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   // Custom Item Inputs for Folio
   const [newItemDesc, setNewItemDesc] = useState("");
@@ -507,33 +519,107 @@ export default function App() {
     phone: "",
   });
 
-  // --- PERMISSION MAP ---
+  // Role Permissions
   const isManager = currentUser?.role?.toLowerCase().includes("manager");
   const isFrontDesk = currentUser?.role?.toLowerCase().includes("front desk");
   const isHousekeeping = currentUser?.role?.toLowerCase().includes("housekeeping");
 
   const canAccessTab = (tabId) => {
     if (!currentUser) return false;
-    if (isManager) return true; // Full access
-    if (tabId === "frontdesk") return true; // All staff see rooms
+    if (isManager) return true;
+    if (tabId === "frontdesk") return true;
     if (tabId === "active-orders" && (isFrontDesk || isManager)) return true;
     if (tabId === "inventory" && (isFrontDesk || isManager || isHousekeeping)) return true;
-    if (tabId === "staff" && isHousekeeping) return true; // Can view timeclock only
+    if (tabId === "staff" && isHousekeeping) return true;
     if (tabId === "staff" && isManager) return true;
     if (tabId === "room-admin" && isManager) return true;
     if (tabId === "settings" && isManager) return true;
     return false;
   };
 
-  // --- PIN AUTHENTICATION ---
+  // --- CAMERA & FILE UPLOAD ENGINE ---
+  // Start tablet / device camera stream
+  const startCamera = async () => {
+    try {
+      setIsCameraActive(true);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
+      });
+      mediaStreamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
+      }
+    } catch (err) {
+      console.error("Camera access error:", err);
+      alert("Unable to open device camera. Please check camera permissions in browser.");
+      setIsCameraActive(false);
+    }
+  };
+
+  // Stop camera stream safely
+  const stopCamera = () => {
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+    }
+    setIsCameraActive(false);
+  };
+
+  // Capture snapshot from live video element
+  const takeSnapshot = () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const base64Image = canvas.toDataURL("image/jpeg", 0.7); // Compressed JPEG
+      setGuestPhoto(base64Image);
+      stopCamera();
+    }
+  };
+
+  // Handle traditional image file upload / gallery pick
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Read and compress
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const MAX_WIDTH = 800;
+        const scale = MAX_WIDTH / img.width;
+        canvas.width = MAX_WIDTH;
+        canvas.height = img.height * scale;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const compressedBase64 = canvas.toDataURL("image/jpeg", 0.7);
+        setGuestPhoto(compressedBase64);
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Clean camera up when check-in modal closes
+  const handleCloseCheckInModal = () => {
+    stopCamera();
+    setGuestPhoto(null);
+    setCheckInModalRoom(null);
+  };
+
+  // PIN Operations
   const handlePinDigit = (digit) => {
     if (pinInput.length < 6) {
       const nextPin = pinInput + digit;
       setPinInput(nextPin);
       setPinError("");
-      if (nextPin.length >= 4) {
-        verifyPin(nextPin);
-      }
+      if (nextPin.length >= 4) verifyPin(nextPin);
     }
   };
 
@@ -555,13 +641,12 @@ export default function App() {
       setPinError("");
       setActiveTab("frontdesk");
     } else {
-      if (candidatePin.length >= 4) {
-        setPinError("Invalid Access PIN");
-      }
+      if (candidatePin.length >= 4) setPinError("Invalid Access PIN");
     }
   };
 
   const handleLogout = () => {
+    stopCamera();
     setCurrentUser(null);
     setPinInput("");
     setPinError("");
@@ -622,12 +707,12 @@ export default function App() {
 
     const invRef = ref(rtdb, "inventory");
     const unsubInv = onValue(invRef, (snapshot) => {
-      const data = snapshot.val();
-      if (!data || Object.keys(data).length <= 1) {
+      if (!snapshot.exists()) {
         const seedMap = {};
         INITIAL_INVENTORY_SEEDS.forEach((i) => { seedMap[i.id] = i; });
         update(invRef, seedMap);
       } else {
+        const data = snapshot.val();
         const loaded = Object.keys(data).map((key) => ({
           ...data[key],
           id: key,
@@ -642,12 +727,12 @@ export default function App() {
 
     const staffRef = ref(rtdb, "staff");
     const unsubStaff = onValue(staffRef, (snapshot) => {
-      const data = snapshot.val();
-      if (!data || Object.keys(data).length === 0) {
+      if (!snapshot.exists()) {
         const seedStaffMap = {};
         INITIAL_STAFF_SEEDS.forEach((s) => { seedStaffMap[s.id] = s; });
         set(staffRef, seedStaffMap);
       } else {
+        const data = snapshot.val();
         const staffList = Object.keys(data).map((k) => ({
           ...data[k],
           id: k,
@@ -670,6 +755,7 @@ export default function App() {
       unsubRooms();
       unsubInv();
       unsubStaff();
+      stopCamera();
     };
   }, [selectedRoomId]);
 
@@ -679,7 +765,7 @@ export default function App() {
   const printTargetTotal = calculateTotal(printTargetRoom);
   const calculateStaffGross = (s) => (Number(s.baseSalary) || 0) + (Number(s.allowances) || 0) + (Number(s.serviceCharge) || 0) + (Number(s.bonus) || 0);
 
-  // --- PRINT DRIVERS ---
+  // --- ACTIONS ---
   const handlePrintTemporaryBill = (room) => {
     setSelectedRoomId(room.id);
     const total = calculateTotal(room);
@@ -703,6 +789,7 @@ export default function App() {
       openedAt: null,
       guestName: "",
       guestPhone: "",
+      guestPhoto: null,
       checkIn: "",
       checkOut: "",
       orderItems: null,
@@ -720,7 +807,6 @@ export default function App() {
     printIsolatedDocument(html, "a4");
   };
 
-  // --- TIMECLOCK ACTIONS ---
   const formatTimeNow = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   const handleClockIn = (staffId) => {
@@ -739,7 +825,6 @@ export default function App() {
     update(ref(rtdb, `staff/${staffId}`), { clockOut: timeStr, isOnDuty: false });
   };
 
-  // --- STAFF & INVENTORY HANDLERS ---
   const handleUpdateStockLevel = (itemId, delta) => {
     if (!itemId) return;
     const target = inventory.find((i) => i.id === itemId);
@@ -905,9 +990,12 @@ export default function App() {
     update(ref(rtdb, `rooms/${roomId}`), { status });
   };
 
+  // CHECK-IN WITH CAMERA / UPLOADED GUEST IMAGE
   const handleOpenOrderAndCheckIn = (e) => {
     e.preventDefault();
     if (!checkInModalRoom || !guestForm.name) return;
+    stopCamera();
+
     const nights = guestForm.nights || 1;
     const now = new Date();
     const orderId = `ORD-${checkInModalRoom.number}-${Date.now().toString().slice(-4)}`;
@@ -926,11 +1014,13 @@ export default function App() {
       openedAt: now.toLocaleString(),
       guestName: guestForm.name,
       guestPhone: guestForm.phone,
+      guestPhoto: guestPhoto || null, // Saves the captured Base64 image
       checkIn: now.toISOString().split("T")[0],
       checkOut: new Date(Date.now() + nights * 86400000).toISOString().split("T")[0],
       orderItems: { [itemId]: initialOrderItem },
     };
     update(ref(rtdb, `rooms/${checkInModalRoom.id}`), roomPayload);
+    setGuestPhoto(null);
     setCheckInModalRoom(null);
     setGuestForm({ name: "", phone: "", nights: 1 });
   };
@@ -976,6 +1066,7 @@ export default function App() {
         openedAt: null,
         guestName: "",
         guestPhone: "",
+        guestPhoto: null,
         checkIn: "",
         checkOut: "",
         orderItems: null,
@@ -1043,20 +1134,18 @@ export default function App() {
   }
 
   // =========================================================
-  // SCREEN: PIN-PAD TERMINAL LOCK SCREEN (IF NOT LOGGED IN)
+  // SCREEN: PIN-PAD TERMINAL LOCK SCREEN
   // =========================================================
   if (!currentUser) {
     return (
       <div className="flex min-h-screen bg-gradient-to-br from-[#06151E] via-[#091D26] to-[#0F2D3C] text-white items-center justify-center p-4">
         <div className="w-full max-w-sm bg-white/5 backdrop-blur-md border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col items-center">
-          {/* Logo / Header */}
           <div className="w-14 h-14 rounded-2xl bg-[#14B8A6] flex items-center justify-center text-white mb-4 shadow-lg shadow-[#14B8A6]/30">
             <Waves className="w-8 h-8" />
           </div>
           <h1 className="text-xl font-bold tracking-tight text-white">{settings.hotelName}</h1>
           <p className="text-xs text-[#2DD4BF] font-medium mt-0.5">Staff POS & PMS Terminal Lock</p>
 
-          {/* PIN Input Indicator */}
           <div className="my-6 flex flex-col items-center w-full">
             <div className="flex items-center gap-3 h-10">
               {[0, 1, 2, 3].map((idx) => (
@@ -1080,7 +1169,6 @@ export default function App() {
             )}
           </div>
 
-          {/* On-Screen Touch PIN Pad */}
           <div className="grid grid-cols-3 gap-3 w-full max-w-[280px]">
             {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((digit) => (
               <button
@@ -1115,7 +1203,6 @@ export default function App() {
             </button>
           </div>
 
-          {/* Preset Demo Pins for Instant Access */}
           <div className="mt-6 pt-4 border-t border-white/10 w-full text-center">
             <p className="text-[10px] text-slate-400 uppercase font-semibold">Demo Staff PIN Codes:</p>
             <div className="flex flex-wrap justify-center gap-1.5 mt-2">
@@ -1137,7 +1224,7 @@ export default function App() {
   }
 
   // =========================================================
-  // MAIN AUTHENTICATED WORKSPACE
+  // MAIN WORKSPACE
   // =========================================================
   return (
     <div className="flex h-screen overflow-hidden bg-[#FAF9F5] text-[#091D26]">
@@ -1180,8 +1267,7 @@ export default function App() {
             { id: "staff", label: "Staff & Attendance", icon: Users },
             { id: "settings", label: "Hotel Settings", icon: Settings },
           ].map(({ id, label, icon: Icon }) => {
-            const hasAccess = canAccessTab(id);
-            if (!hasAccess) return null; // Role-based hiding
+            if (!canAccessTab(id)) return null;
 
             return (
               <button
@@ -1276,7 +1362,7 @@ export default function App() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <h2 className="text-2xl font-bold text-[#091D26] tracking-tight">Front Desk Operations</h2>
-                  <p className="text-sm text-slate-500">Live guest room status, check-ins, and turnover</p>
+                  <p className="text-sm text-slate-500">Live guest room status, photo IDs, check-ins, and turnover</p>
                 </div>
                 <div className="flex items-center gap-2 text-xs">
                   <span className="bg-white border border-[#E6DFD3] px-3 py-1.5 rounded-lg shadow-sm">
@@ -1317,13 +1403,30 @@ export default function App() {
                         <p className="text-xs text-slate-500 mb-4">{settings.currency}{room.rate} / night</p>
 
                         {room.status === "occupied" && (
-                          <div className="bg-[#FAF9F5] p-3 rounded-lg border border-[#E6DFD3] mb-4 text-xs space-y-1.5">
-                            <div className="flex justify-between items-center">
-                              <span className="font-bold text-[#091D26] truncate mr-2">{room.guestName}</span>
-                              <span className="font-black text-[#0D9488] shrink-0">{settings.currency}{billTotal.toFixed(2)}</span>
+                          <div className="bg-[#FAF9F5] p-3 rounded-lg border border-[#E6DFD3] mb-4 text-xs space-y-2">
+                            <div className="flex items-center gap-3">
+                              {/* Guest Image Thumbnail if captured */}
+                              {room.guestPhoto ? (
+                                <img
+                                  src={room.guestPhoto}
+                                  alt="Guest ID"
+                                  className="w-10 h-10 rounded-full object-cover border border-[#14B8A6] shrink-0"
+                                />
+                              ) : (
+                                <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-400 shrink-0">
+                                  <ImageIcon className="w-4 h-4" />
+                                </div>
+                              )}
+                              <div className="truncate">
+                                <span className="font-bold text-[#091D26] block truncate">{room.guestName}</span>
+                                <span className="text-[10px] text-slate-500">{room.guestPhone || "No contact"}</span>
+                              </div>
                             </div>
-                            <p className="text-[11px] text-[#0F766E] font-mono">{room.orderId}</p>
-                            <p className="text-[11px] text-slate-400">Checkout: {room.checkOut}</p>
+                            <div className="flex justify-between items-center pt-1 border-t border-slate-200/60">
+                              <span className="text-[11px] text-[#0F766E] font-mono">{room.orderId}</span>
+                              <span className="font-black text-[#0D9488]">{settings.currency}{billTotal.toFixed(2)}</span>
+                            </div>
+                            <p className="text-[10px] text-slate-400">Checkout: {room.checkOut}</p>
                           </div>
                         )}
                       </div>
@@ -1332,10 +1435,13 @@ export default function App() {
                         {room.status === "available" && (
                           <button
                             type="button"
-                            onClick={() => setCheckInModalRoom(room)}
-                            className="w-full bg-[#14B8A6] hover:bg-[#0D9488] text-white py-2 rounded-lg text-xs font-bold"
+                            onClick={() => {
+                              setCheckInModalRoom(room);
+                              setGuestPhoto(null);
+                            }}
+                            className="w-full bg-[#14B8A6] hover:bg-[#0D9488] text-white py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5"
                           >
-                            Open Order / Check In
+                            <Camera className="w-3.5 h-3.5" /> Check In & Photo
                           </button>
                         )}
                         {room.status === "occupied" && (
@@ -1451,12 +1557,23 @@ export default function App() {
                             </div>
                           </div>
 
-                          <div className="text-xs space-y-1 mb-4">
-                            <p className="font-bold text-[#091D26]">{room.guestName}</p>
-                            <p className="text-slate-500">{room.guestPhone}</p>
-                            <p className="text-[11px] text-slate-400 flex items-center gap-1">
-                              <Clock className="w-3 h-3" /> Opened: {room.openedAt || room.checkIn}
-                            </p>
+                          <div className="flex items-center gap-3 mb-4">
+                            {room.guestPhoto ? (
+                              <img
+                                src={room.guestPhoto}
+                                alt="Guest"
+                                className="w-12 h-12 rounded-xl object-cover border border-[#14B8A6] shadow-sm"
+                              />
+                            ) : (
+                              <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400">
+                                <ImageIcon className="w-5 h-5" />
+                              </div>
+                            )}
+                            <div className="text-xs">
+                              <p className="font-bold text-[#091D26]">{room.guestName}</p>
+                              <p className="text-slate-500">{room.guestPhone}</p>
+                              <p className="text-[10px] text-slate-400">{room.checkIn} → {room.checkOut}</p>
+                            </div>
                           </div>
 
                           <div className="bg-[#FAF9F5] p-3 rounded-lg border border-[#E6DFD3] mb-4">
@@ -2025,49 +2142,152 @@ export default function App() {
         </main>
       </div>
 
-      {/* CHECK-IN MODAL */}
+      {/* =========================================================
+          CHECK-IN MODAL WITH INTEGRATED CAMERA & FILE UPLOAD
+          ========================================================= */}
       {checkInModalRoom && (
-        <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-[#E6DFD3]">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-lg text-[#091D26]">Check In - Room #{checkInModalRoom.number}</h3>
-              <button type="button" onClick={() => setCheckInModalRoom(null)} className="text-slate-400">
+        <div className="fixed inset-0 bg-[#06151E]/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl border border-[#E6DFD3] my-8">
+            <div className="flex justify-between items-center mb-4 pb-2 border-b border-[#E6DFD3]">
+              <div>
+                <span className="text-xs uppercase font-bold text-[#0F766E]">Guest Registration & ID</span>
+                <h3 className="font-bold text-lg text-[#091D26]">Check In - Room #{checkInModalRoom.number}</h3>
+              </div>
+              <button type="button" onClick={handleCloseCheckInModal} className="text-slate-400 hover:text-black">
                 <X className="w-5 h-5" />
               </button>
             </div>
+
+            {/* Hidden Canvas used for taking high-res snapshot */}
+            <canvas ref={canvasRef} className="hidden" />
+
             <form onSubmit={handleOpenOrderAndCheckIn} className="space-y-4 text-xs">
+              {/* CAMERA / IMAGE CAPTURE INTERFACE */}
+              <div className="bg-[#FAF9F5] p-3.5 rounded-2xl border border-[#E6DFD3] space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-[11px] text-[#091D26] uppercase flex items-center gap-1.5">
+                    <Camera className="w-3.5 h-3.5 text-[#0F766E]" /> Guest Photo / Passport ID
+                  </span>
+                  {guestPhoto && (
+                    <button
+                      type="button"
+                      onClick={() => setGuestPhoto(null)}
+                      className="text-[10px] text-coral-600 font-bold hover:underline"
+                    >
+                      Remove Photo
+                    </button>
+                  )}
+                </div>
+
+                {/* 1. Live Camera Stream Viewport */}
+                {isCameraActive ? (
+                  <div className="relative rounded-xl overflow-hidden bg-black aspect-video flex items-center justify-center border-2 border-[#14B8A6]">
+                    <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+                    <div className="absolute bottom-2 inset-x-0 flex justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={takeSnapshot}
+                        className="px-4 py-1.5 bg-[#14B8A6] hover:bg-[#0D9488] text-white rounded-full font-bold shadow-lg flex items-center gap-1.5"
+                      >
+                        <Camera className="w-4 h-4" /> Snap Photo
+                      </button>
+                      <button
+                        type="button"
+                        onClick={stopCamera}
+                        className="px-3 py-1.5 bg-black/60 hover:bg-black text-white rounded-full font-semibold text-[10px]"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : guestPhoto ? (
+                  /* 2. Photo Preview Once Taken / Uploaded */
+                  <div className="relative rounded-xl overflow-hidden bg-slate-100 aspect-video flex items-center justify-center border border-[#14B8A6]">
+                    <img src={guestPhoto} alt="Captured Guest ID" className="w-full h-full object-cover" />
+                    <div className="absolute top-2 right-2 bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow">
+                      Photo Attached ✓
+                    </div>
+                  </div>
+                ) : (
+                  /* 3. Action Buttons to Open Camera or Pick File */
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={startCamera}
+                      className="p-3 rounded-xl border border-dashed border-[#14B8A6] bg-[#CCFBF1]/30 hover:bg-[#CCFBF1]/60 text-[#0F766E] font-bold flex flex-col items-center justify-center gap-1.5 transition-all"
+                    >
+                      <Camera className="w-5 h-5 text-[#0D9488]" />
+                      <span>Take Photo (Camera)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="p-3 rounded-xl border border-dashed border-[#D3C8B7] bg-white hover:bg-slate-50 text-slate-600 font-bold flex flex-col items-center justify-center gap-1.5 transition-all"
+                    >
+                      <Upload className="w-5 h-5 text-slate-400" />
+                      <span>Upload ID / File</span>
+                    </button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Guest Details Form Fields */}
               <div>
                 <label className="block font-semibold mb-1">Guest Full Name</label>
                 <input
                   type="text"
                   required
+                  placeholder="e.g. Marina Sterling"
                   value={guestForm.name}
                   onChange={(e) => setGuestForm({ ...guestForm, name: e.target.value })}
-                  className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
+                  className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
                 />
               </div>
-              <div>
-                <label className="block font-semibold mb-1">Phone Number</label>
-                <input
-                  type="tel"
-                  value={guestForm.phone}
-                  onChange={(e) => setGuestForm({ ...guestForm, phone: e.target.value })}
-                  className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
-                />
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1">Phone Number</label>
+                  <input
+                    type="tel"
+                    placeholder="+1 (555) 000-0000"
+                    value={guestForm.phone}
+                    onChange={(e) => setGuestForm({ ...guestForm, phone: e.target.value })}
+                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Nights Duration</label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={guestForm.nights}
+                    onChange={(e) => setGuestForm({ ...guestForm, nights: parseInt(e.target.value, 10) || 1 })}
+                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block font-semibold mb-1">Nights</label>
-                <input
-                  type="number"
-                  min="1"
-                  required
-                  value={guestForm.nights}
-                  onChange={(e) => setGuestForm({ ...guestForm, nights: parseInt(e.target.value, 10) || 1 })}
-                  className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
-                />
+
+              <div className="bg-[#FAF9F5] p-3 rounded-lg border border-[#E6DFD3] flex justify-between items-center">
+                <span className="text-slate-500">Initial Billable Order Value:</span>
+                <span className="font-black text-sm text-[#0D9488]">
+                  {settings.currency}{(checkInModalRoom.rate * (guestForm.nights || 1)).toFixed(2)}
+                </span>
               </div>
-              <button type="submit" className="w-full bg-[#14B8A6] hover:bg-[#0D9488] text-white font-bold py-3 rounded-lg">
-                Open Order & Check In
+
+              <button
+                type="submit"
+                className="w-full bg-[#14B8A6] hover:bg-[#0D9488] text-white font-bold py-3 rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5"
+              >
+                <Check className="w-4 h-4" /> Complete Registration & Check In
               </button>
             </form>
           </div>
@@ -2195,7 +2415,7 @@ export default function App() {
         <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-[#E6DFD3]">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-lg text-[#091D26]">Add Team Member & Salary</h3>
+              <h3 className="font-bold text-lg text-[#091D26]">Add Team Member</h3>
               <button type="button" onClick={() => setShowAddStaffModal(false)} className="text-slate-400">
                 <X className="w-5 h-5" />
               </button>
@@ -2223,7 +2443,6 @@ export default function App() {
                     <option value="Front Desk">Front Desk</option>
                     <option value="Housekeeping">Housekeeping</option>
                     <option value="Maintenance">Maintenance</option>
-                    <option value="F&B Service">F&B Service</option>
                   </select>
                 </div>
                 <div>
