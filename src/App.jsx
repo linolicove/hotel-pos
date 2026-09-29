@@ -1370,117 +1370,143 @@ export default function App() {
         </div>
       )}
 
-      {/* PRINT ENGINE CONTAINER */}
+      {/* =========================================================
+          PLAIN MONOCHROME PRINT ENGINE (NO BACKGROUNDS)
+          ========================================================= */}
       <div className="printable-area hidden">
         {printFormat === "thermal" ? (
+          /* THERMAL 80MM / 58MM PLAIN RECEIPT */
           <div className="thermal-mode">
-            <div style={{ textAlign: "center", marginBottom: "8px", borderBottom: "1px dashed #000", paddingBottom: "8px" }}>
-              <div style={{ fontWeight: "bold", fontSize: "14px", textTransform: "uppercase" }}>{settings.hotelName}</div>
-              <div>{settings.address}</div>
-              <div>Tel: {settings.phone}</div>
-              <div>Tax ID: {settings.taxNumber}</div>
+            {/* Header */}
+            <div style={{ textAlign: "center", paddingBottom: "8px", borderBottom: "1px dashed #000" }}>
+              <div style={{ fontWeight: "bold", fontSize: "14px", textTransform: "uppercase", letterSpacing: "1px" }}>
+                {settings.hotelName}
+              </div>
+              <div style={{ fontSize: "10px", marginTop: "2px" }}>{settings.address}</div>
+              <div style={{ fontSize: "10px" }}>Tel: {settings.phone}</div>
+              <div style={{ fontSize: "10px" }}>Tax Reg: {settings.taxNumber}</div>
             </div>
 
-            <div style={{ borderBottom: "1px dashed #000", paddingBottom: "6px", marginBottom: "6px" }}>
-              <div>ORDER: {printTargetRoom?.orderId || `ORD-${printTargetRoom?.number}`}</div>
-              <div>ROOM: #{printTargetRoom?.number}</div>
+            {/* Metadata */}
+            <div style={{ padding: "6px 0", borderBottom: "1px dashed #000", fontSize: "10px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>ORDER: {printTargetRoom?.orderId || `ORD-${printTargetRoom?.number}`}</span>
+                <span>ROOM: #{printTargetRoom?.number}</span>
+              </div>
               <div>GUEST: {printTargetRoom?.guestName || "Walk-In"}</div>
-              <div>METHOD: {settlementMethod}</div>
-              <div>DATE: {new Date().toLocaleDateString()}</div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>METHOD: {settlementMethod}</span>
+                <span>{new Date().toLocaleDateString()}</span>
+              </div>
             </div>
 
-            <table style={{ width: "100%", textAlign: "left", marginBottom: "8px", borderCollapse: "collapse" }}>
+            {/* Line Items */}
+            <table style={{ width: "100%", textAlign: "left", margin: "6px 0", borderCollapse: "collapse", fontSize: "11px" }}>
               <thead>
                 <tr style={{ borderBottom: "1px solid #000" }}>
-                  <th>ITEM</th>
-                  <th style={{ textAlign: "center" }}>QTY</th>
-                  <th style={{ textAlign: "right" }}>AMT</th>
+                  <th style={{ padding: "4px 0" }}>ITEM</th>
+                  <th style={{ textAlign: "center", padding: "4px 0" }}>QTY</th>
+                  <th style={{ textAlign: "right", padding: "4px 0" }}>AMT</th>
                 </tr>
               </thead>
               <tbody>
                 {printTargetRoom?.orderItems?.map((item) => (
-                  <tr key={item.id}>
-                    <td style={{ maxWidth: "38mm", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <tr key={item.id} style={{ borderBottom: "1px dotted #ccc" }}>
+                    <td style={{ padding: "4px 0", maxWidth: "40mm", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {item.description}
                     </td>
-                    <td style={{ textAlign: "center" }}>{item.quantity}</td>
-                    <td style={{ textAlign: "right" }}>{settings.currency}{item.total.toFixed(2)}</td>
+                    <td style={{ textAlign: "center", padding: "4px 0" }}>{item.quantity}</td>
+                    <td style={{ textAlign: "right", padding: "4px 0" }}>
+                      {settings.currency}{item.total.toFixed(2)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
 
-            <div style={{ borderTop: "1px dashed #000", paddingTop: "6px", fontWeight: "bold" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px" }}>
-                <span>ORDER TOTAL:</span>
+            {/* Totals */}
+            <div style={{ borderTop: "1px dashed #000", paddingTop: "6px", fontSize: "12px", fontWeight: "bold" }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>TOTAL PAID:</span>
                 <span>{settings.currency}{printTargetTotal.toFixed(2)}</span>
               </div>
             </div>
 
-            <div style={{ textAlign: "center", marginTop: "12px", fontSize: "10px" }}>
+            {/* Footer */}
+            <div style={{ textAlign: "center", marginTop: "14px", paddingTop: "8px", borderTop: "1px dashed #000", fontSize: "10px" }}>
               <div>{settings.footerNote}</div>
             </div>
           </div>
         ) : (
+          /* PLAIN A4 INVOICE / FOLIO (NO TINT, NO GRAY BACKGROUNDS) */
           <div className="a4-mode">
-            <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "2px solid #0D9488", paddingBottom: "18px" }}>
+            {/* Top Company & Title Header */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", paddingBottom: "14px", borderBottom: "2px solid #000" }}>
               <div>
-                <h1 style={{ fontSize: "24px", fontWeight: "bold", color: "#0F2D3C", margin: 0 }}>{settings.hotelName}</h1>
-                <p style={{ margin: "4px 0", color: "#64748B" }}>{settings.address}</p>
-                <p style={{ margin: 0, color: "#64748B" }}>Tax Reg: {settings.taxNumber} | Tel: {settings.phone}</p>
+                <h1 style={{ fontSize: "22px", fontWeight: "bold", textTransform: "uppercase", margin: 0, color: "#000" }}>
+                  {settings.hotelName}
+                </h1>
+                <p style={{ margin: "4px 0 0 0", color: "#000" }}>{settings.address}</p>
+                <p style={{ margin: "2px 0 0 0", color: "#000" }}>Tax ID: {settings.taxNumber} | Tel: {settings.phone}</p>
               </div>
               <div style={{ textAlign: "right" }}>
-                <span style={{ background: "#CCFBF1", color: "#0F766E", padding: "4px 8px", borderRadius: "4px", fontWeight: "bold", fontSize: "12px" }}>
-                  FINAL TAX INVOICE
-                </span>
-                <p style={{ fontWeight: "bold", margin: "8px 0 0 0" }}>Order #{printTargetRoom?.orderId || printTargetRoom?.number}</p>
-                <p style={{ margin: 0, color: "#64748B" }}>Room #{printTargetRoom?.number}</p>
-                <p style={{ margin: 0, color: "#64748B" }}>Settled: {settlementMethod}</p>
+                <div style={{ border: "1px solid #000", padding: "4px 10px", fontSize: "11px", fontWeight: "bold", textTransform: "uppercase" }}>
+                  TAX INVOICE / SETTLEMENT
+                </div>
+                <p style={{ margin: "8px 0 0 0", fontSize: "12px" }}><b>Invoice Date:</b> {new Date().toLocaleDateString()}</p>
+                <p style={{ margin: "2px 0 0 0", fontSize: "12px" }}><b>Order Ref:</b> {printTargetRoom?.orderId || `ORD-${printTargetRoom?.number}`}</p>
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", margin: "24px 0", padding: "12px", background: "#FAF9F5", borderRadius: "8px" }}>
+            {/* Guest & Room Details Grid (Plain Border, White BG) */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", margin: "18px 0", padding: "10px 0", borderBottom: "1px solid #000" }}>
               <div>
-                <p style={{ margin: 0, fontSize: "11px", color: "#94A3B8", textTransform: "uppercase" }}>Guest Information</p>
-                <p style={{ margin: "2px 0 0 0", fontWeight: "bold", fontSize: "14px" }}>{printTargetRoom?.guestName || "Unregistered"}</p>
-                <p style={{ margin: 0, color: "#64748B" }}>{printTargetRoom?.guestPhone}</p>
+                <p style={{ margin: 0, fontSize: "10px", textTransform: "uppercase", fontWeight: "bold" }}>Guest Information</p>
+                <p style={{ margin: "4px 0 0 0", fontSize: "14px", fontWeight: "bold" }}>{printTargetRoom?.guestName || "Unregistered Guest"}</p>
+                <p style={{ margin: "2px 0 0 0" }}>{printTargetRoom?.guestPhone || "No contact recorded"}</p>
               </div>
               <div style={{ textAlign: "right" }}>
-                <p style={{ margin: 0, fontSize: "11px", color: "#94A3B8", textTransform: "uppercase" }}>Duration / Timestamp</p>
-                <p style={{ margin: "2px 0 0 0", fontWeight: "bold" }}>{printTargetRoom?.checkIn} to {printTargetRoom?.checkOut}</p>
+                <p style={{ margin: 0, fontSize: "10px", textTransform: "uppercase", fontWeight: "bold" }}>Accommodation Details</p>
+                <p style={{ margin: "4px 0 0 0", fontSize: "14px", fontWeight: "bold" }}>Room #{printTargetRoom?.number} - {printTargetRoom?.type}</p>
+                <p style={{ margin: "2px 0 0 0" }}>Period: {printTargetRoom?.checkIn} to {printTargetRoom?.checkOut}</p>
               </div>
             </div>
 
-            <table style={{ width: "100%", borderCollapse: "collapse", margin: "20px 0" }}>
+            {/* Line Items Table */}
+            <table style={{ width: "100%", borderCollapse: "collapse", margin: "16px 0", fontSize: "12px" }}>
               <thead>
-                <tr style={{ borderBottom: "1px solid #0F2D3C", textAlign: "left", color: "#0F2D3C" }}>
-                  <th style={{ padding: "8px 0" }}>Item Description</th>
+                <tr style={{ borderBottom: "1.5px solid #000", textAlign: "left" }}>
+                  <th style={{ padding: "8px 0" }}>Description</th>
                   <th style={{ padding: "8px 0", textAlign: "center" }}>Qty</th>
-                  <th style={{ padding: "8px 0", textAlign: "right" }}>Rate</th>
-                  <th style={{ padding: "8px 0", textAlign: "right" }}>Amount</th>
+                  <th style={{ padding: "8px 0", textAlign: "right" }}>Unit Price</th>
+                  <th style={{ padding: "8px 0", textAlign: "right" }}>Total</th>
                 </tr>
               </thead>
               <tbody>
                 {printTargetRoom?.orderItems?.map((item) => (
-                  <tr key={item.id} style={{ borderBottom: "1px solid #E2E8F0" }}>
-                    <td style={{ padding: "10px 0" }}>{item.description}</td>
-                    <td style={{ padding: "10px 0", textAlign: "center" }}>{item.quantity}</td>
-                    <td style={{ padding: "10px 0", textAlign: "right" }}>{settings.currency}{item.unitPrice.toFixed(2)}</td>
-                    <td style={{ padding: "10px 0", textAlign: "right", fontWeight: "bold" }}>{settings.currency}{item.total.toFixed(2)}</td>
+                  <tr key={item.id} style={{ borderBottom: "1px solid #ddd" }}>
+                    <td style={{ padding: "8px 0" }}>{item.description}</td>
+                    <td style={{ padding: "8px 0", textAlign: "center" }}>{item.quantity}</td>
+                    <td style={{ padding: "8px 0", textAlign: "right" }}>{settings.currency}{item.unitPrice.toFixed(2)}</td>
+                    <td style={{ padding: "8px 0", textAlign: "right", fontWeight: "600" }}>{settings.currency}{item.total.toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
 
-            <div style={{ borderTop: "2px solid #0F2D3C", paddingTop: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: "16px", fontWeight: "bold" }}>Total Settled ({settlementMethod}):</span>
-              <span style={{ fontSize: "20px", fontWeight: "bold", color: "#0D9488" }}>
+            {/* Grand Total & Settlement Rule */}
+            <div style={{ borderTop: "2px solid #000", borderBottom: "1px solid #000", padding: "10px 0", margin: "16px 0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: "13px", fontWeight: "bold", textTransform: "uppercase" }}>
+                Total Paid ({settlementMethod}):
+              </span>
+              <span style={{ fontSize: "18px", fontWeight: "bold" }}>
                 {settings.currency}{printTargetTotal.toFixed(2)}
               </span>
             </div>
 
-            <div style={{ marginTop: "40px", textAlign: "center", color: "#94A3B8", fontSize: "11px" }}>
-              <p>{settings.footerNote}</p>
+            {/* Simple Clean Footer */}
+            <div style={{ marginTop: "40px", textAlign: "center", fontSize: "11px" }}>
+              <p style={{ margin: 0 }}>{settings.footerNote}</p>
             </div>
           </div>
         )}
