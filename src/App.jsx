@@ -31,7 +31,9 @@ import {
   ArrowRight,
   Clock,
   ShoppingBag,
-  FileText
+  Search,
+  AlertTriangle,
+  PackagePlus
 } from "lucide-react";
 
 // --- 1. FIREBASE CONFIGURATION ---
@@ -73,7 +75,7 @@ export default function App() {
   // Active Selection & Print Mode State
   const [selectedRoomId, setSelectedRoomId] = useState("");
   const [printFormat, setPrintFormat] = useState("thermal"); // 'thermal' or 'a4'
-  const [isTemporaryBill, setIsTemporaryBill] = useState(false); // true for interim check, false for settled tax invoice
+  const [isTemporaryBill, setIsTemporaryBill] = useState(false);
 
   // Front Desk Modals
   const [checkInModalRoom, setCheckInModalRoom] = useState(null);
@@ -82,12 +84,12 @@ export default function App() {
   const [cashTendered, setCashTendered] = useState("");
   const [guestForm, setGuestForm] = useState({ name: "", phone: "", nights: 1 });
 
-  // Custom Item Inputs
+  // Custom Item Inputs for Folio
   const [newItemDesc, setNewItemDesc] = useState("");
   const [newItemPrice, setNewItemPrice] = useState("");
   const [newItemQty, setNewItemQty] = useState("1");
 
-  // Room Management / Admin State
+  // Room Management State
   const [showAddRoomModal, setShowAddRoomModal] = useState(false);
   const [newRoomForm, setNewRoomForm] = useState({
     number: "",
@@ -97,6 +99,24 @@ export default function App() {
   });
   const [editingRoomId, setEditingRoomId] = useState(null);
   const [editRoomRate, setEditRoomRate] = useState("");
+
+  // Inventory Management State
+  const [showAddInventoryModal, setShowAddInventoryModal] = useState(false);
+  const [inventoryCategoryFilter, setInventoryCategoryFilter] = useState("all");
+  const [inventorySearchQuery, setInventorySearchQuery] = useState("");
+  const [newInventoryForm, setNewInventoryForm] = useState({
+    name: "",
+    category: "minibar",
+    price: 5,
+    stock: 24,
+  });
+  const [editingInventoryId, setEditingInventoryId] = useState(null);
+  const [editInventoryForm, setEditInventoryForm] = useState({
+    name: "",
+    category: "minibar",
+    price: 0,
+    stock: 0,
+  });
 
   // --- 2. REAL-TIME FIRESTORE HOOKS ---
   useEffect(() => {
@@ -159,6 +179,7 @@ export default function App() {
           { id: "inv2", name: "Organic Coconut Chips", category: "minibar", price: 5, stock: 32 },
           { id: "inv3", name: "Sea Salt Scrub Pack", category: "amenity", price: 12, stock: 15 },
           { id: "inv4", name: "Egyptian Cotton Bath Towel", category: "linen", price: 0, stock: 75 },
+          { id: "inv5", name: "Cold Brew Coconut Latte", category: "minibar", price: 7, stock: 18 },
         ];
         for (const item of seedInv) {
           await setDoc(doc(db, "inventory", item.id), item);
@@ -166,7 +187,7 @@ export default function App() {
       } else {
         const loaded = [];
         snap.forEach((d) => loaded.push(d.data()));
-        setInventory(loaded);
+        setInventory(loaded.sort((a, b) => a.name.localeCompare(b.name)));
       }
     });
 
@@ -304,7 +325,7 @@ export default function App() {
     await updateDoc(doc(db, "rooms", currentRoom.id), { orderItems: updatedItems });
   };
 
-  // Switch to Front Desk and open Settlement Console for this Order
+  // Switch to Front Desk and open Settlement Console
   const handleInitiateSettleOrder = (room) => {
     setSelectedRoomId(room.id);
     setActiveTab("frontdesk");
@@ -345,15 +366,12 @@ export default function App() {
   const handleConfirmOrderSettlement = async () => {
     if (!settleOrderRoom) return;
 
-    // 1. Prepare print context as final official tax invoice
     setIsTemporaryBill(false);
 
-    // 2. Trigger auto print directly
     setTimeout(() => {
       window.print();
     }, 150);
 
-    // 3. Clear active bill in Firestore and move room to Housekeeping
     await updateDoc(doc(db, "rooms", settleOrderRoom.id), {
       status: "cleaning",
       orderId: null,
@@ -367,6 +385,69 @@ export default function App() {
 
     setSettleOrderRoom(null);
   };
+
+  // --- INVENTORY MANAGEMENT ACTIONS ---
+  const handleCreateInventoryItem = async (e) => {
+    e.preventDefault();
+    if (!newInventoryForm.name) return;
+
+    const itemId = `inv_${Date.now()}`;
+    const newItem = {
+      id: itemId,
+      name: newInventoryForm.name.trim(),
+      category: newInventoryForm.category,
+      price: parseFloat(newInventoryForm.price) || 0,
+      stock: parseInt(newInventoryForm.stock, 10) || 0,
+    };
+
+    await setDoc(doc(db, "inventory", itemId), newItem);
+    setShowAddInventoryModal(false);
+    setNewInventoryForm({
+      name: "",
+      category: "minibar",
+      price: 5,
+      stock: 24,
+    });
+  };
+
+  const handleStartEditInventory = (item) => {
+    setEditingInventoryId(item.id);
+    setEditInventoryForm({
+      name: item.name,
+      category: item.category,
+      price: item.price,
+      stock: item.stock,
+    });
+  };
+
+  const handleSaveInventoryEdit = async (itemId) => {
+    if (!editInventoryForm.name) return;
+
+    await updateDoc(doc(db, "inventory", itemId), {
+      name: editInventoryForm.name.trim(),
+      category: editInventoryForm.category,
+      price: parseFloat(editInventoryForm.price) || 0,
+      stock: parseInt(editInventoryForm.stock, 10) || 0,
+    });
+
+    setEditingInventoryId(null);
+  };
+
+  const handleDeleteInventoryItem = async (item) => {
+    if (window.confirm(`Delete "${item.name}" from inventory?`)) {
+      await deleteDoc(doc(db, "inventory", item.id));
+    }
+  };
+
+  // Filtered Inventory list
+  const filteredInventory = inventory.filter((item) => {
+    const matchesCategory =
+      inventoryCategoryFilter === "all" || item.category === inventoryCategoryFilter;
+    const matchesSearch = item.name
+      .toLowerCase()
+      .includes(inventorySearchQuery.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
 
   // Room Catalog Administration
   const handleCreateRoom = async (e) => {
@@ -407,7 +488,6 @@ export default function App() {
     }
   };
 
-  // Calculation for Cash Change in Settlement
   const parsedTendered = parseFloat(cashTendered) || 0;
   const changeDue = Math.max(0, parsedTendered - printTargetTotal);
 
@@ -440,8 +520,8 @@ export default function App() {
           {[
             { id: "frontdesk", label: "Front Desk & Status", icon: Bed },
             { id: "active-orders", label: "Active Bills & Tabs", icon: Receipt },
-            { id: "room-admin", label: "Room Management", icon: SlidersHorizontal },
             { id: "inventory", label: "Stock & Minibar", icon: Boxes },
+            { id: "room-admin", label: "Room Management", icon: SlidersHorizontal },
             { id: "staff", label: "Staff & Access", icon: Users },
             { id: "settings", label: "Hotel Settings", icon: Settings },
           ].map(({ id, label, icon: Icon }) => (
@@ -482,8 +562,8 @@ export default function App() {
             {[
               { id: "frontdesk", label: "Front Desk" },
               { id: "active-orders", label: "Active Bills & Tabs" },
-              { id: "room-admin", label: "Room Management" },
               { id: "inventory", label: "Stock & Minibar" },
+              { id: "room-admin", label: "Room Management" },
               { id: "staff", label: "Staff & Access" },
               { id: "settings", label: "Hotel Settings" },
             ].map((item) => (
@@ -612,7 +692,7 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 2: ACTIVE BILLS / OPEN TABS */}
+          {/* TAB 2: ACTIVE BILLS */}
           {activeTab === "active-orders" && (
             <div className="max-w-7xl mx-auto space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -622,7 +702,6 @@ export default function App() {
                     Print temporary guest check bills, add minibar items, settle invoices, or void orders.
                   </p>
                 </div>
-                {/* Print Format Switcher */}
                 <div className="flex items-center gap-2 bg-white border border-[#E6DFD3] p-1.5 rounded-lg text-xs">
                   <span className="font-semibold text-slate-500 pl-1 text-[11px] uppercase">Format:</span>
                   <button
@@ -644,7 +723,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* ACTIVE BILL CARDS */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                 {rooms
                   .filter((r) => r.status === "occupied")
@@ -660,7 +738,6 @@ export default function App() {
                         }`}
                       >
                         <div>
-                          {/* Order Header */}
                           <div className="flex justify-between items-start mb-3 pb-2 border-b border-[#F3EFE6]">
                             <div>
                               <div className="flex items-center gap-1.5 text-xs text-[#0F766E] font-bold">
@@ -685,7 +762,6 @@ export default function App() {
                             </p>
                           </div>
 
-                          {/* Line Items Preview */}
                           <div className="bg-[#FAF9F5] p-3 rounded-lg border border-[#E6DFD3] mb-4">
                             <span className="text-[11px] font-bold uppercase text-slate-500 block mb-1.5">
                               Items on Bill ({room.orderItems?.length || 0})
@@ -709,13 +785,11 @@ export default function App() {
                           </div>
                         </div>
 
-                        {/* Bill Actions: Temp Print, Settle, Delete */}
                         <div className="space-y-2 pt-2 border-t border-[#F3EFE6]">
                           <div className="flex gap-2">
                             <button
                               onClick={() => handlePrintTemporaryBill(room)}
                               className="flex-1 bg-[#0F2D3C] hover:bg-[#091D26] text-white py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 transition-colors"
-                              title="Print pre-check bill for guest review"
                             >
                               <Printer className="w-3.5 h-3.5 text-[#2DD4BF]" /> Print Temp Bill
                             </button>
@@ -758,7 +832,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* DETAILED ORDER ITEM POSTER FOR SELECTED ROOM */}
+              {/* POST CHARGES CONSOLE */}
               {currentRoom && currentRoom.status === "occupied" && (
                 <div className="mt-8 pt-8 border-t border-[#E6DFD3]">
                   <div className="flex justify-between items-center mb-4">
@@ -836,7 +910,7 @@ export default function App() {
                       </table>
                     </div>
 
-                    {/* Quick Minibar */}
+                    {/* Quick Minibar Dispatch */}
                     <div className="bg-white rounded-xl border border-[#E6DFD3] shadow-sm p-6 space-y-3">
                       <h4 className="font-bold text-sm text-[#091D26] uppercase">Instant Minibar Dispatch</h4>
                       <div className="space-y-2">
@@ -848,7 +922,10 @@ export default function App() {
                               onClick={() => handleQuickAddMinibar(item)}
                               className="w-full flex items-center justify-between p-2.5 rounded-lg border border-[#E6DFD3] hover:border-[#14B8A6] bg-[#FAF9F5] text-xs transition-colors"
                             >
-                              <span className="font-medium text-[#091D26] truncate">{item.name}</span>
+                              <div className="text-left">
+                                <span className="font-medium text-[#091D26] block truncate">{item.name}</span>
+                                <span className="text-[10px] text-slate-400">Stock: {item.stock}</span>
+                              </div>
                               <span className="font-bold text-[#0F766E]">{settings.currency}{item.price.toFixed(2)}</span>
                             </button>
                           ))}
@@ -860,7 +937,267 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 3: ROOM MANAGEMENT */}
+          {/* TAB 3: INVENTORY & MINIBAR MANAGEMENT */}
+          {activeTab === "inventory" && (
+            <div className="max-w-7xl mx-auto space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-bold text-[#091D26]">Inventory & Minibar Management</h2>
+                  <p className="text-sm text-slate-500">
+                    Add new stock, manage minibar prices, adjust warehouse counts, and monitor low supplies.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowAddInventoryModal(true)}
+                  className="inline-flex items-center gap-2 bg-[#14B8A6] hover:bg-[#0D9488] text-white px-4 py-2.5 rounded-lg text-xs font-bold shadow-sm transition-all"
+                >
+                  <PackagePlus className="w-4 h-4" /> Add Inventory Item
+                </button>
+              </div>
+
+              {/* Inventory Metric Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="bg-white border border-[#E6DFD3] rounded-xl p-4 shadow-sm">
+                  <p className="text-xs font-semibold uppercase text-slate-400">Total Items</p>
+                  <p className="text-2xl font-black text-[#091D26] mt-1">{inventory.length}</p>
+                </div>
+                <div className="bg-white border border-[#E6DFD3] rounded-xl p-4 shadow-sm">
+                  <p className="text-xs font-semibold uppercase text-[#0F766E]">Minibar Products</p>
+                  <p className="text-2xl font-black text-[#0F766E] mt-1">
+                    {inventory.filter((i) => i.category === "minibar").length}
+                  </p>
+                </div>
+                <div className="bg-white border border-[#E6DFD3] rounded-xl p-4 shadow-sm">
+                  <p className="text-xs font-semibold uppercase text-amber-700">Amenities / Linens</p>
+                  <p className="text-2xl font-black text-amber-700 mt-1">
+                    {inventory.filter((i) => i.category !== "minibar").length}
+                  </p>
+                </div>
+                <div className="bg-white border border-[#E6DFD3] rounded-xl p-4 shadow-sm">
+                  <p className="text-xs font-semibold uppercase text-[#F43F5E]">Low Stock (&lt;10)</p>
+                  <p className="text-2xl font-black text-[#F43F5E] mt-1">
+                    {inventory.filter((i) => i.stock < 10).length}
+                  </p>
+                </div>
+              </div>
+
+              {/* Filters & Search Bar */}
+              <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
+                <div className="relative w-full sm:w-72">
+                  <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search stock item..."
+                    value={inventorySearchQuery}
+                    onChange={(e) => setInventorySearchQuery(e.target.value)}
+                    className="w-full bg-white border border-[#E6DFD3] rounded-lg pl-9 pr-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
+                  />
+                </div>
+
+                <div className="flex gap-1 overflow-x-auto w-full sm:w-auto pb-1">
+                  {["all", "minibar", "amenity", "linen", "beverage", "snack"].map((cat) => (
+                    <button
+                      key={cat}
+                      onClick={() => setInventoryCategoryFilter(cat)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize whitespace-nowrap transition-all ${
+                        inventoryCategoryFilter === cat
+                          ? "bg-[#0F2D3C] text-white"
+                          : "bg-white border border-[#E6DFD3] text-slate-600 hover:bg-[#FAF9F5]"
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Inventory Management Table */}
+              <div className="bg-white rounded-xl border border-[#E6DFD3] shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#F3EFE6] border-b border-[#E6DFD3] uppercase font-semibold text-slate-500">
+                      <tr>
+                        <th className="p-3.5">Product Name</th>
+                        <th className="p-3.5">Category</th>
+                        <th className="p-3.5 text-right">Billable Price</th>
+                        <th className="p-3.5 text-center">Stock Level</th>
+                        <th className="p-3.5 text-center">Quick Adjust</th>
+                        <th className="p-3.5 text-center">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#F3EFE6]">
+                      {filteredInventory.map((item) => {
+                        const isEditing = editingInventoryId === item.id;
+
+                        return (
+                          <tr key={item.id} className="hover:bg-[#FAF9F5] transition-colors">
+                            {/* Product Name */}
+                            <td className="p-3.5 font-bold text-[#091D26]">
+                              {isEditing ? (
+                                <input
+                                  type="text"
+                                  className="w-full border border-[#14B8A6] rounded px-2 py-1 text-xs focus:outline-none"
+                                  value={editInventoryForm.name}
+                                  onChange={(e) =>
+                                    setEditInventoryForm({ ...editInventoryForm, name: e.target.value })
+                                  }
+                                />
+                              ) : (
+                                <div className="flex items-center gap-2">
+                                  <span>{item.name}</span>
+                                  {item.stock < 10 && (
+                                    <span className="flex items-center gap-0.5 text-[10px] bg-[#FFE4E6] text-[#F43F5E] px-1.5 py-0.5 rounded font-bold">
+                                      <AlertTriangle className="w-2.5 h-2.5" /> Low
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </td>
+
+                            {/* Category */}
+                            <td className="p-3.5">
+                              {isEditing ? (
+                                <select
+                                  value={editInventoryForm.category}
+                                  onChange={(e) =>
+                                    setEditInventoryForm({ ...editInventoryForm, category: e.target.value })
+                                  }
+                                  className="border border-[#14B8A6] rounded px-1.5 py-1 text-xs bg-white"
+                                >
+                                  <option value="minibar">Minibar</option>
+                                  <option value="amenity">Amenity</option>
+                                  <option value="linen">Linen</option>
+                                  <option value="beverage">Beverage</option>
+                                  <option value="snack">Snack</option>
+                                </select>
+                              ) : (
+                                <span className="bg-[#F3EFE6] text-slate-600 px-2 py-0.5 rounded text-[10px] font-semibold uppercase">
+                                  {item.category}
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Billable Price */}
+                            <td className="p-3.5 text-right font-medium">
+                              {isEditing ? (
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  className="w-20 border border-[#14B8A6] rounded px-2 py-1 text-xs text-right focus:outline-none"
+                                  value={editInventoryForm.price}
+                                  onChange={(e) =>
+                                    setEditInventoryForm({ ...editInventoryForm, price: e.target.value })
+                                  }
+                                />
+                              ) : item.price > 0 ? (
+                                `${settings.currency}${item.price.toFixed(2)}`
+                              ) : (
+                                <span className="text-slate-400 italic">Free (Complimentary)</span>
+                              )}
+                            </td>
+
+                            {/* Stock Count */}
+                            <td className="p-3.5 text-center font-bold">
+                              {isEditing ? (
+                                <input
+                                  type="number"
+                                  className="w-16 border border-[#14B8A6] rounded px-2 py-1 text-xs text-center focus:outline-none"
+                                  value={editInventoryForm.stock}
+                                  onChange={(e) =>
+                                    setEditInventoryForm({ ...editInventoryForm, stock: e.target.value })
+                                  }
+                                />
+                              ) : (
+                                <span className={item.stock < 10 ? "text-[#F43F5E] font-black" : "text-[#091D26]"}>
+                                  {item.stock}
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Quick Increment/Decrement */}
+                            <td className="p-3.5 text-center">
+                              <div className="inline-flex items-center gap-1">
+                                <button
+                                  onClick={() =>
+                                    updateDoc(doc(db, "inventory", item.id), {
+                                      stock: Math.max(0, item.stock - 1),
+                                    })
+                                  }
+                                  className="px-2 py-0.5 border border-[#D3C8B7] rounded hover:bg-[#F3EFE6] text-xs font-bold"
+                                  title="Reduce stock by 1"
+                                >
+                                  -
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    updateDoc(doc(db, "inventory", item.id), {
+                                      stock: item.stock + 1,
+                                    })
+                                  }
+                                  className="px-2 py-0.5 border border-[#D3C8B7] rounded hover:bg-[#F3EFE6] text-xs font-bold"
+                                  title="Add 1 to stock"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </td>
+
+                            {/* Actions (Edit / Save / Delete) */}
+                            <td className="p-3.5 text-center">
+                              {isEditing ? (
+                                <div className="inline-flex items-center gap-1">
+                                  <button
+                                    onClick={() => handleSaveInventoryEdit(item.id)}
+                                    className="p-1 bg-[#14B8A6] hover:bg-[#0D9488] text-white rounded"
+                                    title="Save changes"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => setEditingInventoryId(null)}
+                                    className="p-1 bg-slate-200 hover:bg-slate-300 text-slate-600 rounded"
+                                    title="Cancel"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="inline-flex items-center gap-1.5">
+                                  <button
+                                    onClick={() => handleStartEditInventory(item)}
+                                    className="text-slate-400 hover:text-[#0D9488] p-1"
+                                    title="Edit item details"
+                                  >
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteInventoryItem(item)}
+                                    className="text-[#F43F5E] hover:text-[#E11D48] p-1"
+                                    title="Delete product"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {filteredInventory.length === 0 && (
+                        <tr>
+                          <td colSpan={6} className="p-8 text-center text-slate-400">
+                            No inventory items found matching your filters.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: ROOM MANAGEMENT */}
           {activeTab === "room-admin" && (
             <div className="max-w-7xl mx-auto space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -1011,56 +1348,6 @@ export default function App() {
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 4: INVENTORY */}
-          {activeTab === "inventory" && (
-            <div className="max-w-5xl mx-auto space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold text-[#091D26]">Inventory & Amenities</h2>
-                <p className="text-sm text-slate-500">Live storage stock synchronized across devices</p>
-              </div>
-
-              <div className="bg-white rounded-xl border border-[#E6DFD3] shadow-sm overflow-hidden">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-[#F3EFE6] border-b border-[#E6DFD3] uppercase font-semibold text-slate-500">
-                    <tr>
-                      <th className="p-3.5">Item Name</th>
-                      <th className="p-3.5">Category</th>
-                      <th className="p-3.5 text-right">Price</th>
-                      <th className="p-3.5 text-center">Stock</th>
-                      <th className="p-3.5 text-center">Quick Adjust</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#F3EFE6]">
-                    {inventory.map((item) => (
-                      <tr key={item.id}>
-                        <td className="p-3.5 font-bold text-[#091D26]">{item.name}</td>
-                        <td className="p-3.5 uppercase">{item.category}</td>
-                        <td className="p-3.5 text-right font-medium">{settings.currency}{item.price.toFixed(2)}</td>
-                        <td className="p-3.5 text-center font-bold text-[#091D26]">{item.stock}</td>
-                        <td className="p-3.5 text-center">
-                          <div className="inline-flex items-center gap-1">
-                            <button
-                              onClick={() => updateDoc(doc(db, "inventory", item.id), { stock: Math.max(0, item.stock - 1) })}
-                              className="px-2 py-0.5 border border-[#D3C8B7] rounded hover:bg-[#F3EFE6]"
-                            >
-                              -
-                            </button>
-                            <button
-                              onClick={() => updateDoc(doc(db, "inventory", item.id), { stock: item.stock + 1 })}
-                              className="px-2 py-0.5 border border-[#D3C8B7] rounded hover:bg-[#F3EFE6]"
-                            >
-                              +
-                            </button>
-                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1235,7 +1522,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL 2: ORDER SETTLEMENT CONSOLE (AUTO-PRINTS ON CONFIRM) */}
+      {/* MODAL 2: ORDER SETTLEMENT CONSOLE */}
       {settleOrderRoom && (
         <div className="no-print fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-[#E6DFD3]">
@@ -1253,7 +1540,6 @@ export default function App() {
               </button>
             </div>
 
-            {/* Order Items Breakdown */}
             <div className="max-h-44 overflow-y-auto border border-[#E6DFD3] rounded-lg p-3 bg-[#FAF9F5] mb-4 text-xs space-y-1.5">
               {settleOrderRoom.orderItems?.map((item) => (
                 <div key={item.id} className="flex justify-between py-1 border-b border-slate-100 last:border-none">
@@ -1272,7 +1558,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Payment Method Selector */}
             <div className="mb-4">
               <label className="block text-xs font-semibold text-slate-700 mb-2">Tender Method:</label>
               <div className="grid grid-cols-3 gap-2">
@@ -1297,7 +1582,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Cash Calculator (if cash is selected) */}
             {settlementMethod === "Cash" && (
               <div className="bg-[#FAF9F5] p-3 rounded-xl border border-[#E6DFD3] mb-4 flex items-center gap-3 text-xs">
                 <div className="flex-1">
@@ -1319,7 +1603,6 @@ export default function App() {
               </div>
             )}
 
-            {/* Automated Final Print Notice */}
             <div className="bg-sand-100 p-2.5 rounded-lg border border-sand-200 text-xs text-slate-600 mb-5 flex items-center gap-2">
               <Printer className="w-4 h-4 text-[#0D9488]" />
               <span>
@@ -1327,7 +1610,6 @@ export default function App() {
               </span>
             </div>
 
-            {/* Settle Action */}
             <div className="flex gap-2">
               <button
                 type="button"
@@ -1418,6 +1700,86 @@ export default function App() {
                 className="w-full bg-[#14B8A6] hover:bg-[#0D9488] text-white font-bold py-3 rounded-lg transition-colors mt-2"
               >
                 Register Room to Cloud
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 4: ADD INVENTORY / MINIBAR ITEM */}
+      {showAddInventoryModal && (
+        <div className="no-print fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-[#E6DFD3]">
+            <div className="flex justify-between items-center mb-4">
+              <div>
+                <span className="text-xs uppercase font-bold text-[#0F766E]">Stock Catalog</span>
+                <h3 className="font-bold text-lg text-[#091D26]">Add New Stock / Minibar Item</h3>
+              </div>
+              <button onClick={() => setShowAddInventoryModal(false)} className="text-slate-400">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateInventoryItem} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold mb-1">Product / Item Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. San Pellegrino 500ml, Cashew Tin"
+                  value={newInventoryForm.name}
+                  onChange={(e) => setNewInventoryForm({ ...newInventoryForm, name: e.target.value })}
+                  className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1">Category</label>
+                  <select
+                    value={newInventoryForm.category}
+                    onChange={(e) => setNewInventoryForm({ ...newInventoryForm, category: e.target.value })}
+                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white focus:outline-none"
+                  >
+                    <option value="minibar">Minibar</option>
+                    <option value="amenity">Amenity</option>
+                    <option value="linen">Linen</option>
+                    <option value="beverage">Beverage</option>
+                    <option value="snack">Snack</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Billable Price ({settings.currency})</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                    value={newInventoryForm.price}
+                    onChange={(e) => setNewInventoryForm({ ...newInventoryForm, price: e.target.value })}
+                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
+                  />
+                  <span className="text-[10px] text-slate-400">Set 0 for free amenities</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1">Initial Stock Count</label>
+                <input
+                  type="number"
+                  min="0"
+                  required
+                  value={newInventoryForm.stock}
+                  onChange={(e) => setNewInventoryForm({ ...newInventoryForm, stock: e.target.value })}
+                  className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-[#14B8A6] hover:bg-[#0D9488] text-white font-bold py-3 rounded-lg transition-colors mt-2"
+              >
+                Save Item to Database
               </button>
             </form>
           </div>
