@@ -190,12 +190,12 @@ export default function App() {
           const data = d.data();
           loaded.push({
             ...data,
-            id: d.id, // Guarantee ID is never undefined
+            id: d.id,
             price: Number(data.price) || 0,
             stock: Number(data.stock) || 0
           });
         });
-        setInventory(loaded.sort((a, b) => a.name.localeCompare(b.name)));
+        setInventory(loaded.sort((a, b) => (a.name || "").localeCompare(b.name || "")));
       }
     });
 
@@ -234,61 +234,69 @@ export default function App() {
   const printTargetRoom = settleOrderRoom || currentRoom;
   const printTargetTotal = calculateTotal(printTargetRoom);
 
-  // --- 3. INVENTORY & STOCK MANAGEMENT FUNCTIONS ---
+  // --- 3. HARDENED INVENTORY & STOCK FUNCTIONS ---
 
-  // Atomic Increment/Decrement
+  // Atomic Increment/Decrement with local optimistic rendering and merge safety
   const handleUpdateStockLevel = async (itemId, delta) => {
+    if (!itemId) return;
+
+    const target = inventory.find((i) => i.id === itemId);
+    const currentStock = Number(target?.stock) || 0;
+    const newStock = Math.max(0, currentStock + delta);
+
+    // Optimistic update
+    setInventory((prev) =>
+      prev.map((item) => (item.id === itemId ? { ...item, stock: newStock } : item))
+    );
+
     try {
-      const target = inventory.find((i) => i.id === itemId);
-      if (!target) return;
-      const newStock = Math.max(0, (target.stock || 0) + delta);
-
-      // Optimistic Local State Update
-      setInventory((prev) =>
-        prev.map((item) => (item.id === itemId ? { ...item, stock: newStock } : item))
-      );
-
-      // Firestore Update
-      await updateDoc(doc(db, "inventory", itemId), { stock: newStock });
+      // Use setDoc with merge: true to avoid crashes if document was initialized without ID match
+      await setDoc(doc(db, "inventory", String(itemId)), { stock: newStock }, { merge: true });
     } catch (err) {
-      console.error("Error updating stock count:", err);
-      alert("Failed to update stock. Check network/Firebase permissions.");
+      console.error("Firestore updateStock failed:", err);
+      // Revert if error
+      setInventory((prev) =>
+        prev.map((item) => (item.id === itemId ? { ...item, stock: currentStock } : item))
+      );
+      alert("Failed to update stock. Check Firebase Firestore Database rules.");
     }
   };
 
-  // Create Inventory Item
+  // Create Inventory Item with NaN Protection
   const handleCreateInventoryItem = async (e) => {
     e.preventDefault();
-    if (!newInventoryForm.name.trim()) return;
+    if (!newInventoryForm.name.trim()) {
+      alert("Please enter a product name.");
+      return;
+    }
+
+    const itemId = `inv_${Date.now()}`;
+    const cleanPrice = parseFloat(newInventoryForm.price);
+    const cleanStock = parseInt(newInventoryForm.stock, 10);
+
+    const newItem = {
+      id: itemId,
+      name: newInventoryForm.name.trim(),
+      category: newInventoryForm.category || "minibar",
+      price: isNaN(cleanPrice) || cleanPrice < 0 ? 0 : cleanPrice,
+      stock: isNaN(cleanStock) || cleanStock < 0 ? 0 : cleanStock,
+    };
+
+    // Optimistic UI update
+    setInventory((prev) => [...prev, newItem].sort((a, b) => a.name.localeCompare(b.name)));
+    setShowAddInventoryModal(false);
+    setNewInventoryForm({
+      name: "",
+      category: "minibar",
+      price: "5",
+      stock: "24",
+    });
 
     try {
-      const itemId = `inv_${Date.now()}`;
-      const cleanPrice = parseFloat(newInventoryForm.price);
-      const cleanStock = parseInt(newInventoryForm.stock, 10);
-
-      const newItem = {
-        id: itemId,
-        name: newInventoryForm.name.trim(),
-        category: newInventoryForm.category || "minibar",
-        price: isNaN(cleanPrice) || cleanPrice < 0 ? 0 : cleanPrice,
-        stock: isNaN(cleanStock) || cleanStock < 0 ? 0 : cleanStock,
-      };
-
-      // Optimistic push
-      setInventory((prev) => [...prev, newItem].sort((a, b) => a.name.localeCompare(b.name)));
-
       await setDoc(doc(db, "inventory", itemId), newItem);
-
-      setShowAddInventoryModal(false);
-      setNewInventoryForm({
-        name: "",
-        category: "minibar",
-        price: "5",
-        stock: "24",
-      });
     } catch (err) {
-      console.error("Error adding inventory item:", err);
-      alert("Failed to create inventory item. Please try again.");
+      console.error("Error creating inventory item:", err);
+      alert("Failed to save inventory item to cloud. Verify Firestore permissions.");
     }
   };
 
@@ -296,58 +304,60 @@ export default function App() {
   const handleStartEditInventory = (item) => {
     setEditingInventoryId(item.id);
     setEditInventoryForm({
-      name: item.name,
-      category: item.category,
-      price: String(item.price),
-      stock: String(item.stock),
+      name: item.name || "",
+      category: item.category || "minibar",
+      price: String(item.price ?? 0),
+      stock: String(item.stock ?? 0),
     });
   };
 
-  // Save Inventory Edit
+  // Save Inventory Edit with NaN Protection
   const handleSaveInventoryEdit = async (itemId) => {
     if (!editInventoryForm.name.trim()) {
-      alert("Item name cannot be empty");
+      alert("Item name cannot be empty.");
       return;
     }
 
+    const cleanPrice = parseFloat(editInventoryForm.price);
+    const cleanStock = parseInt(editInventoryForm.stock, 10);
+
+    const updatedPayload = {
+      id: itemId,
+      name: editInventoryForm.name.trim(),
+      category: editInventoryForm.category || "minibar",
+      price: isNaN(cleanPrice) || cleanPrice < 0 ? 0 : cleanPrice,
+      stock: isNaN(cleanStock) || cleanStock < 0 ? 0 : cleanStock,
+    };
+
+    // Optimistic UI update
+    setInventory((prev) =>
+      prev.map((item) => (item.id === itemId ? { ...item, ...updatedPayload } : item))
+    );
+    setEditingInventoryId(null);
+
     try {
-      const cleanPrice = parseFloat(editInventoryForm.price);
-      const cleanStock = parseInt(editInventoryForm.stock, 10);
-
-      const updatedPayload = {
-        name: editInventoryForm.name.trim(),
-        category: editInventoryForm.category,
-        price: isNaN(cleanPrice) || cleanPrice < 0 ? 0 : cleanPrice,
-        stock: isNaN(cleanStock) || cleanStock < 0 ? 0 : cleanStock,
-      };
-
-      // Optimistic local update
-      setInventory((prev) =>
-        prev.map((item) => (item.id === itemId ? { ...item, ...updatedPayload } : item))
-      );
-
-      await updateDoc(doc(db, "inventory", itemId), updatedPayload);
-      setEditingInventoryId(null);
+      await setDoc(doc(db, "inventory", String(itemId)), updatedPayload, { merge: true });
     } catch (err) {
       console.error("Error saving inventory changes:", err);
-      alert("Failed to save changes.");
+      alert("Failed to save changes to cloud.");
     }
   };
 
   // Delete Inventory Item
   const handleDeleteInventoryItem = async (item) => {
-    if (window.confirm(`Delete "${item.name}" from inventory catalog?`)) {
-      try {
-        setInventory((prev) => prev.filter((i) => i.id !== item.id));
-        await deleteDoc(doc(db, "inventory", item.id));
-      } catch (err) {
-        console.error("Error deleting inventory item:", err);
-        alert("Failed to delete item.");
-      }
+    if (!window.confirm(`Permanently remove "${item.name}" from inventory?`)) return;
+
+    setInventory((prev) => prev.filter((i) => i.id !== item.id));
+
+    try {
+      await deleteDoc(doc(db, "inventory", String(item.id)));
+    } catch (err) {
+      console.error("Error deleting item:", err);
+      alert("Failed to delete item from cloud.");
     }
   };
 
-  // Minibar Quick Add into Order with automatic stock deduction
+  // Minibar Quick Add with Auto Stock Deduction
   const handleQuickAddMinibar = async (item) => {
     if (!currentRoom) return;
 
@@ -373,7 +383,7 @@ export default function App() {
     }
   };
 
-  // --- 4. GENERAL POS ACTIONS ---
+  // --- 4. GENERAL POS & BILLING ACTIONS ---
   const handleSaveSettings = async (updated) => {
     setSettings(updated);
     await setDoc(doc(db, "hotel_config", "profile"), updated);
@@ -542,11 +552,10 @@ export default function App() {
     }
   };
 
-  // Filtered inventory query
   const filteredInventory = inventory.filter((item) => {
     const matchesCategory =
       inventoryCategoryFilter === "all" || item.category === inventoryCategoryFilter;
-    const matchesSearch = item.name
+    const matchesSearch = (item.name || "")
       .toLowerCase()
       .includes(inventorySearchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
@@ -707,6 +716,7 @@ export default function App() {
                       <div className="pt-2 border-t border-[#F3EFE6] flex gap-2">
                         {room.status === "available" && (
                           <button
+                            type="button"
                             onClick={() => setCheckInModalRoom(room)}
                             className="w-full bg-[#14B8A6] hover:bg-[#0D9488] text-white py-2 rounded-lg text-xs font-bold"
                           >
@@ -716,6 +726,7 @@ export default function App() {
                         {room.status === "occupied" && (
                           <>
                             <button
+                              type="button"
                               onClick={() => {
                                 setSelectedRoomId(room.id);
                                 setActiveTab("active-orders");
@@ -725,6 +736,7 @@ export default function App() {
                               Tab / Items
                             </button>
                             <button
+                              type="button"
                               onClick={() => handleInitiateSettleOrder(room)}
                               className="flex-1 bg-[#F43F5E] hover:bg-[#E11D48] text-white py-2 rounded-lg text-xs font-bold"
                             >
@@ -734,6 +746,7 @@ export default function App() {
                         )}
                         {room.status === "cleaning" && (
                           <button
+                            type="button"
                             onClick={() => updateRoomStatus(room.id, "available")}
                             className="w-full bg-[#CCFBF1]/40 hover:bg-[#CCFBF1] text-[#0F766E] border border-[#2DD4BF] py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5"
                           >
@@ -742,6 +755,7 @@ export default function App() {
                         )}
                         {room.status === "maintenance" && (
                           <button
+                            type="button"
                             onClick={() => updateRoomStatus(room.id, "available")}
                             className="w-full bg-[#E6DFD3] hover:bg-[#D3C8B7] text-[#091D26] py-2 rounded-lg text-xs font-medium"
                           >
@@ -769,6 +783,7 @@ export default function App() {
                 <div className="flex items-center gap-2 bg-white border border-[#E6DFD3] p-1.5 rounded-lg text-xs">
                   <span className="font-semibold text-slate-500 pl-1 text-[11px] uppercase">Format:</span>
                   <button
+                    type="button"
                     onClick={() => setPrintFormat("thermal")}
                     className={`px-2.5 py-1 rounded font-bold transition-all ${
                       printFormat === "thermal" ? "bg-[#0F2D3C] text-white" : "text-slate-600 hover:bg-slate-100"
@@ -777,6 +792,7 @@ export default function App() {
                     80mm Thermal
                   </button>
                   <button
+                    type="button"
                     onClick={() => setPrintFormat("a4")}
                     className={`px-2.5 py-1 rounded font-bold transition-all ${
                       printFormat === "a4" ? "bg-[#0F2D3C] text-white" : "text-slate-600 hover:bg-slate-100"
@@ -852,12 +868,14 @@ export default function App() {
                         <div className="space-y-2 pt-2 border-t border-[#F3EFE6]">
                           <div className="flex gap-2">
                             <button
+                              type="button"
                               onClick={() => handlePrintTemporaryBill(room)}
                               className="flex-1 bg-[#0F2D3C] hover:bg-[#091D26] text-white py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 transition-colors"
                             >
                               <Printer className="w-3.5 h-3.5 text-[#2DD4BF]" /> Print Temp Bill
                             </button>
                             <button
+                              type="button"
                               onClick={() => setSelectedRoomId(room.id)}
                               className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors ${
                                 isSelected ? "bg-[#14B8A6] text-white" : "bg-[#F3EFE6] hover:bg-[#E6DFD3] text-[#091D26]"
@@ -869,12 +887,14 @@ export default function App() {
 
                           <div className="flex gap-2">
                             <button
+                              type="button"
                               onClick={() => handleInitiateSettleOrder(room)}
                               className="flex-3 bg-[#0D9488] hover:bg-[#0F766E] text-white py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1 shadow-sm"
                             >
                               Settle Bill <ArrowRight className="w-3.5 h-3.5" />
                             </button>
                             <button
+                              type="button"
                               onClick={() => handleDeleteActiveBill(room)}
                               className="p-2 border border-coral-200 text-coral-600 hover:bg-coral-50 rounded-lg text-xs transition-colors"
                               title="Delete / Void this active bill"
@@ -964,7 +984,11 @@ export default function App() {
                               <td className="py-3 text-right">{settings.currency}{item.unitPrice.toFixed(2)}</td>
                               <td className="py-3 text-right font-semibold">{settings.currency}{item.total.toFixed(2)}</td>
                               <td className="py-3 text-center">
-                                <button onClick={() => handleRemoveOrderItem(item.id)} className="text-[#F43F5E] hover:text-[#E11D48]">
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveOrderItem(item.id)}
+                                  className="text-[#F43F5E] hover:text-[#E11D48]"
+                                >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                               </td>
@@ -983,6 +1007,7 @@ export default function App() {
                           .map((item) => (
                             <button
                               key={item.id}
+                              type="button"
                               onClick={() => handleQuickAddMinibar(item)}
                               className="w-full flex items-center justify-between p-2.5 rounded-lg border border-[#E6DFD3] hover:border-[#14B8A6] bg-[#FAF9F5] text-xs transition-colors"
                             >
@@ -1001,7 +1026,7 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 3: INVENTORY & MINIBAR MANAGEMENT (FIXED & FULLY FUNCTIONAL) */}
+          {/* TAB 3: INVENTORY & MINIBAR MANAGEMENT */}
           {activeTab === "inventory" && (
             <div className="max-w-7xl mx-auto space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -1012,6 +1037,7 @@ export default function App() {
                   </p>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setShowAddInventoryModal(true)}
                   className="inline-flex items-center gap-2 bg-[#14B8A6] hover:bg-[#0D9488] text-white px-4 py-2.5 rounded-lg text-xs font-bold shadow-sm transition-all"
                 >
@@ -1062,6 +1088,7 @@ export default function App() {
                   {["all", "minibar", "amenity", "linen", "beverage", "snack"].map((cat) => (
                     <button
                       key={cat}
+                      type="button"
                       onClick={() => setInventoryCategoryFilter(cat)}
                       className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize whitespace-nowrap transition-all ${
                         inventoryCategoryFilter === cat
@@ -1268,6 +1295,7 @@ export default function App() {
                   <p className="text-sm text-slate-500">Add, re-price, change status, and decommission rooms</p>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setShowAddRoomModal(true)}
                   className="inline-flex items-center gap-2 bg-[#14B8A6] hover:bg-[#0D9488] text-white px-4 py-2.5 rounded-lg text-xs font-bold shadow-sm"
                 >
@@ -1328,12 +1356,14 @@ export default function App() {
                                 autoFocus
                               />
                               <button
+                                type="button"
                                 onClick={() => handleSaveRoomRate(room.id)}
                                 className="p-1 bg-[#14B8A6] text-white rounded hover:bg-[#0D9488]"
                               >
                                 <Check className="w-3.5 h-3.5" />
                               </button>
                               <button
+                                type="button"
                                 onClick={() => setEditingRoomId(null)}
                                 className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300"
                               >
@@ -1344,6 +1374,7 @@ export default function App() {
                             <div className="flex items-center gap-2">
                               <span className="font-bold text-slate-900">{settings.currency}{room.rate}</span>
                               <button
+                                type="button"
                                 onClick={() => {
                                   setEditingRoomId(room.id);
                                   setEditRoomRate(room.rate);
@@ -1373,6 +1404,7 @@ export default function App() {
                         <td className="p-3.5 text-center">
                           <div className="inline-flex rounded-lg border border-[#E6DFD3] p-0.5 bg-[#FAF9F5] gap-1">
                             <button
+                              type="button"
                               onClick={() => updateRoomStatus(room.id, "available")}
                               className={`px-2 py-1 rounded text-[10px] font-semibold ${
                                 room.status === "available" ? "bg-[#14B8A6] text-white" : "text-slate-600 hover:bg-white"
@@ -1381,6 +1413,7 @@ export default function App() {
                               Ready
                             </button>
                             <button
+                              type="button"
                               onClick={() => updateRoomStatus(room.id, "cleaning")}
                               className={`px-2 py-1 rounded text-[10px] font-semibold ${
                                 room.status === "cleaning" ? "bg-amber-500 text-white" : "text-slate-600 hover:bg-white"
@@ -1389,6 +1422,7 @@ export default function App() {
                               Clean
                             </button>
                             <button
+                              type="button"
                               onClick={() => updateRoomStatus(room.id, "maintenance")}
                               className={`px-2 py-1 rounded text-[10px] font-semibold ${
                                 room.status === "maintenance" ? "bg-[#F43F5E] text-white" : "text-slate-600 hover:bg-white"
@@ -1400,6 +1434,7 @@ export default function App() {
                         </td>
                         <td className="p-3.5 text-center">
                           <button
+                            type="button"
                             onClick={() => handleDeleteRoom(room.id, room.number)}
                             disabled={room.status === "occupied"}
                             className={`p-1.5 rounded transition-colors ${
@@ -1524,7 +1559,7 @@ export default function App() {
                 <span className="text-xs uppercase font-bold text-[#0F766E]">New Guest Order</span>
                 <h3 className="font-bold text-lg text-[#091D26]">Open Order - Room #{checkInModalRoom.number}</h3>
               </div>
-              <button onClick={() => setCheckInModalRoom(null)} className="text-slate-400">
+              <button type="button" onClick={() => setCheckInModalRoom(null)} className="text-slate-400">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1597,7 +1632,7 @@ export default function App() {
                 <h3 className="font-black text-xl text-[#091D26]">Room #{settleOrderRoom.number}</h3>
                 <p className="text-xs text-slate-500">Guest: {settleOrderRoom.guestName || "Walk-In"}</p>
               </div>
-              <button onClick={() => setSettleOrderRoom(null)} className="text-slate-400 hover:text-slate-600">
+              <button type="button" onClick={() => setSettleOrderRoom(null)} className="text-slate-400 hover:text-slate-600">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1698,7 +1733,7 @@ export default function App() {
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-[#E6DFD3]">
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-bold text-lg text-[#091D26]">Add New Hotel Room</h3>
-              <button onClick={() => setShowAddRoomModal(false)} className="text-slate-400">
+              <button type="button" onClick={() => setShowAddRoomModal(false)} className="text-slate-400">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1768,7 +1803,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL 4: ADD INVENTORY / MINIBAR ITEM (FIXED) */}
+      {/* MODAL 4: ADD INVENTORY / MINIBAR ITEM */}
       {showAddInventoryModal && (
         <div className="no-print fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-[#E6DFD3]">
@@ -1777,7 +1812,7 @@ export default function App() {
                 <span className="text-xs uppercase font-bold text-[#0F766E]">Stock Catalog</span>
                 <h3 className="font-bold text-lg text-[#091D26]">Add New Stock / Minibar Item</h3>
               </div>
-              <button onClick={() => setShowAddInventoryModal(false)} className="text-slate-400">
+              <button type="button" onClick={() => setShowAddInventoryModal(false)} className="text-slate-400">
                 <X className="w-5 h-5" />
               </button>
             </div>
