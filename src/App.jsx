@@ -33,7 +33,12 @@ import {
   Search,
   AlertTriangle,
   PackagePlus,
-  Waves
+  Waves,
+  UserPlus,
+  Briefcase,
+  DollarSign,
+  Calendar,
+  FileCheck
 } from "lucide-react";
 
 // --- 1. FIREBASE CONFIGURATION (REALTIME DATABASE) ---
@@ -71,8 +76,14 @@ const INITIAL_INVENTORY_SEEDS = [
   { id: "inv7", name: "Macadamia Nut Cookie Tin", category: "snack", price: 9, stock: 14 }
 ];
 
+const INITIAL_STAFF_SEEDS = [
+  { id: "s1", name: "Kailani Silva", role: "Manager", pin: "1001", type: "Full-Time", hourlyRate: 35, hoursWorked: 40, paid: true, phone: "+1 808-555-0112" },
+  { id: "s2", name: "Noah Jensen", role: "Front Desk", pin: "2044", type: "Full-Time", hourlyRate: 22, hoursWorked: 38, paid: false, phone: "+1 808-555-0123" },
+  { id: "s3", name: "Leilani Kea", role: "Housekeeping", pin: "3055", type: "Part-Time", hourlyRate: 20, hoursWorked: 25, paid: false, phone: "+1 808-555-0145" },
+  { id: "s4", name: "Akamu Flores", role: "Maintenance", pin: "4088", type: "Casual", hourlyRate: 24, hoursWorked: 16, paid: true, phone: "+1 808-555-0189" }
+];
+
 // --- 2. PROGRAMMATIC ISOLATED PRINT ENGINE ---
-// Creates a clean, hidden window ensuring the main web app never prints
 function printIsolatedDocument(htmlBody, mode = "thermal") {
   const existingFrame = document.getElementById("pos-print-frame");
   if (existingFrame) existingFrame.remove();
@@ -221,7 +232,7 @@ function buildA4Html({ settings, room, isTemporary, settlementMethod, total }) {
           <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; text-transform: uppercase; color: #555; letter-spacing: 1px;">
             Luxury Coastal Retreat & Suites
           </p>
-          <p style="margin: 4px 0 0 0; fontSize: 11px; color: #333;">
+          <p style="margin: 4px 0 0 0; font-size: 11px; color: #333;">
             ${settings.address} | Tel: ${settings.phone}
           </p>
           <p style="margin: 2px 0 0 0; font-size: 11px; color: #333;">
@@ -306,6 +317,92 @@ function buildA4Html({ settings, room, isTemporary, settlementMethod, total }) {
   `;
 }
 
+// Built-in Official A4 Payslip & Payroll Generator
+function buildPayslipHtml({ settings, staffMember }) {
+  const grossPay = (Number(staffMember.hourlyRate) || 0) * (Number(staffMember.hoursWorked) || 0);
+  return `
+    <div class="a4-container">
+      <div style="border-bottom: 3px double #091D26; padding-bottom: 16px; display: flex; justify-content: space-between; align-items: flex-start;">
+        <div>
+          <h1 style="font-size: 24px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; margin: 0; color: #091D26;">
+            ${settings.hotelName}
+          </h1>
+          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; text-transform: uppercase; color: #555; letter-spacing: 1px;">
+            Employee Compensation & Payroll Statement
+          </p>
+          <p style="margin: 4px 0 0 0; font-size: 11px; color: #333;">
+            ${settings.address} | Tel: ${settings.phone}
+          </p>
+          <p style="margin: 2px 0 0 0; font-size: 11px; color: #333;">
+            Tax ID / Reg: ${settings.taxNumber}
+          </p>
+        </div>
+        <div style="text-align: right;">
+          <div style="display: inline-block; border: 2px solid #091D26; padding: 6px 14px; font-weight: bold; font-size: 12px; text-transform: uppercase;">
+            OFFICIAL PAYSLIP
+          </div>
+          <p style="margin: 8px 0 0 0; font-size: 12px;"><b>Pay Date:</b> ${new Date().toLocaleDateString()}</p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;"><b>Employee Ref:</b> ${staffMember.id}</p>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 20px 0; padding: 12px 16px; border: 1px solid #091D26; border-radius: 4px;">
+        <div>
+          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Employee Details</p>
+          <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold;">${staffMember.name}</p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;">Designated Role: <b>${staffMember.role}</b></p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;">Contact: ${staffMember.phone || "N/A"}</p>
+        </div>
+        <div style="text-align: right;">
+          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Employment Term</p>
+          <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold;">${staffMember.type || "Full-Time"}</p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;">Base Hourly Rate: <b>${settings.currency}${Number(staffMember.hourlyRate).toFixed(2)}/hr</b></p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;">Payout Status: <b>${staffMember.paid ? "SETTLED / PAID" : "PENDING DISBURSEMENT"}</b></p>
+        </div>
+      </div>
+
+      <table style="margin: 20px 0; font-size: 12px;">
+        <thead>
+          <tr style="border-bottom: 2px solid #091D26; text-align: left;">
+            <th style="padding: 10px 4px; text-transform: uppercase; font-size: 11px;">Earnings Description</th>
+            <th style="padding: 10px 4px; text-align: center; text-transform: uppercase; font-size: 11px;">Hours Logged</th>
+            <th style="padding: 10px 4px; text-align: right; text-transform: uppercase; font-size: 11px;">Pay Rate</th>
+            <th style="padding: 10px 4px; text-align: right; text-transform: uppercase; font-size: 11px;">Gross Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom: 1px solid #ddd;">
+            <td style="padding: 10px 4px;">Regular Shift Duties & Service</td>
+            <td style="padding: 10px 4px; text-align: center;">${staffMember.hoursWorked || 0} hrs</td>
+            <td style="padding: 10px 4px; text-align: right;">${settings.currency}${Number(staffMember.hourlyRate).toFixed(2)}</td>
+            <td style="padding: 10px 4px; text-align: right; font-weight: bold;">${settings.currency}${grossPay.toFixed(2)}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div style="border-top: 2px solid #091D26; border-bottom: 2px solid #091D26; padding: 12px 4px; margin: 24px 0; display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 14px; font-weight: bold; text-transform: uppercase;">
+          Net Remittance Payable:
+        </span>
+        <span style="font-size: 20px; font-weight: 900; color: #0D9488;">
+          ${settings.currency}${grossPay.toFixed(2)}
+        </span>
+      </div>
+
+      <div style="margin-top: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; font-size: 11px;">
+        <div>
+          <p style="font-weight: bold; text-transform: uppercase; margin-bottom: 30px;">Employee Acknowledgment:</p>
+          <div style="border-bottom: 1px solid #000; width: 80%;"></div>
+        </div>
+        <div style="text-align: right;">
+          <p style="font-weight: bold; text-transform: uppercase; margin-bottom: 30px;">Payroll / General Manager:</p>
+          <div style="border-bottom: 1px solid #000; width: 80%; margin-left: auto;"></div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState("frontdesk");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -314,12 +411,13 @@ export default function App() {
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [rooms, setRooms] = useState([]);
   const [inventory, setInventory] = useState(INITIAL_INVENTORY_SEEDS);
-  const [staff, setStaff] = useState([]);
+  const [staff, setStaff] = useState(INITIAL_STAFF_SEEDS);
   const [loading, setLoading] = useState(true);
 
   // Active Selection & Print Mode State
   const [selectedRoomId, setSelectedRoomId] = useState("");
-  const [printFormat, setPrintFormat] = useState("thermal"); // 'thermal' or 'a4'
+  const [printFormat, setPrintFormat] = useState("thermal");
+  const [isTemporaryBill, setIsTemporaryBill] = useState(false);
 
   // Front Desk Modals
   const [checkInModalRoom, setCheckInModalRoom] = useState(null);
@@ -362,17 +460,36 @@ export default function App() {
     stock: "",
   });
 
+  // Staff & Payroll Management State
+  const [showAddStaffModal, setShowAddStaffModal] = useState(false);
+  const [staffSearchQuery, setStaffSearchQuery] = useState("");
+  const [newStaffForm, setNewStaffForm] = useState({
+    name: "",
+    role: "Front Desk",
+    pin: "1234",
+    type: "Full-Time",
+    hourlyRate: "22",
+    phone: "",
+  });
+  const [editingStaffId, setEditingStaffId] = useState(null);
+  const [editStaffForm, setEditStaffForm] = useState({
+    name: "",
+    role: "Front Desk",
+    pin: "",
+    type: "Full-Time",
+    hourlyRate: "",
+    hoursWorked: "",
+    phone: "",
+  });
+
   // --- REALTIME DATABASE LISTENERS ---
   useEffect(() => {
     // A. Hotel Settings Listener
     const settingsRef = ref(rtdb, "hotel_config/profile");
     const unsubSettings = onValue(settingsRef, (snapshot) => {
       const data = snapshot.val();
-      if (data) {
-        setSettings(data);
-      } else {
-        set(settingsRef, DEFAULT_SETTINGS);
-      }
+      if (data) setSettings(data);
+      else set(settingsRef, DEFAULT_SETTINGS);
     });
 
     // B. Rooms & Active Orders Listener
@@ -426,15 +543,13 @@ export default function App() {
       }
     });
 
-    // C. Inventory & Minibar Stock Listener
+    // C. Inventory Listener
     const invRef = ref(rtdb, "inventory");
     const unsubInv = onValue(invRef, (snapshot) => {
       const data = snapshot.val();
       if (!data || Object.keys(data).length <= 1) {
         const seedMap = {};
-        INITIAL_INVENTORY_SEEDS.forEach((i) => {
-          seedMap[i.id] = i;
-        });
+        INITIAL_INVENTORY_SEEDS.forEach((i) => { seedMap[i.id] = i; });
         update(invRef, seedMap);
       } else {
         const loaded = Object.keys(data).map((key) => {
@@ -452,19 +567,22 @@ export default function App() {
       }
     });
 
-    // D. Staff Directory Listener
+    // D. Staff & Payroll Listener
     const staffRef = ref(rtdb, "staff");
     const unsubStaff = onValue(staffRef, (snapshot) => {
       const data = snapshot.val();
-      if (!data) {
-        const initialStaff = {
-          "s1": { id: "s1", name: "Kailani Silva", role: "Manager", pin: "1001", active: true },
-          "s2": { id: "s2", name: "Noah Jensen", role: "Front Desk", pin: "2044", active: true },
-          "s3": { id: "s3", name: "Leilani Kea", role: "Housekeeping", pin: "3055", active: true },
-        };
-        set(staffRef, initialStaff);
+      if (!data || Object.keys(data).length === 0) {
+        const seedStaffMap = {};
+        INITIAL_STAFF_SEEDS.forEach((s) => { seedStaffMap[s.id] = s; });
+        set(staffRef, seedStaffMap);
       } else {
-        const staffList = Object.keys(data).map((k) => ({ ...data[k], id: k }));
+        const staffList = Object.keys(data).map((k) => ({
+          ...data[k],
+          id: k,
+          hourlyRate: Number(data[k].hourlyRate) || 0,
+          hoursWorked: Number(data[k].hoursWorked) || 0,
+          paid: Boolean(data[k].paid)
+        }));
         setStaff(staffList);
       }
       setLoading(false);
@@ -480,7 +598,7 @@ export default function App() {
 
   const currentRoom = rooms.find((r) => r.id === selectedRoomId) || rooms[0];
 
-  // Helper Calculations
+  // Calculations
   const calculateTotal = (room) => room?.orderItems?.reduce((acc, item) => acc + (Number(item.total) || 0), 0) || 0;
   const printTargetRoom = settleOrderRoom || currentRoom;
   const printTargetTotal = calculateTotal(printTargetRoom);
@@ -504,10 +622,8 @@ export default function App() {
       ? buildThermalHtml({ settings, room: settleOrderRoom, isTemporary: false, settlementMethod, total })
       : buildA4Html({ settings, room: settleOrderRoom, isTemporary: false, settlementMethod, total });
 
-    // 1. Trigger isolated document print (0% dashboard bleed)
     printIsolatedDocument(html, printFormat);
 
-    // 2. Release room to cleaning in RTDB
     update(ref(rtdb, `rooms/${settleOrderRoom.id}`), {
       status: "cleaning",
       orderId: null,
@@ -520,6 +636,11 @@ export default function App() {
     });
 
     setSettleOrderRoom(null);
+  };
+
+  const handlePrintPayslip = (staffMember) => {
+    const html = buildPayslipHtml({ settings, staffMember });
+    printIsolatedDocument(html, "a4");
   };
 
   // --- INVENTORY ACTIONS ---
@@ -537,10 +658,7 @@ export default function App() {
 
   const handleCreateInventoryItem = (e) => {
     e.preventDefault();
-    if (!newInventoryForm.name.trim()) {
-      alert("Please enter a product name.");
-      return;
-    }
+    if (!newInventoryForm.name.trim()) return;
 
     const itemId = `inv_${Date.now()}`;
     const cleanPrice = parseFloat(newInventoryForm.price);
@@ -571,10 +689,7 @@ export default function App() {
   };
 
   const handleSaveInventoryEdit = (itemId) => {
-    if (!editInventoryForm.name.trim()) {
-      alert("Item name cannot be empty.");
-      return;
-    }
+    if (!editInventoryForm.name.trim()) return;
 
     const cleanPrice = parseFloat(editInventoryForm.price);
     const cleanStock = parseInt(editInventoryForm.stock, 10);
@@ -614,11 +729,105 @@ export default function App() {
     };
 
     set(ref(rtdb, `rooms/${currentRoom.id}/orderItems/${itemId}`), newItem);
-    if (item.stock > 0) {
-      handleUpdateStockLevel(item.id, -1);
-    }
+    if (item.stock > 0) handleUpdateStockLevel(item.id, -1);
   };
 
+  // --- STAFF & PAYROLL ACTIONS ---
+  const handleCreateStaff = (e) => {
+    e.preventDefault();
+    if (!newStaffForm.name.trim()) return;
+
+    const staffId = `stf_${Date.now()}`;
+    const cleanRate = parseFloat(newStaffForm.hourlyRate);
+
+    const newStaff = {
+      id: staffId,
+      name: newStaffForm.name.trim(),
+      role: newStaffForm.role || "Front Desk",
+      pin: newStaffForm.pin || "0000",
+      type: newStaffForm.type || "Full-Time",
+      hourlyRate: isNaN(cleanRate) || cleanRate < 0 ? 20 : cleanRate,
+      hoursWorked: 0,
+      paid: false,
+      phone: newStaffForm.phone || "",
+    };
+
+    setStaff((prev) => [...prev, newStaff]);
+    setShowAddStaffModal(false);
+    setNewStaffForm({
+      name: "",
+      role: "Front Desk",
+      pin: "1234",
+      type: "Full-Time",
+      hourlyRate: "22",
+      phone: "",
+    });
+
+    set(ref(rtdb, `staff/${staffId}`), newStaff);
+  };
+
+  const handleStartEditStaff = (member) => {
+    setEditingStaffId(member.id);
+    setEditStaffForm({
+      name: member.name || "",
+      role: member.role || "Front Desk",
+      pin: member.pin || "1234",
+      type: member.type || "Full-Time",
+      hourlyRate: String(member.hourlyRate ?? 20),
+      hoursWorked: String(member.hoursWorked ?? 0),
+      phone: member.phone || "",
+    });
+  };
+
+  const handleSaveStaffEdit = (staffId) => {
+    if (!editStaffForm.name.trim()) return;
+
+    const cleanRate = parseFloat(editStaffForm.hourlyRate);
+    const cleanHours = parseFloat(editStaffForm.hoursWorked);
+
+    const updatedPayload = {
+      name: editStaffForm.name.trim(),
+      role: editStaffForm.role,
+      pin: editStaffForm.pin || "0000",
+      type: editStaffForm.type,
+      hourlyRate: isNaN(cleanRate) || cleanRate < 0 ? 0 : cleanRate,
+      hoursWorked: isNaN(cleanHours) || cleanHours < 0 ? 0 : cleanHours,
+      phone: editStaffForm.phone || "",
+    };
+
+    setStaff((prev) =>
+      prev.map((s) => (s.id === staffId ? { ...s, ...updatedPayload } : s))
+    );
+    setEditingStaffId(null);
+    update(ref(rtdb, `staff/${staffId}`), updatedPayload);
+  };
+
+  const handleToggleStaffPayout = (staffId, currentStatus) => {
+    const nextStatus = !currentStatus;
+    setStaff((prev) =>
+      prev.map((s) => (s.id === staffId ? { ...s, paid: nextStatus } : s))
+    );
+    update(ref(rtdb, `staff/${staffId}`), { paid: nextStatus });
+  };
+
+  const handleQuickAddHours = (staffId, additionalHours) => {
+    const member = staff.find((s) => s.id === staffId);
+    if (!member) return;
+    const newHours = Math.max(0, (member.hoursWorked || 0) + additionalHours);
+
+    setStaff((prev) =>
+      prev.map((s) => (s.id === staffId ? { ...s, hoursWorked: newHours, paid: false } : s))
+    );
+    update(ref(rtdb, `staff/${staffId}`), { hoursWorked: newHours, paid: false });
+  };
+
+  const handleDeleteStaff = (member) => {
+    if (!window.confirm(`Permanently remove ${member.name} from staff records?`)) return;
+    setStaff((prev) => prev.filter((s) => s.id !== member.id));
+    remove(ref(rtdb, `staff/${member.id}`));
+  };
+
+  // --- GENERAL ACTIONS ---
   const handleSaveSettings = (updated) => {
     setSettings(updated);
     set(ref(rtdb, "hotel_config/profile"), updated);
@@ -654,9 +863,7 @@ export default function App() {
       guestPhone: guestForm.phone,
       checkIn: now.toISOString().split("T")[0],
       checkOut: new Date(Date.now() + nights * 86400000).toISOString().split("T")[0],
-      orderItems: {
-        [itemId]: initialOrderItem,
-      },
+      orderItems: { [itemId]: initialOrderItem },
     };
 
     update(ref(rtdb, `rooms/${checkInModalRoom.id}`), roomPayload);
@@ -701,11 +908,7 @@ export default function App() {
   };
 
   const handleDeleteActiveBill = (room) => {
-    if (
-      window.confirm(
-        `Are you sure you want to delete/void the active bill for Room #${room.number}? This will cancel the order and return the room to Available.`
-      )
-    ) {
+    if (window.confirm(`Void active bill for Room #${room.number}?`)) {
       update(ref(rtdb, `rooms/${room.id}`), {
         status: "available",
         orderId: null,
@@ -751,14 +954,16 @@ export default function App() {
     }
   };
 
-  const filteredInventory = inventory.filter((item) => {
-    const matchesCategory =
-      inventoryCategoryFilter === "all" || item.category === inventoryCategoryFilter;
-    const matchesSearch = (item.name || "")
-      .toLowerCase()
-      .includes(inventorySearchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
+  // Filtered staff list
+  const filteredStaff = staff.filter((s) => {
+    const q = staffSearchQuery.toLowerCase();
+    return s.name.toLowerCase().includes(q) || s.role.toLowerCase().includes(q);
   });
+
+  // Payroll Metrics
+  const totalPayrollGross = staff.reduce((acc, s) => acc + (s.hourlyRate * s.hoursWorked), 0);
+  const totalHoursLogged = staff.reduce((acc, s) => acc + s.hoursWorked, 0);
+  const pendingPayouts = staff.filter((s) => !s.paid && s.hoursWorked > 0).length;
 
   const parsedTendered = parseFloat(cashTendered) || 0;
   const changeDue = Math.max(0, parsedTendered - printTargetTotal);
@@ -768,7 +973,7 @@ export default function App() {
       <div className="flex h-screen items-center justify-center bg-[#FAF9F5]">
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 border-4 border-[#14B8A6] border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-[#091D26] font-semibold text-sm">Loading Thalassa Realtime Database...</p>
+          <p className="text-[#091D26] font-semibold text-sm">Loading Thalassa Hotel OS...</p>
         </div>
       </div>
     );
@@ -784,7 +989,7 @@ export default function App() {
           </div>
           <div>
             <h1 className="text-base font-bold tracking-tight leading-tight">Thalassa</h1>
-            <p className="text-[11px] text-[#2DD4BF] font-medium">Hotel OS & POS (RTDB)</p>
+            <p className="text-[11px] text-[#2DD4BF] font-medium">Hotel OS & POS</p>
           </div>
         </div>
 
@@ -794,7 +999,7 @@ export default function App() {
             { id: "active-orders", label: "Active Bills & Tabs", icon: Receipt },
             { id: "inventory", label: "Stock & Minibar", icon: Boxes },
             { id: "room-admin", label: "Room Management", icon: SlidersHorizontal },
-            { id: "staff", label: "Staff & Access", icon: Users },
+            { id: "staff", label: "Staff & Payroll", icon: Users },
             { id: "settings", label: "Hotel Settings", icon: Settings },
           ].map(({ id, label, icon: Icon }) => (
             <button
@@ -829,7 +1034,7 @@ export default function App() {
           </button>
         </header>
 
-        {/* Mobile Drawer */}
+        {/* Mobile Navigation Drawer */}
         {mobileMenuOpen && (
           <div className="no-print md:hidden bg-[#091D26] border-b border-[#0F2D3C] p-4 space-y-2 z-50 text-white shadow-xl">
             {[
@@ -837,7 +1042,7 @@ export default function App() {
               { id: "active-orders", label: "Active Bills & Tabs" },
               { id: "inventory", label: "Stock & Minibar" },
               { id: "room-admin", label: "Room Management" },
-              { id: "staff", label: "Staff & Access" },
+              { id: "staff", label: "Staff & Payroll" },
               { id: "settings", label: "Hotel Settings" },
             ].map((item) => (
               <button
@@ -862,7 +1067,7 @@ export default function App() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <h2 className="text-2xl font-bold text-[#091D26] tracking-tight">Front Desk Operations</h2>
-                  <p className="text-sm text-slate-500">Guest check-ins, room turnover, and active bill settlements</p>
+                  <p className="text-sm text-slate-500">Live guest room status, check-ins, and turnover</p>
                 </div>
                 <div className="flex items-center gap-2 text-xs">
                   <span className="bg-white border border-[#E6DFD3] px-3 py-1.5 rounded-lg shadow-sm">
@@ -981,7 +1186,6 @@ export default function App() {
                     Print temporary guest check bills, add minibar items, settle invoices, or void orders.
                   </p>
                 </div>
-                {/* Print Format Toggle */}
                 <div className="flex items-center gap-2 bg-white border border-[#E6DFD3] p-1.5 rounded-lg text-xs">
                   <span className="font-semibold text-slate-500 pl-1 text-[11px] uppercase">Print Mode:</span>
                   <button
@@ -1060,9 +1264,6 @@ export default function App() {
                                   </span>
                                 </div>
                               ))}
-                              {(!room.orderItems || room.orderItems.length === 0) && (
-                                <p className="text-slate-400 italic">No items posted to this bill</p>
-                              )}
                             </div>
                           </div>
                         </div>
@@ -1109,14 +1310,6 @@ export default function App() {
                     );
                   })}
               </div>
-
-              {rooms.filter((r) => r.status === "occupied").length === 0 && (
-                <div className="bg-white rounded-xl border border-[#E6DFD3] p-12 text-center">
-                  <Receipt className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                  <h3 className="font-bold text-lg text-[#091D26]">No Active Bills</h3>
-                  <p className="text-xs text-slate-500 mt-1">There are no occupied rooms with open tabs at this time.</p>
-                </div>
-              )}
 
               {/* POST CHARGES CONSOLE */}
               {currentRoom && currentRoom.status === "occupied" && (
@@ -1204,22 +1397,20 @@ export default function App() {
                     <div className="bg-white rounded-xl border border-[#E6DFD3] shadow-sm p-6 space-y-3">
                       <h4 className="font-bold text-sm text-[#091D26] uppercase">Instant Minibar Dispatch</h4>
                       <div className="space-y-2">
-                        {inventory
-                          .filter((i) => i.price > 0)
-                          .map((item) => (
-                            <button
-                              key={item.id}
-                              type="button"
-                              onClick={() => handleQuickAddMinibar(item)}
-                              className="w-full flex items-center justify-between p-2.5 rounded-lg border border-[#E6DFD3] hover:border-[#14B8A6] bg-[#FAF9F5] text-xs transition-colors"
-                            >
-                              <div className="text-left">
-                                <span className="font-medium text-[#091D26] block truncate">{item.name}</span>
-                                <span className="text-[10px] text-slate-400">Stock: {item.stock}</span>
-                              </div>
-                              <span className="font-bold text-[#0F766E]">{settings.currency}{Number(item.price).toFixed(2)}</span>
-                            </button>
-                          ))}
+                        {inventory.filter((i) => i.price > 0).map((item) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => handleQuickAddMinibar(item)}
+                            className="w-full flex items-center justify-between p-2.5 rounded-lg border border-[#E6DFD3] hover:border-[#14B8A6] bg-[#FAF9F5] text-xs transition-colors"
+                          >
+                            <div className="text-left">
+                              <span className="font-medium text-[#091D26] block truncate">{item.name}</span>
+                              <span className="text-[10px] text-slate-400">Stock: {item.stock}</span>
+                            </div>
+                            <span className="font-bold text-[#0F766E]">{settings.currency}{Number(item.price).toFixed(2)}</span>
+                          </button>
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -1228,7 +1419,7 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 3: INVENTORY & MINIBAR MANAGEMENT */}
+          {/* TAB 3: INVENTORY & MINIBAR */}
           {activeTab === "inventory" && (
             <div className="max-w-7xl mx-auto space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -1273,7 +1464,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Filters & Search */}
+              {/* Search & Category Filter */}
               <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
                 <div className="relative w-full sm:w-72">
                   <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
@@ -1304,186 +1495,151 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Management Table */}
+              {/* Inventory Table */}
               <div className="bg-white rounded-xl border border-[#E6DFD3] shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-[#F3EFE6] border-b border-[#E6DFD3] uppercase font-semibold text-slate-500">
-                      <tr>
-                        <th className="p-3.5">Product Name</th>
-                        <th className="p-3.5">Category</th>
-                        <th className="p-3.5 text-right">Billable Price</th>
-                        <th className="p-3.5 text-center">Stock Level</th>
-                        <th className="p-3.5 text-center">Quick Adjust</th>
-                        <th className="p-3.5 text-center">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#F3EFE6]">
-                      {filteredInventory.map((item) => {
-                        const isEditing = editingInventoryId === item.id;
-
-                        return (
-                          <tr key={item.id} className="hover:bg-[#FAF9F5] transition-colors">
-                            {/* Product Name */}
-                            <td className="p-3.5 font-bold text-[#091D26]">
-                              {isEditing ? (
-                                <input
-                                  type="text"
-                                  className="w-full border border-[#14B8A6] rounded px-2 py-1 text-xs focus:outline-none bg-white"
-                                  value={editInventoryForm.name}
-                                  onChange={(e) =>
-                                    setEditInventoryForm({ ...editInventoryForm, name: e.target.value })
-                                  }
-                                />
-                              ) : (
-                                <div className="flex items-center gap-2">
-                                  <span>{item.name}</span>
-                                  {item.stock < 10 && (
-                                    <span className="flex items-center gap-0.5 text-[10px] bg-[#FFE4E6] text-[#F43F5E] px-1.5 py-0.5 rounded font-bold">
-                                      <AlertTriangle className="w-2.5 h-2.5" /> Low
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-                            </td>
-
-                            {/* Category */}
-                            <td className="p-3.5">
-                              {isEditing ? (
-                                <select
-                                  value={editInventoryForm.category}
-                                  onChange={(e) =>
-                                    setEditInventoryForm({ ...editInventoryForm, category: e.target.value })
-                                  }
-                                  className="border border-[#14B8A6] rounded px-1.5 py-1 text-xs bg-white focus:outline-none"
-                                >
-                                  <option value="minibar">Minibar</option>
-                                  <option value="amenity">Amenity</option>
-                                  <option value="linen">Linen</option>
-                                  <option value="beverage">Beverage</option>
-                                  <option value="snack">Snack</option>
-                                </select>
-                              ) : (
-                                <span className="bg-[#F3EFE6] text-slate-600 px-2 py-0.5 rounded text-[10px] font-semibold uppercase">
-                                  {item.category}
-                                </span>
-                              )}
-                            </td>
-
-                            {/* Price */}
-                            <td className="p-3.5 text-right font-medium">
-                              {isEditing ? (
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  className="w-20 border border-[#14B8A6] rounded px-2 py-1 text-xs text-right focus:outline-none bg-white"
-                                  value={editInventoryForm.price}
-                                  onChange={(e) =>
-                                    setEditInventoryForm({ ...editInventoryForm, price: e.target.value })
-                                  }
-                                />
-                              ) : item.price > 0 ? (
-                                `${settings.currency}${Number(item.price).toFixed(2)}`
-                              ) : (
-                                <span className="text-slate-400 italic">Free (Complimentary)</span>
-                              )}
-                            </td>
-
-                            {/* Stock Count */}
-                            <td className="p-3.5 text-center font-bold">
-                              {isEditing ? (
-                                <input
-                                  type="number"
-                                  className="w-16 border border-[#14B8A6] rounded px-2 py-1 text-xs text-center focus:outline-none bg-white"
-                                  value={editInventoryForm.stock}
-                                  onChange={(e) =>
-                                    setEditInventoryForm({ ...editInventoryForm, stock: e.target.value })
-                                  }
-                                />
-                              ) : (
-                                <span className={item.stock < 10 ? "text-[#F43F5E] font-black" : "text-[#091D26]"}>
-                                  {item.stock}
-                                </span>
-                              )}
-                            </td>
-
-                            {/* Direct Increment / Decrement */}
-                            <td className="p-3.5 text-center">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#F3EFE6] border-b border-[#E6DFD3] uppercase font-semibold text-slate-500">
+                    <tr>
+                      <th className="p-3.5">Product Name</th>
+                      <th className="p-3.5">Category</th>
+                      <th className="p-3.5 text-right">Billable Price</th>
+                      <th className="p-3.5 text-center">Stock Level</th>
+                      <th className="p-3.5 text-center">Quick Adjust</th>
+                      <th className="p-3.5 text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#F3EFE6]">
+                    {filteredInventory.map((item) => {
+                      const isEditing = editingInventoryId === item.id;
+                      return (
+                        <tr key={item.id} className="hover:bg-[#FAF9F5] transition-colors">
+                          <td className="p-3.5 font-bold text-[#091D26]">
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                className="w-full border border-[#14B8A6] rounded px-2 py-1 text-xs focus:outline-none bg-white"
+                                value={editInventoryForm.name}
+                                onChange={(e) => setEditInventoryForm({ ...editInventoryForm, name: e.target.value })}
+                              />
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <span>{item.name}</span>
+                                {item.stock < 10 && (
+                                  <span className="flex items-center gap-0.5 text-[10px] bg-[#FFE4E6] text-[#F43F5E] px-1.5 py-0.5 rounded font-bold">
+                                    <AlertTriangle className="w-2.5 h-2.5" /> Low
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                          <td className="p-3.5">
+                            {isEditing ? (
+                              <select
+                                value={editInventoryForm.category}
+                                onChange={(e) => setEditInventoryForm({ ...editInventoryForm, category: e.target.value })}
+                                className="border border-[#14B8A6] rounded px-1.5 py-1 text-xs bg-white focus:outline-none"
+                              >
+                                <option value="minibar">Minibar</option>
+                                <option value="amenity">Amenity</option>
+                                <option value="linen">Linen</option>
+                                <option value="beverage">Beverage</option>
+                                <option value="snack">Snack</option>
+                              </select>
+                            ) : (
+                              <span className="bg-[#F3EFE6] text-slate-600 px-2 py-0.5 rounded text-[10px] font-semibold uppercase">
+                                {item.category}
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-3.5 text-right font-medium">
+                            {isEditing ? (
+                              <input
+                                type="number"
+                                step="0.01"
+                                className="w-20 border border-[#14B8A6] rounded px-2 py-1 text-xs text-right focus:outline-none bg-white"
+                                value={editInventoryForm.price}
+                                onChange={(e) => setEditInventoryForm({ ...editInventoryForm, price: e.target.value })}
+                              />
+                            ) : item.price > 0 ? (
+                              `${settings.currency}${Number(item.price).toFixed(2)}`
+                            ) : (
+                              <span className="text-slate-400 italic">Free</span>
+                            )}
+                          </td>
+                          <td className="p-3.5 text-center font-bold">
+                            {isEditing ? (
+                              <input
+                                type="number"
+                                className="w-16 border border-[#14B8A6] rounded px-2 py-1 text-xs text-center focus:outline-none bg-white"
+                                value={editInventoryForm.stock}
+                                onChange={(e) => setEditInventoryForm({ ...editInventoryForm, stock: e.target.value })}
+                              />
+                            ) : (
+                              <span className={item.stock < 10 ? "text-[#F43F5E] font-black" : "text-[#091D26]"}>
+                                {item.stock}
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-3.5 text-center">
+                            <div className="inline-flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateStockLevel(item.id, -1)}
+                                className="px-2 py-0.5 border border-[#D3C8B7] rounded hover:bg-[#F3EFE6] text-xs font-bold transition-colors"
+                              >
+                                -
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateStockLevel(item.id, 1)}
+                                className="px-2 py-0.5 border border-[#D3C8B7] rounded hover:bg-[#F3EFE6] text-xs font-bold transition-colors"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </td>
+                          <td className="p-3.5 text-center">
+                            {isEditing ? (
                               <div className="inline-flex items-center gap-1">
                                 <button
                                   type="button"
-                                  onClick={() => handleUpdateStockLevel(item.id, -1)}
-                                  className="px-2 py-0.5 border border-[#D3C8B7] rounded hover:bg-[#F3EFE6] text-xs font-bold transition-colors"
-                                  title="Reduce stock by 1"
+                                  onClick={() => handleSaveInventoryEdit(item.id)}
+                                  className="p-1 bg-[#14B8A6] hover:bg-[#0D9488] text-white rounded transition-colors"
                                 >
-                                  -
+                                  <Check className="w-3.5 h-3.5" />
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => handleUpdateStockLevel(item.id, 1)}
-                                  className="px-2 py-0.5 border border-[#D3C8B7] rounded hover:bg-[#F3EFE6] text-xs font-bold transition-colors"
-                                  title="Add 1 to stock"
+                                  onClick={() => setEditingInventoryId(null)}
+                                  className="p-1 bg-slate-200 hover:bg-slate-300 text-slate-600 rounded transition-colors"
                                 >
-                                  +
+                                  <X className="w-3.5 h-3.5" />
                                 </button>
                               </div>
-                            </td>
-
-                            {/* Action Buttons */}
-                            <td className="p-3.5 text-center">
-                              {isEditing ? (
-                                <div className="inline-flex items-center gap-1">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleSaveInventoryEdit(item.id)}
-                                    className="p-1 bg-[#14B8A6] hover:bg-[#0D9488] text-white rounded transition-colors"
-                                    title="Save changes"
-                                  >
-                                    <Check className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => setEditingInventoryId(null)}
-                                    className="p-1 bg-slate-200 hover:bg-slate-300 text-slate-600 rounded transition-colors"
-                                    title="Cancel"
-                                  >
-                                    <X className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className="inline-flex items-center gap-1.5">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleStartEditInventory(item)}
-                                    className="text-slate-400 hover:text-[#0D9488] p-1 transition-colors"
-                                    title="Edit item details"
-                                  >
-                                    <Edit2 className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteInventoryItem(item)}
-                                    className="text-[#F43F5E] hover:text-[#E11D48] p-1 transition-colors"
-                                    title="Delete product"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                      {filteredInventory.length === 0 && (
-                        <tr>
-                          <td colSpan={6} className="p-8 text-center text-slate-400">
-                            No inventory items found matching your filters.
+                            ) : (
+                              <div className="inline-flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartEditInventory(item)}
+                                  className="text-slate-400 hover:text-[#0D9488] p-1 transition-colors"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteInventoryItem(item)}
+                                  className="text-[#F43F5E] hover:text-[#E11D48] p-1 transition-colors"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            )}
                           </td>
                         </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
@@ -1505,31 +1661,6 @@ export default function App() {
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div className="bg-white border border-[#E6DFD3] rounded-xl p-4 shadow-sm">
-                  <p className="text-xs font-semibold uppercase text-slate-400">Total Rooms</p>
-                  <p className="text-2xl font-black text-[#091D26] mt-1">{rooms.length}</p>
-                </div>
-                <div className="bg-white border border-[#E6DFD3] rounded-xl p-4 shadow-sm">
-                  <p className="text-xs font-semibold uppercase text-[#0F766E]">Available</p>
-                  <p className="text-2xl font-black text-[#0F766E] mt-1">
-                    {rooms.filter((r) => r.status === "available").length}
-                  </p>
-                </div>
-                <div className="bg-white border border-[#E6DFD3] rounded-xl p-4 shadow-sm">
-                  <p className="text-xs font-semibold uppercase text-amber-700">Cleaning</p>
-                  <p className="text-2xl font-black text-amber-700 mt-1">
-                    {rooms.filter((r) => r.status === "cleaning").length}
-                  </p>
-                </div>
-                <div className="bg-white border border-[#E6DFD3] rounded-xl p-4 shadow-sm">
-                  <p className="text-xs font-semibold uppercase text-[#F43F5E]">Maintenance</p>
-                  <p className="text-2xl font-black text-[#F43F5E] mt-1">
-                    {rooms.filter((r) => r.status === "maintenance").length}
-                  </p>
-                </div>
-              </div>
-
               <div className="bg-white rounded-xl border border-[#E6DFD3] shadow-sm overflow-hidden">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-[#F3EFE6] border-b border-[#E6DFD3] uppercase font-semibold text-slate-500">
@@ -1547,59 +1678,9 @@ export default function App() {
                       <tr key={room.id} className="hover:bg-[#FAF9F5] transition-colors">
                         <td className="p-3.5 font-black text-base text-[#091D26]">#{room.number}</td>
                         <td className="p-3.5 font-medium text-slate-700">{room.type}</td>
+                        <td className="p-3.5 font-bold text-slate-900">{settings.currency}{room.rate}</td>
                         <td className="p-3.5">
-                          {editingRoomId === room.id ? (
-                            <div className="flex items-center gap-1.5">
-                              <input
-                                type="number"
-                                className="w-20 border border-[#14B8A6] rounded px-2 py-1 text-xs focus:outline-none"
-                                value={editRoomRate}
-                                onChange={(e) => setEditRoomRate(e.target.value)}
-                                autoFocus
-                              />
-                              <button
-                                type="button"
-                                onClick={() => handleSaveRoomRate(room.id)}
-                                className="p-1 bg-[#14B8A6] text-white rounded hover:bg-[#0D9488]"
-                              >
-                                <Check className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setEditingRoomId(null)}
-                                className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-slate-900">{settings.currency}{room.rate}</span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditingRoomId(room.id);
-                                  setEditRoomRate(room.rate);
-                                }}
-                                className="text-slate-400 hover:text-[#0D9488]"
-                              >
-                                <Edit2 className="w-3 h-3" />
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                        <td className="p-3.5">
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold capitalize ${
-                              room.status === "available"
-                                ? "bg-[#CCFBF1] text-[#0F766E]"
-                                : room.status === "occupied"
-                                ? "bg-[#0F2D3C] text-white"
-                                : room.status === "cleaning"
-                                ? "bg-amber-100 text-amber-800"
-                                : "bg-[#FFE4E6] text-[#F43F5E]"
-                            }`}
-                          >
+                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold capitalize bg-[#CCFBF1] text-[#0F766E]">
                             {room.status}
                           </span>
                         </td>
@@ -1608,27 +1689,21 @@ export default function App() {
                             <button
                               type="button"
                               onClick={() => updateRoomStatus(room.id, "available")}
-                              className={`px-2 py-1 rounded text-[10px] font-semibold ${
-                                room.status === "available" ? "bg-[#14B8A6] text-white" : "text-slate-600 hover:bg-white"
-                              }`}
+                              className="px-2 py-1 rounded text-[10px] font-semibold text-slate-600 hover:bg-white"
                             >
                               Ready
                             </button>
                             <button
                               type="button"
                               onClick={() => updateRoomStatus(room.id, "cleaning")}
-                              className={`px-2 py-1 rounded text-[10px] font-semibold ${
-                                room.status === "cleaning" ? "bg-amber-500 text-white" : "text-slate-600 hover:bg-white"
-                              }`}
+                              className="px-2 py-1 rounded text-[10px] font-semibold text-slate-600 hover:bg-white"
                             >
                               Clean
                             </button>
                             <button
                               type="button"
                               onClick={() => updateRoomStatus(room.id, "maintenance")}
-                              className={`px-2 py-1 rounded text-[10px] font-semibold ${
-                                room.status === "maintenance" ? "bg-[#F43F5E] text-white" : "text-slate-600 hover:bg-white"
-                              }`}
+                              className="px-2 py-1 rounded text-[10px] font-semibold text-slate-600 hover:bg-white"
                             >
                               Out of Order
                             </button>
@@ -1638,12 +1713,7 @@ export default function App() {
                           <button
                             type="button"
                             onClick={() => handleDeleteRoom(room.id, room.number)}
-                            disabled={room.status === "occupied"}
-                            className={`p-1.5 rounded transition-colors ${
-                              room.status === "occupied"
-                                ? "text-slate-300 cursor-not-allowed"
-                                : "text-[#F43F5E] hover:bg-[#FFE4E6]"
-                            }`}
+                            className="p-1.5 rounded text-[#F43F5E] hover:bg-[#FFE4E6]"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -1656,29 +1726,274 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 5: STAFF */}
+          {/* TAB 5: STAFF MANAGEMENT & PAYROLL (NEW MODULE) */}
           {activeTab === "staff" && (
-            <div className="max-w-4xl mx-auto space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold text-[#091D26]">Staff & Shifts</h2>
-                <p className="text-sm text-slate-500">Active hotel staff & PIN identification</p>
+            <div className="max-w-7xl mx-auto space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-bold text-[#091D26] tracking-tight">Staff, Employment & Payroll</h2>
+                  <p className="text-sm text-slate-500">
+                    Manage team roles, clock-in timesheet hours, calculate gross pay, and disburse official wage slips.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAddStaffModal(true)}
+                  className="inline-flex items-center gap-2 bg-[#14B8A6] hover:bg-[#0D9488] text-white px-4 py-2.5 rounded-lg text-xs font-bold shadow-sm transition-all"
+                >
+                  <UserPlus className="w-4 h-4" /> Add New Staff Member
+                </button>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {staff.map((member) => (
-                  <div key={member.id} className="bg-white border border-[#E6DFD3] rounded-xl p-5 shadow-sm">
-                    <div className="flex justify-between items-start">
-                      <div className="w-10 h-10 rounded-full bg-[#0F2D3C] text-[#2DD4BF] font-bold flex items-center justify-center text-sm">
-                        {member.name.slice(0, 2).toUpperCase()}
-                      </div>
-                      <span className="bg-[#CCFBF1] text-[#0F766E] text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">
-                        {member.role}
-                      </span>
-                    </div>
-                    <h3 className="font-bold text-base text-[#091D26] mt-3">{member.name}</h3>
-                    <p className="text-xs text-slate-400">PIN: ****{member.pin.slice(-2)}</p>
-                  </div>
-                ))}
+              {/* Payroll & Roster Executive Metric Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="bg-white border border-[#E6DFD3] rounded-xl p-4 shadow-sm">
+                  <p className="text-xs font-semibold uppercase text-slate-400">Total Staff Active</p>
+                  <p className="text-2xl font-black text-[#091D26] mt-1">{staff.length}</p>
+                </div>
+                <div className="bg-white border border-[#E6DFD3] rounded-xl p-4 shadow-sm">
+                  <p className="text-xs font-semibold uppercase text-[#0F766E]">Total Hours Logged</p>
+                  <p className="text-2xl font-black text-[#0F766E] mt-1">{totalHoursLogged} hrs</p>
+                </div>
+                <div className="bg-white border border-[#E6DFD3] rounded-xl p-4 shadow-sm">
+                  <p className="text-xs font-semibold uppercase text-amber-700">Pending Wage Payouts</p>
+                  <p className="text-2xl font-black text-amber-700 mt-1">{pendingPayouts} Staff</p>
+                </div>
+                <div className="bg-white border border-[#E6DFD3] rounded-xl p-4 shadow-sm">
+                  <p className="text-xs font-semibold uppercase text-[#F43F5E]">Est. Period Payroll</p>
+                  <p className="text-2xl font-black text-[#0D9488] mt-1">
+                    {settings.currency}{totalPayrollGross.toFixed(2)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Search Bar */}
+              <div className="relative w-full sm:w-80">
+                <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search staff by name or role..."
+                  value={staffSearchQuery}
+                  onChange={(e) => setStaffSearchQuery(e.target.value)}
+                  className="w-full bg-white border border-[#E6DFD3] rounded-lg pl-9 pr-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
+                />
+              </div>
+
+              {/* Staff Management & Payroll Table */}
+              <div className="bg-white rounded-xl border border-[#E6DFD3] shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#F3EFE6] border-b border-[#E6DFD3] uppercase font-semibold text-slate-500">
+                      <tr>
+                        <th className="p-3.5">Staff Details</th>
+                        <th className="p-3.5">Role & Term</th>
+                        <th className="p-3.5">Hourly Rate</th>
+                        <th className="p-3.5 text-center">Hours Worked</th>
+                        <th className="p-3.5 text-right">Gross Pay</th>
+                        <th className="p-3.5 text-center">Payout Status</th>
+                        <th className="p-3.5 text-center">Payslip</th>
+                        <th className="p-3.5 text-center">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#F3EFE6]">
+                      {filteredStaff.map((member) => {
+                        const isEditing = editingStaffId === member.id;
+                        const grossPay = (member.hourlyRate || 0) * (member.hoursWorked || 0);
+
+                        return (
+                          <tr key={member.id} className="hover:bg-[#FAF9F5] transition-colors">
+                            {/* Staff Name & Phone */}
+                            <td className="p-3.5 font-bold text-[#091D26]">
+                              {isEditing ? (
+                                <div className="space-y-1">
+                                  <input
+                                    type="text"
+                                    className="w-full border border-[#14B8A6] rounded px-2 py-1 text-xs bg-white"
+                                    value={editStaffForm.name}
+                                    onChange={(e) => setEditStaffForm({ ...editStaffForm, name: e.target.value })}
+                                  />
+                                  <input
+                                    type="text"
+                                    placeholder="Phone"
+                                    className="w-full border border-[#D3C8B7] rounded px-2 py-1 text-[11px] bg-white"
+                                    value={editStaffForm.phone}
+                                    onChange={(e) => setEditStaffForm({ ...editStaffForm, phone: e.target.value })}
+                                  />
+                                </div>
+                              ) : (
+                                <div>
+                                  <div className="text-sm font-bold text-[#091D26]">{member.name}</div>
+                                  <div className="text-[11px] text-slate-400 font-mono">PIN: ****{member.pin.slice(-2)} | {member.phone || "No phone"}</div>
+                                </div>
+                              )}
+                            </td>
+
+                            {/* Role & Term */}
+                            <td className="p-3.5">
+                              {isEditing ? (
+                                <div className="space-y-1">
+                                  <select
+                                    value={editStaffForm.role}
+                                    onChange={(e) => setEditStaffForm({ ...editStaffForm, role: e.target.value })}
+                                    className="w-full border border-[#14B8A6] rounded px-1.5 py-1 text-xs bg-white"
+                                  >
+                                    <option value="Manager">Manager</option>
+                                    <option value="Front Desk">Front Desk</option>
+                                    <option value="Housekeeping">Housekeeping</option>
+                                    <option value="Maintenance">Maintenance</option>
+                                    <option value="F&B / Restaurant">F&B / Restaurant</option>
+                                    <option value="Bartender">Bartender</option>
+                                    <option value="Security">Security</option>
+                                  </select>
+                                  <select
+                                    value={editStaffForm.type}
+                                    onChange={(e) => setEditStaffForm({ ...editStaffForm, type: e.target.value })}
+                                    className="w-full border border-[#D3C8B7] rounded px-1.5 py-1 text-[11px] bg-white"
+                                  >
+                                    <option value="Full-Time">Full-Time</option>
+                                    <option value="Part-Time">Part-Time</option>
+                                    <option value="Casual">Casual</option>
+                                    <option value="Contractor">Contractor</option>
+                                  </select>
+                                </div>
+                              ) : (
+                                <div>
+                                  <span className="font-semibold text-[#091D26] block">{member.role}</span>
+                                  <span className="bg-[#CCFBF1] text-[#0F766E] text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">
+                                    {member.type || "Full-Time"}
+                                  </span>
+                                </div>
+                              )}
+                            </td>
+
+                            {/* Hourly Rate */}
+                            <td className="p-3.5 font-medium text-slate-800">
+                              {isEditing ? (
+                                <input
+                                  type="number"
+                                  step="0.5"
+                                  className="w-20 border border-[#14B8A6] rounded px-2 py-1 text-xs bg-white"
+                                  value={editStaffForm.hourlyRate}
+                                  onChange={(e) => setEditStaffForm({ ...editStaffForm, hourlyRate: e.target.value })}
+                                />
+                              ) : (
+                                `${settings.currency}${Number(member.hourlyRate).toFixed(2)}/hr`
+                              )}
+                            </td>
+
+                            {/* Hours Worked */}
+                            <td className="p-3.5 text-center">
+                              {isEditing ? (
+                                <input
+                                  type="number"
+                                  className="w-16 border border-[#14B8A6] rounded px-2 py-1 text-xs text-center bg-white"
+                                  value={editStaffForm.hoursWorked}
+                                  onChange={(e) => setEditStaffForm({ ...editStaffForm, hoursWorked: e.target.value })}
+                                />
+                              ) : (
+                                <div className="inline-flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleQuickAddHours(member.id, -1)}
+                                    className="px-1.5 py-0.5 border border-[#D3C8B7] rounded hover:bg-slate-100 font-bold"
+                                  >
+                                    -
+                                  </button>
+                                  <span className="font-bold text-[#091D26] w-12 text-center">{member.hoursWorked || 0} hrs</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleQuickAddHours(member.id, 1)}
+                                    className="px-1.5 py-0.5 border border-[#D3C8B7] rounded hover:bg-slate-100 font-bold"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+
+                            {/* Gross Pay */}
+                            <td className="p-3.5 text-right font-black text-sm text-[#0D9488]">
+                              {settings.currency}{grossPay.toFixed(2)}
+                            </td>
+
+                            {/* Payout Status Toggle */}
+                            <td className="p-3.5 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleStaffPayout(member.id, member.paid)}
+                                className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase transition-all ${
+                                  member.paid
+                                    ? "bg-[#CCFBF1] text-[#0F766E] border border-[#2DD4BF]"
+                                    : "bg-[#FFE4E6] text-[#F43F5E] border border-coral-200 hover:bg-coral-100"
+                                }`}
+                              >
+                                {member.paid ? "Paid" : "Mark Paid"}
+                              </button>
+                            </td>
+
+                            {/* Official Payslip Print */}
+                            <td className="p-3.5 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handlePrintPayslip(member)}
+                                className="p-1.5 bg-[#0F2D3C] hover:bg-[#091D26] text-white rounded-lg text-xs font-semibold inline-flex items-center gap-1"
+                                title="Print Official Payslip"
+                              >
+                                <Printer className="w-3.5 h-3.5 text-[#2DD4BF]" /> Slip
+                              </button>
+                            </td>
+
+                            {/* Actions */}
+                            <td className="p-3.5 text-center">
+                              {isEditing ? (
+                                <div className="inline-flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSaveStaffEdit(member.id)}
+                                    className="p-1 bg-[#14B8A6] hover:bg-[#0D9488] text-white rounded"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingStaffId(null)}
+                                    className="p-1 bg-slate-200 hover:bg-slate-300 text-slate-600 rounded"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="inline-flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleStartEditStaff(member)}
+                                    className="text-slate-400 hover:text-[#0D9488] p-1"
+                                  >
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteStaff(member)}
+                                    className="text-[#F43F5E] hover:text-[#E11D48] p-1"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {filteredStaff.length === 0 && (
+                        <tr>
+                          <td colSpan={8} className="p-8 text-center text-slate-400">
+                            No team members found matching your search.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
@@ -2005,7 +2320,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL 4: ADD INVENTORY / MINIBAR ITEM */}
+      {/* MODAL 4: ADD INVENTORY ITEM */}
       {showAddInventoryModal && (
         <div className="no-print fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-[#E6DFD3]">
@@ -2079,6 +2394,113 @@ export default function App() {
                 className="w-full bg-[#14B8A6] hover:bg-[#0D9488] text-white font-bold py-3 rounded-lg transition-colors mt-2"
               >
                 Save Item to Database
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 5: ADD STAFF MEMBER & ROLE (NEW) */}
+      {showAddStaffModal && (
+        <div className="no-print fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-[#E6DFD3]">
+            <div className="flex justify-between items-center mb-4">
+              <div>
+                <span className="text-xs uppercase font-bold text-[#0F766E]">Team Roster</span>
+                <h3 className="font-bold text-lg text-[#091D26]">Add Staff Member & Role</h3>
+              </div>
+              <button type="button" onClick={() => setShowAddStaffModal(false)} className="text-slate-400">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateStaff} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold mb-1">Full Legal Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Malia Chang"
+                  value={newStaffForm.name}
+                  onChange={(e) => setNewStaffForm({ ...newStaffForm, name: e.target.value })}
+                  className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1">Operational Role</label>
+                  <select
+                    value={newStaffForm.role}
+                    onChange={(e) => setNewStaffForm({ ...newStaffForm, role: e.target.value })}
+                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white focus:outline-none"
+                  >
+                    <option value="Manager">Manager</option>
+                    <option value="Front Desk">Front Desk</option>
+                    <option value="Housekeeping">Housekeeping</option>
+                    <option value="Maintenance">Maintenance</option>
+                    <option value="F&B / Restaurant">F&B / Restaurant</option>
+                    <option value="Bartender">Bartender</option>
+                    <option value="Security">Security</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Employment Term</label>
+                  <select
+                    value={newStaffForm.type}
+                    onChange={(e) => setNewStaffForm({ ...newStaffForm, type: e.target.value })}
+                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white focus:outline-none"
+                  >
+                    <option value="Full-Time">Full-Time</option>
+                    <option value="Part-Time">Part-Time</option>
+                    <option value="Casual">Casual</option>
+                    <option value="Contractor">Contractor</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1">Base Hourly Rate ({settings.currency})</label>
+                  <input
+                    type="number"
+                    step="0.50"
+                    min="0"
+                    required
+                    value={newStaffForm.hourlyRate}
+                    onChange={(e) => setNewStaffForm({ ...newStaffForm, hourlyRate: e.target.value })}
+                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Access PIN (4 Digits)</label>
+                  <input
+                    type="text"
+                    maxLength={6}
+                    required
+                    value={newStaffForm.pin}
+                    onChange={(e) => setNewStaffForm({ ...newStaffForm, pin: e.target.value })}
+                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1">Phone Number</label>
+                <input
+                  type="tel"
+                  placeholder="+1 (555) 000-0000"
+                  value={newStaffForm.phone}
+                  onChange={(e) => setNewStaffForm({ ...newStaffForm, phone: e.target.value })}
+                  className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-[#14B8A6] hover:bg-[#0D9488] text-white font-bold py-3 rounded-lg transition-colors mt-2"
+              >
+                Register Staff to Database
               </button>
             </form>
           </div>
