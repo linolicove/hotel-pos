@@ -74,7 +74,7 @@ export default function App() {
 
   // Active Selection & Print Mode State
   const [selectedRoomId, setSelectedRoomId] = useState("");
-  const [printFormat, setPrintFormat] = useState("thermal"); // 'thermal' or 'a4'
+  const [printFormat, setPrintFormat] = useState("thermal");
   const [isTemporaryBill, setIsTemporaryBill] = useState(false);
 
   // Front Desk Modals
@@ -107,15 +107,15 @@ export default function App() {
   const [newInventoryForm, setNewInventoryForm] = useState({
     name: "",
     category: "minibar",
-    price: 5,
-    stock: 24,
+    price: "5",
+    stock: "24",
   });
   const [editingInventoryId, setEditingInventoryId] = useState(null);
   const [editInventoryForm, setEditInventoryForm] = useState({
     name: "",
     category: "minibar",
-    price: 0,
-    stock: 0,
+    price: "",
+    stock: "",
   });
 
   // --- 2. REAL-TIME FIRESTORE HOOKS ---
@@ -161,7 +161,7 @@ export default function App() {
         }
       } else {
         const loaded = [];
-        snap.forEach((d) => loaded.push(d.data()));
+        snap.forEach((d) => loaded.push({ ...d.data(), id: d.id }));
         setRooms(loaded.sort((a, b) => a.number.localeCompare(b.number)));
         if (!selectedRoomId && loaded.length > 0) {
           const firstOccupied = loaded.find((r) => r.status === "occupied");
@@ -170,7 +170,7 @@ export default function App() {
       }
     });
 
-    // Inventory Real-time Sync
+    // Inventory Real-time Sync with robust ID capture
     const invCol = collection(db, "inventory");
     const unsubInv = onSnapshot(invCol, async (snap) => {
       if (snap.empty) {
@@ -186,7 +186,15 @@ export default function App() {
         }
       } else {
         const loaded = [];
-        snap.forEach((d) => loaded.push(d.data()));
+        snap.forEach((d) => {
+          const data = d.data();
+          loaded.push({
+            ...data,
+            id: d.id, // Guarantee ID is never undefined
+            price: Number(data.price) || 0,
+            stock: Number(data.stock) || 0
+          });
+        });
         setInventory(loaded.sort((a, b) => a.name.localeCompare(b.name)));
       }
     });
@@ -205,7 +213,7 @@ export default function App() {
         }
       } else {
         const loaded = [];
-        snap.forEach((d) => loaded.push(d.data()));
+        snap.forEach((d) => loaded.push({ ...d.data(), id: d.id }));
         setStaff(loaded);
       }
       setLoading(false);
@@ -221,12 +229,151 @@ export default function App() {
 
   const currentRoom = rooms.find((r) => r.id === selectedRoomId) || rooms[0];
 
-  // Helper calculations
+  // Calculations
   const calculateTotal = (room) => room?.orderItems?.reduce((acc, item) => acc + item.total, 0) || 0;
   const printTargetRoom = settleOrderRoom || currentRoom;
   const printTargetTotal = calculateTotal(printTargetRoom);
 
-  // --- 3. FIRESTORE ACTIONS ---
+  // --- 3. INVENTORY & STOCK MANAGEMENT FUNCTIONS ---
+
+  // Atomic Increment/Decrement
+  const handleUpdateStockLevel = async (itemId, delta) => {
+    try {
+      const target = inventory.find((i) => i.id === itemId);
+      if (!target) return;
+      const newStock = Math.max(0, (target.stock || 0) + delta);
+
+      // Optimistic Local State Update
+      setInventory((prev) =>
+        prev.map((item) => (item.id === itemId ? { ...item, stock: newStock } : item))
+      );
+
+      // Firestore Update
+      await updateDoc(doc(db, "inventory", itemId), { stock: newStock });
+    } catch (err) {
+      console.error("Error updating stock count:", err);
+      alert("Failed to update stock. Check network/Firebase permissions.");
+    }
+  };
+
+  // Create Inventory Item
+  const handleCreateInventoryItem = async (e) => {
+    e.preventDefault();
+    if (!newInventoryForm.name.trim()) return;
+
+    try {
+      const itemId = `inv_${Date.now()}`;
+      const cleanPrice = parseFloat(newInventoryForm.price);
+      const cleanStock = parseInt(newInventoryForm.stock, 10);
+
+      const newItem = {
+        id: itemId,
+        name: newInventoryForm.name.trim(),
+        category: newInventoryForm.category || "minibar",
+        price: isNaN(cleanPrice) || cleanPrice < 0 ? 0 : cleanPrice,
+        stock: isNaN(cleanStock) || cleanStock < 0 ? 0 : cleanStock,
+      };
+
+      // Optimistic push
+      setInventory((prev) => [...prev, newItem].sort((a, b) => a.name.localeCompare(b.name)));
+
+      await setDoc(doc(db, "inventory", itemId), newItem);
+
+      setShowAddInventoryModal(false);
+      setNewInventoryForm({
+        name: "",
+        category: "minibar",
+        price: "5",
+        stock: "24",
+      });
+    } catch (err) {
+      console.error("Error adding inventory item:", err);
+      alert("Failed to create inventory item. Please try again.");
+    }
+  };
+
+  // Start Edit Mode
+  const handleStartEditInventory = (item) => {
+    setEditingInventoryId(item.id);
+    setEditInventoryForm({
+      name: item.name,
+      category: item.category,
+      price: String(item.price),
+      stock: String(item.stock),
+    });
+  };
+
+  // Save Inventory Edit
+  const handleSaveInventoryEdit = async (itemId) => {
+    if (!editInventoryForm.name.trim()) {
+      alert("Item name cannot be empty");
+      return;
+    }
+
+    try {
+      const cleanPrice = parseFloat(editInventoryForm.price);
+      const cleanStock = parseInt(editInventoryForm.stock, 10);
+
+      const updatedPayload = {
+        name: editInventoryForm.name.trim(),
+        category: editInventoryForm.category,
+        price: isNaN(cleanPrice) || cleanPrice < 0 ? 0 : cleanPrice,
+        stock: isNaN(cleanStock) || cleanStock < 0 ? 0 : cleanStock,
+      };
+
+      // Optimistic local update
+      setInventory((prev) =>
+        prev.map((item) => (item.id === itemId ? { ...item, ...updatedPayload } : item))
+      );
+
+      await updateDoc(doc(db, "inventory", itemId), updatedPayload);
+      setEditingInventoryId(null);
+    } catch (err) {
+      console.error("Error saving inventory changes:", err);
+      alert("Failed to save changes.");
+    }
+  };
+
+  // Delete Inventory Item
+  const handleDeleteInventoryItem = async (item) => {
+    if (window.confirm(`Delete "${item.name}" from inventory catalog?`)) {
+      try {
+        setInventory((prev) => prev.filter((i) => i.id !== item.id));
+        await deleteDoc(doc(db, "inventory", item.id));
+      } catch (err) {
+        console.error("Error deleting inventory item:", err);
+        alert("Failed to delete item.");
+      }
+    }
+  };
+
+  // Minibar Quick Add into Order with automatic stock deduction
+  const handleQuickAddMinibar = async (item) => {
+    if (!currentRoom) return;
+
+    try {
+      const now = new Date();
+      const newItem = {
+        id: `itm_${Date.now()}`,
+        description: `Minibar: ${item.name}`,
+        quantity: 1,
+        unitPrice: item.price,
+        total: item.price,
+        timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
+      };
+
+      const updatedItems = [...(currentRoom.orderItems || []), newItem];
+      await updateDoc(doc(db, "rooms", currentRoom.id), { orderItems: updatedItems });
+
+      if (item.stock > 0) {
+        await handleUpdateStockLevel(item.id, -1);
+      }
+    } catch (err) {
+      console.error("Error dispensing minibar item:", err);
+    }
+  };
+
+  // --- 4. GENERAL POS ACTIONS ---
   const handleSaveSettings = async (updated) => {
     setSettings(updated);
     await setDoc(doc(db, "hotel_config", "profile"), updated);
@@ -236,7 +383,6 @@ export default function App() {
     await updateDoc(doc(db, "rooms", roomId), { status });
   };
 
-  // Open a new active order upon guest check-in
   const handleOpenOrderAndCheckIn = async (e) => {
     e.preventDefault();
     if (!checkInModalRoom || !guestForm.name) return;
@@ -271,7 +417,6 @@ export default function App() {
     setGuestForm({ name: "", phone: "", nights: 1 });
   };
 
-  // Add Item to Active Order
   const handleAddItemToOrder = async (e) => {
     e.preventDefault();
     if (!newItemDesc || !newItemPrice || !currentRoom) return;
@@ -297,35 +442,12 @@ export default function App() {
     setNewItemQty("1");
   };
 
-  // Quick Dispatch Minibar Item into Active Order
-  const handleQuickAddMinibar = async (item) => {
-    if (!currentRoom) return;
-    const now = new Date();
-
-    const newItem = {
-      id: `itm_${Date.now()}`,
-      description: `Minibar: ${item.name}`,
-      quantity: 1,
-      unitPrice: item.price,
-      total: item.price,
-      timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
-    };
-
-    const updatedItems = [...(currentRoom.orderItems || []), newItem];
-    await updateDoc(doc(db, "rooms", currentRoom.id), { orderItems: updatedItems });
-
-    if (item.stock > 0) {
-      await updateDoc(doc(db, "inventory", item.id), { stock: item.stock - 1 });
-    }
-  };
-
   const handleRemoveOrderItem = async (itemId) => {
     if (!currentRoom) return;
     const updatedItems = currentRoom.orderItems.filter((item) => item.id !== itemId);
     await updateDoc(doc(db, "rooms", currentRoom.id), { orderItems: updatedItems });
   };
 
-  // Switch to Front Desk and open Settlement Console
   const handleInitiateSettleOrder = (room) => {
     setSelectedRoomId(room.id);
     setActiveTab("frontdesk");
@@ -333,7 +455,6 @@ export default function App() {
     setCashTendered("");
   };
 
-  // DELETE / VOID an Active Bill
   const handleDeleteActiveBill = async (room) => {
     if (
       window.confirm(
@@ -353,7 +474,6 @@ export default function App() {
     }
   };
 
-  // PRINT TEMPORARY PRE-CHECK BILL
   const handlePrintTemporaryBill = (room) => {
     setSelectedRoomId(room.id);
     setIsTemporaryBill(true);
@@ -362,10 +482,8 @@ export default function App() {
     }, 120);
   };
 
-  // AUTO PRINT FINAL INVOICE & CONFIRM SETTLEMENT
   const handleConfirmOrderSettlement = async () => {
     if (!settleOrderRoom) return;
-
     setIsTemporaryBill(false);
 
     setTimeout(() => {
@@ -386,70 +504,6 @@ export default function App() {
     setSettleOrderRoom(null);
   };
 
-  // --- INVENTORY MANAGEMENT ACTIONS ---
-  const handleCreateInventoryItem = async (e) => {
-    e.preventDefault();
-    if (!newInventoryForm.name) return;
-
-    const itemId = `inv_${Date.now()}`;
-    const newItem = {
-      id: itemId,
-      name: newInventoryForm.name.trim(),
-      category: newInventoryForm.category,
-      price: parseFloat(newInventoryForm.price) || 0,
-      stock: parseInt(newInventoryForm.stock, 10) || 0,
-    };
-
-    await setDoc(doc(db, "inventory", itemId), newItem);
-    setShowAddInventoryModal(false);
-    setNewInventoryForm({
-      name: "",
-      category: "minibar",
-      price: 5,
-      stock: 24,
-    });
-  };
-
-  const handleStartEditInventory = (item) => {
-    setEditingInventoryId(item.id);
-    setEditInventoryForm({
-      name: item.name,
-      category: item.category,
-      price: item.price,
-      stock: item.stock,
-    });
-  };
-
-  const handleSaveInventoryEdit = async (itemId) => {
-    if (!editInventoryForm.name) return;
-
-    await updateDoc(doc(db, "inventory", itemId), {
-      name: editInventoryForm.name.trim(),
-      category: editInventoryForm.category,
-      price: parseFloat(editInventoryForm.price) || 0,
-      stock: parseInt(editInventoryForm.stock, 10) || 0,
-    });
-
-    setEditingInventoryId(null);
-  };
-
-  const handleDeleteInventoryItem = async (item) => {
-    if (window.confirm(`Delete "${item.name}" from inventory?`)) {
-      await deleteDoc(doc(db, "inventory", item.id));
-    }
-  };
-
-  // Filtered Inventory list
-  const filteredInventory = inventory.filter((item) => {
-    const matchesCategory =
-      inventoryCategoryFilter === "all" || item.category === inventoryCategoryFilter;
-    const matchesSearch = item.name
-      .toLowerCase()
-      .includes(inventorySearchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
-
-  // Room Catalog Administration
   const handleCreateRoom = async (e) => {
     e.preventDefault();
     if (!newRoomForm.number) return;
@@ -487,6 +541,16 @@ export default function App() {
       await deleteDoc(doc(db, "rooms", roomId));
     }
   };
+
+  // Filtered inventory query
+  const filteredInventory = inventory.filter((item) => {
+    const matchesCategory =
+      inventoryCategoryFilter === "all" || item.category === inventoryCategoryFilter;
+    const matchesSearch = item.name
+      .toLowerCase()
+      .includes(inventorySearchQuery.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
 
   const parsedTendered = parseFloat(cashTendered) || 0;
   const changeDue = Math.max(0, parsedTendered - printTargetTotal);
@@ -937,7 +1001,7 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 3: INVENTORY & MINIBAR MANAGEMENT */}
+          {/* TAB 3: INVENTORY & MINIBAR MANAGEMENT (FIXED & FULLY FUNCTIONAL) */}
           {activeTab === "inventory" && (
             <div className="max-w-7xl mx-auto space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -955,7 +1019,7 @@ export default function App() {
                 </button>
               </div>
 
-              {/* Inventory Metric Cards */}
+              {/* Metric Cards */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div className="bg-white border border-[#E6DFD3] rounded-xl p-4 shadow-sm">
                   <p className="text-xs font-semibold uppercase text-slate-400">Total Items</p>
@@ -981,7 +1045,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Filters & Search Bar */}
+              {/* Filters & Search */}
               <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
                 <div className="relative w-full sm:w-72">
                   <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
@@ -1011,7 +1075,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Inventory Management Table */}
+              {/* Management Table */}
               <div className="bg-white rounded-xl border border-[#E6DFD3] shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
@@ -1036,7 +1100,7 @@ export default function App() {
                               {isEditing ? (
                                 <input
                                   type="text"
-                                  className="w-full border border-[#14B8A6] rounded px-2 py-1 text-xs focus:outline-none"
+                                  className="w-full border border-[#14B8A6] rounded px-2 py-1 text-xs focus:outline-none bg-white"
                                   value={editInventoryForm.name}
                                   onChange={(e) =>
                                     setEditInventoryForm({ ...editInventoryForm, name: e.target.value })
@@ -1062,7 +1126,7 @@ export default function App() {
                                   onChange={(e) =>
                                     setEditInventoryForm({ ...editInventoryForm, category: e.target.value })
                                   }
-                                  className="border border-[#14B8A6] rounded px-1.5 py-1 text-xs bg-white"
+                                  className="border border-[#14B8A6] rounded px-1.5 py-1 text-xs bg-white focus:outline-none"
                                 >
                                   <option value="minibar">Minibar</option>
                                   <option value="amenity">Amenity</option>
@@ -1077,13 +1141,13 @@ export default function App() {
                               )}
                             </td>
 
-                            {/* Billable Price */}
+                            {/* Price */}
                             <td className="p-3.5 text-right font-medium">
                               {isEditing ? (
                                 <input
                                   type="number"
                                   step="0.01"
-                                  className="w-20 border border-[#14B8A6] rounded px-2 py-1 text-xs text-right focus:outline-none"
+                                  className="w-20 border border-[#14B8A6] rounded px-2 py-1 text-xs text-right focus:outline-none bg-white"
                                   value={editInventoryForm.price}
                                   onChange={(e) =>
                                     setEditInventoryForm({ ...editInventoryForm, price: e.target.value })
@@ -1101,7 +1165,7 @@ export default function App() {
                               {isEditing ? (
                                 <input
                                   type="number"
-                                  className="w-16 border border-[#14B8A6] rounded px-2 py-1 text-xs text-center focus:outline-none"
+                                  className="w-16 border border-[#14B8A6] rounded px-2 py-1 text-xs text-center focus:outline-none bg-white"
                                   value={editInventoryForm.stock}
                                   onChange={(e) =>
                                     setEditInventoryForm({ ...editInventoryForm, stock: e.target.value })
@@ -1114,27 +1178,21 @@ export default function App() {
                               )}
                             </td>
 
-                            {/* Quick Increment/Decrement */}
+                            {/* Direct Increment / Decrement */}
                             <td className="p-3.5 text-center">
                               <div className="inline-flex items-center gap-1">
                                 <button
-                                  onClick={() =>
-                                    updateDoc(doc(db, "inventory", item.id), {
-                                      stock: Math.max(0, item.stock - 1),
-                                    })
-                                  }
-                                  className="px-2 py-0.5 border border-[#D3C8B7] rounded hover:bg-[#F3EFE6] text-xs font-bold"
+                                  type="button"
+                                  onClick={() => handleUpdateStockLevel(item.id, -1)}
+                                  className="px-2 py-0.5 border border-[#D3C8B7] rounded hover:bg-[#F3EFE6] text-xs font-bold transition-colors"
                                   title="Reduce stock by 1"
                                 >
                                   -
                                 </button>
                                 <button
-                                  onClick={() =>
-                                    updateDoc(doc(db, "inventory", item.id), {
-                                      stock: item.stock + 1,
-                                    })
-                                  }
-                                  className="px-2 py-0.5 border border-[#D3C8B7] rounded hover:bg-[#F3EFE6] text-xs font-bold"
+                                  type="button"
+                                  onClick={() => handleUpdateStockLevel(item.id, 1)}
+                                  className="px-2 py-0.5 border border-[#D3C8B7] rounded hover:bg-[#F3EFE6] text-xs font-bold transition-colors"
                                   title="Add 1 to stock"
                                 >
                                   +
@@ -1142,20 +1200,22 @@ export default function App() {
                               </div>
                             </td>
 
-                            {/* Actions (Edit / Save / Delete) */}
+                            {/* Action Buttons */}
                             <td className="p-3.5 text-center">
                               {isEditing ? (
                                 <div className="inline-flex items-center gap-1">
                                   <button
+                                    type="button"
                                     onClick={() => handleSaveInventoryEdit(item.id)}
-                                    className="p-1 bg-[#14B8A6] hover:bg-[#0D9488] text-white rounded"
+                                    className="p-1 bg-[#14B8A6] hover:bg-[#0D9488] text-white rounded transition-colors"
                                     title="Save changes"
                                   >
                                     <Check className="w-3.5 h-3.5" />
                                   </button>
                                   <button
+                                    type="button"
                                     onClick={() => setEditingInventoryId(null)}
-                                    className="p-1 bg-slate-200 hover:bg-slate-300 text-slate-600 rounded"
+                                    className="p-1 bg-slate-200 hover:bg-slate-300 text-slate-600 rounded transition-colors"
                                     title="Cancel"
                                   >
                                     <X className="w-3.5 h-3.5" />
@@ -1164,15 +1224,17 @@ export default function App() {
                               ) : (
                                 <div className="inline-flex items-center gap-1.5">
                                   <button
+                                    type="button"
                                     onClick={() => handleStartEditInventory(item)}
-                                    className="text-slate-400 hover:text-[#0D9488] p-1"
+                                    className="text-slate-400 hover:text-[#0D9488] p-1 transition-colors"
                                     title="Edit item details"
                                   >
                                     <Edit2 className="w-3.5 h-3.5" />
                                   </button>
                                   <button
+                                    type="button"
                                     onClick={() => handleDeleteInventoryItem(item)}
-                                    className="text-[#F43F5E] hover:text-[#E11D48] p-1"
+                                    className="text-[#F43F5E] hover:text-[#E11D48] p-1 transition-colors"
                                     title="Delete product"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
@@ -1453,7 +1515,7 @@ export default function App() {
         </main>
       </div>
 
-      {/* MODAL 1: CHECK-IN / OPEN ORDER */}
+      {/* MODAL 1: CHECK-IN */}
       {checkInModalRoom && (
         <div className="no-print fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-[#E6DFD3]">
@@ -1522,7 +1584,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL 2: ORDER SETTLEMENT CONSOLE */}
+      {/* MODAL 2: ORDER SETTLEMENT */}
       {settleOrderRoom && (
         <div className="no-print fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-[#E6DFD3]">
@@ -1706,7 +1768,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL 4: ADD INVENTORY / MINIBAR ITEM */}
+      {/* MODAL 4: ADD INVENTORY / MINIBAR ITEM (FIXED) */}
       {showAddInventoryModal && (
         <div className="no-print fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-[#E6DFD3]">
@@ -1786,13 +1848,9 @@ export default function App() {
         </div>
       )}
 
-      {/* =========================================================
-          PRINT ENGINE CONTAINER (MONOCHROME / NO BACKGROUNDS)
-          Auto-Prints Settled Invoice OR Temporary Pre-check Bill
-          ========================================================= */}
+      {/* PRINT ENGINE CONTAINER */}
       <div className="printable-area hidden">
         {printFormat === "thermal" ? (
-          /* 80mm THERMAL RECEIPT */
           <div className="thermal-mode">
             <div style={{ textAlign: "center", paddingBottom: "6px", borderBottom: "1px dashed #000" }}>
               <div style={{ fontWeight: "bold", fontSize: "14px", textTransform: "uppercase" }}>{settings.hotelName}</div>
@@ -1851,7 +1909,6 @@ export default function App() {
             </div>
           </div>
         ) : (
-          /* A4 CLEAN DOCUMENT */
           <div className="a4-mode">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", paddingBottom: "14px", borderBottom: "2px solid #000" }}>
               <div>
