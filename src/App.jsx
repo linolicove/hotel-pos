@@ -35,13 +35,15 @@ import {
   PackagePlus,
   Waves,
   UserPlus,
-  Briefcase,
   DollarSign,
-  Calendar,
   LogIn,
   LogOut,
   FileSpreadsheet,
-  Coins
+  Coins,
+  Lock,
+  Unlock,
+  ShieldCheck,
+  Delete
 } from "lucide-react";
 
 // --- 1. FIREBASE CONFIGURATION (REALTIME DATABASE) ---
@@ -79,7 +81,6 @@ const INITIAL_INVENTORY_SEEDS = [
   { id: "inv7", name: "Macadamia Nut Cookie Tin", category: "snack", price: 9, stock: 14 }
 ];
 
-// Hospitality Staff Seeds with Base Salary + Allowance + Service Charge + Bonus
 const INITIAL_STAFF_SEEDS = [
   { 
     id: "s1", 
@@ -100,7 +101,7 @@ const INITIAL_STAFF_SEEDS = [
   { 
     id: "s2", 
     name: "Noah Jensen", 
-    role: "Front Desk Supervisor", 
+    role: "Front Desk", 
     pin: "2044", 
     type: "Full-Time", 
     baseSalary: 2800, 
@@ -116,7 +117,7 @@ const INITIAL_STAFF_SEEDS = [
   { 
     id: "s3", 
     name: "Leilani Kea", 
-    role: "Housekeeping Lead", 
+    role: "Housekeeping", 
     pin: "3055", 
     type: "Full-Time", 
     baseSalary: 2400, 
@@ -128,22 +129,6 @@ const INITIAL_STAFF_SEEDS = [
     clockIn: "09:00 AM",
     clockOut: "",
     isOnDuty: true
-  },
-  { 
-    id: "s4", 
-    name: "Akamu Flores", 
-    role: "Maintenance Technician", 
-    pin: "4088", 
-    type: "Part-Time", 
-    baseSalary: 1900, 
-    allowances: 200,
-    serviceCharge: 250,
-    bonus: 50,
-    paid: true, 
-    phone: "+1 808-555-0189",
-    clockIn: "",
-    clockOut: "",
-    isOnDuty: false
   }
 ];
 
@@ -175,7 +160,7 @@ function printIsolatedDocument(htmlBody, mode = "thermal") {
         padding: 0;
         background: #ffffff !important;
         color: #000000 !important;
-        font-family: ${mode === "thermal" ? "'Courier New', Courier, monospace" : "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"};
+        font-family: ${mode === "thermal" ? "'Courier New', Courier, monospace" : "system-ui, -apple-system, sans-serif"};
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
       }
@@ -212,7 +197,6 @@ function printIsolatedDocument(htmlBody, mode = "thermal") {
   }, 250);
 }
 
-// Built-in Thermal 80mm Letterhead & Receipt Generator
 function buildThermalHtml({ settings, room, isTemporary, settlementMethod, total }) {
   const items = room?.orderItems || [];
   return `
@@ -222,7 +206,7 @@ function buildThermalHtml({ settings, room, isTemporary, settlementMethod, total
         <div style="font-weight: 900; font-size: 15px; text-transform: uppercase; margin: 4px 0 2px 0;">
           ${settings.hotelName}
         </div>
-        <div style="font-size: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">
+        <div style="font-size: 10px; font-weight: bold; text-transform: uppercase;">
           COASTAL RESORT & SUITES
         </div>
         <div style="font-size: 10px; margin-top: 4px;">${settings.address}</div>
@@ -233,20 +217,17 @@ function buildThermalHtml({ settings, room, isTemporary, settlementMethod, total
           ${isTemporary ? "-- PRE-CHECK / GUEST TAB --" : "-- FINAL SETTLED INVOICE --"}
         </div>
       </div>
-
       <div style="padding: 6px 0; border-bottom: 1px dashed #000; font-size: 10px;">
         <div style="display: flex; justify-content: space-between;">
           <span>ORDER: ${room?.orderId || `ORD-${room?.number}`}</span>
           <span>ROOM: #${room?.number}</span>
         </div>
         <div>GUEST: ${room?.guestName || "Walk-In"}</div>
-        <div>TYPE: ${room?.type || "Standard"}</div>
         <div style="display: flex; justify-content: space-between;">
           <span>STATUS: ${isTemporary ? "PENDING" : `PAID (${settlementMethod})`}</span>
           <span>${new Date().toLocaleDateString()}</span>
         </div>
       </div>
-
       <table style="margin: 6px 0; font-size: 11px;">
         <thead>
           <tr style="border-bottom: 1px solid #000;">
@@ -267,23 +248,17 @@ function buildThermalHtml({ settings, room, isTemporary, settlementMethod, total
           `).join("")}
         </tbody>
       </table>
-
-      <div style="border-top: 1px dashed #000; padding-top: 6px; font-size: 13px; font-weight: bold;">
-        <div style="display: flex; justify-content: space-between;">
-          <span>${isTemporary ? "TOTAL DUE:" : "TOTAL PAID:"}</span>
-          <span>${settings.currency}${Number(total).toFixed(2)}</span>
-        </div>
+      <div style="border-top: 1px dashed #000; padding-top: 6px; font-size: 13px; font-weight: bold; display: flex; justify-content: space-between;">
+        <span>${isTemporary ? "TOTAL DUE:" : "TOTAL PAID:"}</span>
+        <span>${settings.currency}${Number(total).toFixed(2)}</span>
       </div>
-
       <div style="text-align: center; margin-top: 14px; padding-top: 8px; border-top: 1px dashed #000; font-size: 10px;">
         <div>${isTemporary ? "Please review before settlement" : settings.footerNote}</div>
-        <div style="font-size: 9px; margin-top: 4px; color: #444;">Powered by Thalassa PMS</div>
       </div>
     </div>
   `;
 }
 
-// Built-in Official A4 Letterhead & Invoice Generator
 function buildA4Html({ settings, room, isTemporary, settlementMethod, total }) {
   const items = room?.orderItems || [];
   return `
@@ -293,15 +268,8 @@ function buildA4Html({ settings, room, isTemporary, settlementMethod, total }) {
           <h1 style="font-size: 24px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; margin: 0; color: #091D26;">
             ${settings.hotelName}
           </h1>
-          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; text-transform: uppercase; color: #555; letter-spacing: 1px;">
-            Luxury Coastal Retreat & Suites
-          </p>
-          <p style="margin: 4px 0 0 0; font-size: 11px; color: #333;">
-            ${settings.address} | Tel: ${settings.phone}
-          </p>
-          <p style="margin: 2px 0 0 0; font-size: 11px; color: #333;">
-            Email: ${settings.email} | Tax ID / VAT: ${settings.taxNumber}
-          </p>
+          <p style="margin: 4px 0 0 0; font-size: 11px; color: #333;">${settings.address} | Tel: ${settings.phone}</p>
+          <p style="margin: 2px 0 0 0; font-size: 11px; color: #333;">Tax ID / VAT: ${settings.taxNumber}</p>
         </div>
         <div style="text-align: right;">
           <div style="display: inline-block; border: 2px solid #091D26; padding: 6px 14px; font-weight: bold; font-size: 12px; text-transform: uppercase;">
@@ -311,38 +279,31 @@ function buildA4Html({ settings, room, isTemporary, settlementMethod, total }) {
           <p style="margin: 2px 0 0 0; font-size: 12px;"><b>Folio No:</b> ${room?.orderId || `ORD-${room?.number}`}</p>
         </div>
       </div>
-
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 20px 0; padding: 12px 16px; border: 1px solid #091D26; border-radius: 4px;">
         <div>
           <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Guest Information</p>
           <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold;">${room?.guestName || "Unregistered Guest"}</p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;">Contact: ${room?.guestPhone || "No contact recorded"}</p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;">Payment Method: <b>${isTemporary ? "Pending" : settlementMethod}</b></p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;">Payment: <b>${isTemporary ? "Pending" : settlementMethod}</b></p>
         </div>
         <div style="text-align: right;">
           <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Stay Information</p>
-          <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold;">Room #${room?.number}</p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;">Category: ${room?.type}</p>
+          <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold;">Room #${room?.number} (${room?.type})</p>
           <p style="margin: 2px 0 0 0; font-size: 12px;">Period: ${room?.checkIn} to ${room?.checkOut}</p>
         </div>
       </div>
-
       <table style="margin: 20px 0; font-size: 12px;">
         <thead>
           <tr style="border-bottom: 2px solid #091D26; text-align: left;">
-            <th style="padding: 10px 4px; text-transform: uppercase; font-size: 11px;">Description</th>
-            <th style="padding: 10px 4px; text-align: center; text-transform: uppercase; font-size: 11px;">Qty</th>
-            <th style="padding: 10px 4px; text-align: right; text-transform: uppercase; font-size: 11px;">Unit Rate</th>
-            <th style="padding: 10px 4px; text-align: right; text-transform: uppercase; font-size: 11px;">Amount</th>
+            <th style="padding: 10px 4px;">Description</th>
+            <th style="padding: 10px 4px; text-align: center;">Qty</th>
+            <th style="padding: 10px 4px; text-align: right;">Unit Rate</th>
+            <th style="padding: 10px 4px; text-align: right;">Amount</th>
           </tr>
         </thead>
         <tbody>
           ${items.map(item => `
             <tr style="border-bottom: 1px solid #ddd;">
-              <td style="padding: 10px 4px;">
-                <span style="font-weight: 600;">${item.description}</span>
-                ${item.timestamp ? `<span style="font-size: 10px; color: #555; display: block;">${item.timestamp}</span>` : ""}
-              </td>
+              <td style="padding: 10px 4px;">${item.description}</td>
               <td style="padding: 10px 4px; text-align: center;">${item.quantity}</td>
               <td style="padding: 10px 4px; text-align: right;">${settings.currency}${Number(item.unitPrice).toFixed(2)}</td>
               <td style="padding: 10px 4px; text-align: right; font-weight: bold;">${settings.currency}${Number(item.total).toFixed(2)}</td>
@@ -350,38 +311,14 @@ function buildA4Html({ settings, room, isTemporary, settlementMethod, total }) {
           `).join("")}
         </tbody>
       </table>
-
       <div style="border-top: 2px solid #091D26; border-bottom: 2px solid #091D26; padding: 12px 4px; margin: 24px 0; display: flex; justify-content: space-between; align-items: center;">
-        <span style="font-size: 14px; font-weight: bold; text-transform: uppercase;">
-          ${isTemporary ? "Total Due / Balance:" : `Total Settled in Full (${settlementMethod}):`}
-        </span>
-        <span style="font-size: 20px; font-weight: 900;">
-          ${settings.currency}${Number(total).toFixed(2)}
-        </span>
-      </div>
-
-      <div style="margin-top: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; font-size: 11px;">
-        <div>
-          <p style="font-weight: bold; text-transform: uppercase; margin-bottom: 30px;">Guest Signature:</p>
-          <div style="border-bottom: 1px solid #000; width: 80%;"></div>
-        </div>
-        <div style="text-align: right;">
-          <p style="font-weight: bold; text-transform: uppercase; margin-bottom: 30px;">Front Desk Agent:</p>
-          <div style="border-bottom: 1px solid #000; width: 80%; margin-left: auto;"></div>
-        </div>
-      </div>
-
-      <div style="margin-top: 50px; text-align: center; font-size: 11px; border-top: 1px solid #ddd; padding-top: 12px;">
-        <p style="margin: 0; font-weight: 500;">${settings.footerNote}</p>
-        <p style="margin: 4px 0 0 0; font-size: 10px; color: #666;">
-          Thank you for choosing ${settings.hotelName}. This document serves as an official accounting folio.
-        </p>
+        <span style="font-size: 14px; font-weight: bold;">${isTemporary ? "Total Due:" : `Total Paid (${settlementMethod}):`}</span>
+        <span style="font-size: 20px; font-weight: 900;">${settings.currency}${Number(total).toFixed(2)}</span>
       </div>
     </div>
   `;
 }
 
-// Built-in Official A4 Payslip & Itemized Compensation Generator
 function buildPayslipHtml({ settings, staffMember }) {
   const base = Number(staffMember.baseSalary) || 0;
   const allowances = Number(staffMember.allowances) || 0;
@@ -396,142 +333,81 @@ function buildPayslipHtml({ settings, staffMember }) {
           <h1 style="font-size: 24px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; margin: 0; color: #091D26;">
             ${settings.hotelName}
           </h1>
-          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; text-transform: uppercase; color: #555; letter-spacing: 1px;">
-            Monthly Remuneration & Payroll Statement
-          </p>
-          <p style="margin: 4px 0 0 0; font-size: 11px; color: #333;">
-            ${settings.address} | Tel: ${settings.phone}
-          </p>
-          <p style="margin: 2px 0 0 0; font-size: 11px; color: #333;">
-            Tax Registration / Reg: ${settings.taxNumber}
+          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; text-transform: uppercase; color: #555;">
+            Monthly Remuneration Statement
           </p>
         </div>
         <div style="text-align: right;">
-          <div style="display: inline-block; border: 2px solid #091D26; padding: 6px 14px; font-weight: bold; font-size: 12px; text-transform: uppercase;">
+          <div style="display: inline-block; border: 2px solid #091D26; padding: 6px 14px; font-weight: bold; font-size: 12px;">
             OFFICIAL PAYSLIP
           </div>
-          <p style="margin: 8px 0 0 0; font-size: 12px;"><b>Disbursement Date:</b> ${new Date().toLocaleDateString()}</p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;"><b>Staff Reference:</b> ${staffMember.id}</p>
+          <p style="margin: 8px 0 0 0; font-size: 12px;"><b>Date:</b> ${new Date().toLocaleDateString()}</p>
         </div>
       </div>
-
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 20px 0; padding: 12px 16px; border: 1px solid #091D26; border-radius: 4px;">
         <div>
-          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Employee Profile</p>
+          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Employee</p>
           <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold;">${staffMember.name}</p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;">Designated Role: <b>${staffMember.role}</b></p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;">Contact: ${staffMember.phone || "No direct phone"}</p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;">Role: <b>${staffMember.role}</b></p>
         </div>
         <div style="text-align: right;">
-          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Terms & Status</p>
-          <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold;">${staffMember.type || "Full-Time"}</p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;">Pay Cycle: <b>Monthly</b></p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;">Remittance Status: <b>${staffMember.paid ? "PAID IN FULL" : "PENDING DISBURSEMENT"}</b></p>
+          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Status</p>
+          <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold;">${staffMember.type}</p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;">Payout: <b>${staffMember.paid ? "PAID" : "PENDING"}</b></p>
         </div>
       </div>
-
       <table style="margin: 20px 0; font-size: 12px;">
         <thead>
-          <tr style="border-bottom: 2px solid #091D26; text-align: left; background: #F3EFE6;">
-            <th style="padding: 10px 8px; text-transform: uppercase; font-size: 11px;">Earnings Component</th>
-            <th style="padding: 10px 8px; text-transform: uppercase; font-size: 11px;">Allocation Category</th>
-            <th style="padding: 10px 8px; text-align: right; text-transform: uppercase; font-size: 11px;">Gross Amount</th>
+          <tr style="border-bottom: 2px solid #091D26; background: #F3EFE6;">
+            <th style="padding: 10px 8px; text-align: left;">Earnings Component</th>
+            <th style="padding: 10px 8px; text-align: right;">Amount</th>
           </tr>
         </thead>
         <tbody>
-          <tr style="border-bottom: 1px solid #ddd;">
-            <td style="padding: 10px 8px; font-weight: bold;">Base Monthly Salary</td>
-            <td style="padding: 10px 8px; color: #666;">Contractual Base Wage</td>
-            <td style="padding: 10px 8px; text-align: right; font-weight: bold;">${settings.currency}${base.toFixed(2)}</td>
-          </tr>
-          <tr style="border-bottom: 1px solid #ddd;">
-            <td style="padding: 10px 8px; font-weight: bold;">Allowances</td>
-            <td style="padding: 10px 8px; color: #666;">Housing, Transport & Food Stipend</td>
-            <td style="padding: 10px 8px; text-align: right; font-weight: bold;">${settings.currency}${allowances.toFixed(2)}</td>
-          </tr>
-          <tr style="border-bottom: 1px solid #ddd;">
-            <td style="padding: 10px 8px; font-weight: bold;">Service Charge Share</td>
-            <td style="padding: 10px 8px; color: #666;">Resort Service Charge Pool Distribution</td>
-            <td style="padding: 10px 8px; text-align: right; font-weight: bold;">${settings.currency}${serviceCharge.toFixed(2)}</td>
-          </tr>
-          <tr style="border-bottom: 1px solid #ddd;">
-            <td style="padding: 10px 8px; font-weight: bold;">Performance & Seasonal Bonus</td>
-            <td style="padding: 10px 8px; color: #666;">Incentives & Departmental Bonuses</td>
-            <td style="padding: 10px 8px; text-align: right; font-weight: bold;">${settings.currency}${bonus.toFixed(2)}</td>
-          </tr>
+          <tr style="border-bottom: 1px solid #ddd;"><td style="padding: 10px 8px;">Base Monthly Salary</td><td style="padding: 10px 8px; text-align: right;">${settings.currency}${base.toFixed(2)}</td></tr>
+          <tr style="border-bottom: 1px solid #ddd;"><td style="padding: 10px 8px;">Allowances (Housing/Meals)</td><td style="padding: 10px 8px; text-align: right;">${settings.currency}${allowances.toFixed(2)}</td></tr>
+          <tr style="border-bottom: 1px solid #ddd;"><td style="padding: 10px 8px;">Service Charge Pool</td><td style="padding: 10px 8px; text-align: right;">${settings.currency}${serviceCharge.toFixed(2)}</td></tr>
+          <tr style="border-bottom: 1px solid #ddd;"><td style="padding: 10px 8px;">Bonus & Incentives</td><td style="padding: 10px 8px; text-align: right;">${settings.currency}${bonus.toFixed(2)}</td></tr>
         </tbody>
       </table>
-
-      <div style="border-top: 2px solid #091D26; border-bottom: 2px solid #091D26; padding: 14px 8px; margin: 24px 0; display: flex; justify-content: space-between; align-items: center;">
-        <span style="font-size: 14px; font-weight: bold; text-transform: uppercase;">
-          Total Net Monthly Remittance:
-        </span>
-        <span style="font-size: 22px; font-weight: 900; color: #0D9488;">
-          ${settings.currency}${grossPay.toFixed(2)}
-        </span>
-      </div>
-
-      <div style="margin-top: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; font-size: 11px;">
-        <div>
-          <p style="font-weight: bold; text-transform: uppercase; margin-bottom: 30px;">Staff Member Acknowledgment:</p>
-          <div style="border-bottom: 1px solid #000; width: 80%;"></div>
-        </div>
-        <div style="text-align: right;">
-          <p style="font-weight: bold; text-transform: uppercase; margin-bottom: 30px;">Financial Controller / HR:</p>
-          <div style="border-bottom: 1px solid #000; width: 80%; margin-left: auto;"></div>
-        </div>
+      <div style="border-top: 2px solid #091D26; padding: 14px 8px; display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 14px; font-weight: bold;">Total Net Remittance:</span>
+        <span style="font-size: 22px; font-weight: 900; color: #0D9488;">${settings.currency}${grossPay.toFixed(2)}</span>
       </div>
     </div>
   `;
 }
 
-// Built-in Official A4 Daily Attendance Sheet Generator
 function buildDailyAttendanceHtml({ settings, staffList }) {
-  const todayStr = new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   return `
     <div class="a4-container">
-      <div style="border-bottom: 3px double #091D26; padding-bottom: 16px; display: flex; justify-content: space-between; align-items: flex-start;">
+      <div style="border-bottom: 3px double #091D26; padding-bottom: 16px; display: flex; justify-content: space-between;">
         <div>
-          <h1 style="font-size: 24px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; margin: 0; color: #091D26;">
-            ${settings.hotelName}
-          </h1>
-          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; text-transform: uppercase; color: #555; letter-spacing: 1px;">
-            Daily Employee Shift & Attendance Sheet
-          </p>
-          <p style="margin: 4px 0 0 0; font-size: 11px; color: #333;">
-            ${settings.address} | Tel: ${settings.phone}
-          </p>
+          <h1 style="font-size: 24px; font-weight: 900; text-transform: uppercase; margin: 0; color: #091D26;">${settings.hotelName}</h1>
+          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; color: #555;">Daily Staff Shift & Attendance Sheet</p>
         </div>
         <div style="text-align: right;">
-          <div style="display: inline-block; border: 2px solid #091D26; padding: 6px 14px; font-weight: bold; font-size: 12px; text-transform: uppercase;">
-            ATTENDANCE LOG
-          </div>
-          <p style="margin: 8px 0 0 0; font-size: 12px;"><b>Date:</b> ${todayStr}</p>
+          <p style="margin: 0; font-size: 12px;"><b>Date:</b> ${new Date().toLocaleDateString()}</p>
         </div>
       </div>
-
       <table style="width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px;">
         <thead>
           <tr style="border-bottom: 2px solid #091D26; background: #F3EFE6;">
             <th style="padding: 10px 6px; text-align: left;">Employee Name</th>
-            <th style="padding: 10px 6px; text-align: left;">Designated Role</th>
-            <th style="padding: 10px 6px; text-align: center;">Shift In</th>
-            <th style="padding: 10px 6px; text-align: center;">Shift Out</th>
+            <th style="padding: 10px 6px; text-align: left;">Role</th>
+            <th style="padding: 10px 6px; text-align: center;">In</th>
+            <th style="padding: 10px 6px; text-align: center;">Out</th>
             <th style="padding: 10px 6px; text-align: center;">Duty Status</th>
-            <th style="padding: 10px 6px; text-align: center;">Signature</th>
           </tr>
         </thead>
         <tbody>
-          ${staffList.map((member) => `
+          ${staffList.map((m) => `
             <tr style="border-bottom: 1px solid #ddd;">
-              <td style="padding: 10px 6px; font-weight: bold;">${member.name}</td>
-              <td style="padding: 10px 6px;">${member.role}</td>
-              <td style="padding: 10px 6px; text-align: center; font-family: monospace;">${member.clockIn || "--:--"}</td>
-              <td style="padding: 10px 6px; text-align: center; font-family: monospace;">${member.clockOut || "--:--"}</td>
-              <td style="padding: 10px 6px; text-align: center; font-weight: bold; color: ${member.isOnDuty ? "#0D9488" : "#888"};">
-                ${member.isOnDuty ? "ON DUTY" : member.clockOut ? "COMPLETED" : "OFF DUTY"}
-              </td>
-              <td style="padding: 10px 6px; text-align: center; border-bottom: 1px solid #aaa; width: 120px;"></td>
+              <td style="padding: 10px 6px; font-weight: bold;">${m.name}</td>
+              <td style="padding: 10px 6px;">${m.role}</td>
+              <td style="padding: 10px 6px; text-align: center;">${m.clockIn || "--:--"}</td>
+              <td style="padding: 10px 6px; text-align: center;">${m.clockOut || "--:--"}</td>
+              <td style="padding: 10px 6px; text-align: center;">${m.isOnDuty ? "ON DUTY" : m.clockOut ? "COMPLETED" : "OFF DUTY"}</td>
             </tr>
           `).join("")}
         </tbody>
@@ -540,7 +416,13 @@ function buildDailyAttendanceHtml({ settings, staffList }) {
   `;
 }
 
+// --- 3. MAIN COMPONENT ---
 export default function App() {
+  // Authentication & Permission State
+  const [currentUser, setCurrentUser] = useState(null); // Authenticated Staff Member
+  const [pinInput, setPinInput] = useState("");
+  const [pinError, setPinError] = useState("");
+
   const [activeTab, setActiveTab] = useState("frontdesk");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -600,7 +482,7 @@ export default function App() {
   // Staff & Compensation Management State
   const [showAddStaffModal, setShowAddStaffModal] = useState(false);
   const [staffSearchQuery, setStaffSearchQuery] = useState("");
-  const [staffViewSubTab, setStaffViewSubTab] = useState("roster"); // "roster" | "attendance"
+  const [staffViewSubTab, setStaffViewSubTab] = useState("roster");
   const [newStaffForm, setNewStaffForm] = useState({
     name: "",
     role: "Front Desk",
@@ -623,13 +505,70 @@ export default function App() {
     serviceCharge: "",
     bonus: "",
     phone: "",
-    clockIn: "",
-    clockOut: ""
   });
+
+  // --- PERMISSION MAP ---
+  const isManager = currentUser?.role?.toLowerCase().includes("manager");
+  const isFrontDesk = currentUser?.role?.toLowerCase().includes("front desk");
+  const isHousekeeping = currentUser?.role?.toLowerCase().includes("housekeeping");
+
+  const canAccessTab = (tabId) => {
+    if (!currentUser) return false;
+    if (isManager) return true; // Full access
+    if (tabId === "frontdesk") return true; // All staff see rooms
+    if (tabId === "active-orders" && (isFrontDesk || isManager)) return true;
+    if (tabId === "inventory" && (isFrontDesk || isManager || isHousekeeping)) return true;
+    if (tabId === "staff" && isHousekeeping) return true; // Can view timeclock only
+    if (tabId === "staff" && isManager) return true;
+    if (tabId === "room-admin" && isManager) return true;
+    if (tabId === "settings" && isManager) return true;
+    return false;
+  };
+
+  // --- PIN AUTHENTICATION ---
+  const handlePinDigit = (digit) => {
+    if (pinInput.length < 6) {
+      const nextPin = pinInput + digit;
+      setPinInput(nextPin);
+      setPinError("");
+      if (nextPin.length >= 4) {
+        verifyPin(nextPin);
+      }
+    }
+  };
+
+  const handlePinDelete = () => {
+    setPinInput((prev) => prev.slice(0, -1));
+    setPinError("");
+  };
+
+  const handlePinClear = () => {
+    setPinInput("");
+    setPinError("");
+  };
+
+  const verifyPin = (candidatePin) => {
+    const matched = staff.find((s) => String(s.pin) === String(candidatePin));
+    if (matched) {
+      setCurrentUser(matched);
+      setPinInput("");
+      setPinError("");
+      setActiveTab("frontdesk");
+    } else {
+      if (candidatePin.length >= 4) {
+        setPinError("Invalid Access PIN");
+      }
+    }
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    setPinInput("");
+    setPinError("");
+  };
 
   // --- REALTIME DATABASE LISTENERS ---
   useEffect(() => {
-    // Settings Listener
     const settingsRef = ref(rtdb, "hotel_config/profile");
     const unsubSettings = onValue(settingsRef, (snapshot) => {
       const data = snapshot.val();
@@ -637,7 +576,6 @@ export default function App() {
       else set(settingsRef, DEFAULT_SETTINGS);
     });
 
-    // Rooms Listener
     const roomsRef = ref(rtdb, "rooms");
     const unsubRooms = onValue(roomsRef, (snapshot) => {
       const data = snapshot.val();
@@ -672,10 +610,8 @@ export default function App() {
           const orderItemsArray = Array.isArray(rawItems)
             ? rawItems
             : Object.keys(rawItems).map((k) => ({ ...rawItems[k], id: k }));
-
           return { ...roomObj, id: key, orderItems: orderItemsArray };
         });
-
         setRooms(loadedRooms.sort((a, b) => String(a.number).localeCompare(String(b.number))));
         if (!selectedRoomId && loadedRooms.length > 0) {
           const firstOccupied = loadedRooms.find((r) => r.status === "occupied");
@@ -684,7 +620,6 @@ export default function App() {
       }
     });
 
-    // Inventory Listener
     const invRef = ref(rtdb, "inventory");
     const unsubInv = onValue(invRef, (snapshot) => {
       const data = snapshot.val();
@@ -693,22 +628,18 @@ export default function App() {
         INITIAL_INVENTORY_SEEDS.forEach((i) => { seedMap[i.id] = i; });
         update(invRef, seedMap);
       } else {
-        const loaded = Object.keys(data).map((key) => {
-          const item = data[key];
-          return {
-            ...item,
-            id: key,
-            name: item.name || item.title || "Unnamed Item",
-            category: item.category || "minibar",
-            price: Number(item.price) || 0,
-            stock: Number(item.stock) || 0,
-          };
-        });
+        const loaded = Object.keys(data).map((key) => ({
+          ...data[key],
+          id: key,
+          name: data[key].name || data[key].title || "Unnamed Item",
+          category: data[key].category || "minibar",
+          price: Number(data[key].price) || 0,
+          stock: Number(data[key].stock) || 0,
+        }));
         setInventory(loaded.sort((a, b) => a.name.localeCompare(b.name)));
       }
     });
 
-    // Staff & Salary Listener with Model Conversion
     const staffRef = ref(rtdb, "staff");
     const unsubStaff = onValue(staffRef, (snapshot) => {
       const data = snapshot.val();
@@ -720,7 +651,7 @@ export default function App() {
         const staffList = Object.keys(data).map((k) => ({
           ...data[k],
           id: k,
-          baseSalary: Number(data[k].baseSalary) || Number(data[k].hourlyRate ? data[k].hourlyRate * 160 : 2200),
+          baseSalary: Number(data[k].baseSalary) || 2400,
           allowances: Number(data[k].allowances) || 0,
           serviceCharge: Number(data[k].serviceCharge) || 0,
           bonus: Number(data[k].bonus) || 0,
@@ -743,13 +674,9 @@ export default function App() {
   }, [selectedRoomId]);
 
   const currentRoom = rooms.find((r) => r.id === selectedRoomId) || rooms[0];
-
-  // Helper Calculations
   const calculateTotal = (room) => room?.orderItems?.reduce((acc, item) => acc + (Number(item.total) || 0), 0) || 0;
   const printTargetRoom = settleOrderRoom || currentRoom;
   const printTargetTotal = calculateTotal(printTargetRoom);
-
-  // Helper Staff Gross Calculation
   const calculateStaffGross = (s) => (Number(s.baseSalary) || 0) + (Number(s.allowances) || 0) + (Number(s.serviceCharge) || 0) + (Number(s.bonus) || 0);
 
   // --- PRINT DRIVERS ---
@@ -759,18 +686,15 @@ export default function App() {
     const html = printFormat === "thermal"
       ? buildThermalHtml({ settings, room, isTemporary: true, settlementMethod: "Pending", total })
       : buildA4Html({ settings, room, isTemporary: true, settlementMethod: "Pending", total });
-
     printIsolatedDocument(html, printFormat);
   };
 
   const handleConfirmOrderSettlement = () => {
     if (!settleOrderRoom) return;
-
     const total = calculateTotal(settleOrderRoom);
     const html = printFormat === "thermal"
       ? buildThermalHtml({ settings, room: settleOrderRoom, isTemporary: false, settlementMethod, total })
       : buildA4Html({ settings, room: settleOrderRoom, isTemporary: false, settlementMethod, total });
-
     printIsolatedDocument(html, printFormat);
 
     update(ref(rtdb, `rooms/${settleOrderRoom.id}`), {
@@ -783,7 +707,6 @@ export default function App() {
       checkOut: "",
       orderItems: null,
     });
-
     setSettleOrderRoom(null);
   };
 
@@ -805,11 +728,7 @@ export default function App() {
     setStaff((prev) =>
       prev.map((s) => (s.id === staffId ? { ...s, clockIn: timeStr, clockOut: "", isOnDuty: true } : s))
     );
-    update(ref(rtdb, `staff/${staffId}`), {
-      clockIn: timeStr,
-      clockOut: "",
-      isOnDuty: true
-    });
+    update(ref(rtdb, `staff/${staffId}`), { clockIn: timeStr, clockOut: "", isOnDuty: true });
   };
 
   const handleClockOut = (staffId) => {
@@ -817,128 +736,25 @@ export default function App() {
     setStaff((prev) =>
       prev.map((s) => (s.id === staffId ? { ...s, clockOut: timeStr, isOnDuty: false } : s))
     );
-    update(ref(rtdb, `staff/${staffId}`), {
-      clockOut: timeStr,
-      isOnDuty: false
-    });
+    update(ref(rtdb, `staff/${staffId}`), { clockOut: timeStr, isOnDuty: false });
   };
 
-  // --- STAFF & COMPENSATION HANDLERS ---
-  const handleCreateStaff = (e) => {
-    e.preventDefault();
-    if (!newStaffForm.name.trim()) return;
-
-    const staffId = `stf_${Date.now()}`;
-    const newStaff = {
-      id: staffId,
-      name: newStaffForm.name.trim(),
-      role: newStaffForm.role || "Front Desk",
-      pin: newStaffForm.pin || "0000",
-      type: newStaffForm.type || "Full-Time",
-      baseSalary: parseFloat(newStaffForm.baseSalary) || 0,
-      allowances: parseFloat(newStaffForm.allowances) || 0,
-      serviceCharge: parseFloat(newStaffForm.serviceCharge) || 0,
-      bonus: parseFloat(newStaffForm.bonus) || 0,
-      paid: false,
-      phone: newStaffForm.phone || "",
-      clockIn: "",
-      clockOut: "",
-      isOnDuty: false
-    };
-
-    setStaff((prev) => [...prev, newStaff]);
-    setShowAddStaffModal(false);
-    setNewStaffForm({
-      name: "",
-      role: "Front Desk",
-      pin: "1234",
-      type: "Full-Time",
-      baseSalary: "2500",
-      allowances: "300",
-      serviceCharge: "350",
-      bonus: "100",
-      phone: "",
-    });
-
-    set(ref(rtdb, `staff/${staffId}`), newStaff);
-  };
-
-  const handleStartEditStaff = (member) => {
-    setEditingStaffId(member.id);
-    setEditStaffForm({
-      name: member.name || "",
-      role: member.role || "Front Desk",
-      pin: member.pin || "1234",
-      type: member.type || "Full-Time",
-      baseSalary: String(member.baseSalary ?? 0),
-      allowances: String(member.allowances ?? 0),
-      serviceCharge: String(member.serviceCharge ?? 0),
-      bonus: String(member.bonus ?? 0),
-      phone: member.phone || "",
-      clockIn: member.clockIn || "",
-      clockOut: member.clockOut || ""
-    });
-  };
-
-  const handleSaveStaffEdit = (staffId) => {
-    if (!editStaffForm.name.trim()) return;
-
-    const updatedPayload = {
-      name: editStaffForm.name.trim(),
-      role: editStaffForm.role,
-      pin: editStaffForm.pin || "0000",
-      type: editStaffForm.type,
-      baseSalary: parseFloat(editStaffForm.baseSalary) || 0,
-      allowances: parseFloat(editStaffForm.allowances) || 0,
-      serviceCharge: parseFloat(editStaffForm.serviceCharge) || 0,
-      bonus: parseFloat(editStaffForm.bonus) || 0,
-      phone: editStaffForm.phone || "",
-      clockIn: editStaffForm.clockIn || "",
-      clockOut: editStaffForm.clockOut || ""
-    };
-
-    setStaff((prev) =>
-      prev.map((s) => (s.id === staffId ? { ...s, ...updatedPayload } : s))
-    );
-    setEditingStaffId(null);
-    update(ref(rtdb, `staff/${staffId}`), updatedPayload);
-  };
-
-  const handleToggleStaffPayout = (staffId, currentStatus) => {
-    const nextStatus = !currentStatus;
-    setStaff((prev) =>
-      prev.map((s) => (s.id === staffId ? { ...s, paid: nextStatus } : s))
-    );
-    update(ref(rtdb, `staff/${staffId}`), { paid: nextStatus });
-  };
-
-  const handleDeleteStaff = (member) => {
-    if (!window.confirm(`Permanently remove ${member.name} from records?`)) return;
-    setStaff((prev) => prev.filter((s) => s.id !== member.id));
-    remove(ref(rtdb, `staff/${member.id}`));
-  };
-
-  // --- INVENTORY ACTIONS ---
+  // --- STAFF & INVENTORY HANDLERS ---
   const handleUpdateStockLevel = (itemId, delta) => {
     if (!itemId) return;
     const target = inventory.find((i) => i.id === itemId);
     const currentStock = Number(target?.stock) || 0;
     const newStock = Math.max(0, currentStock + delta);
-
-    setInventory((prev) =>
-      prev.map((item) => (item.id === itemId ? { ...item, stock: newStock } : item))
-    );
+    setInventory((prev) => prev.map((item) => (item.id === itemId ? { ...item, stock: newStock } : item)));
     update(ref(rtdb, `inventory/${itemId}`), { stock: newStock });
   };
 
   const handleCreateInventoryItem = (e) => {
     e.preventDefault();
     if (!newInventoryForm.name.trim()) return;
-
     const itemId = `inv_${Date.now()}`;
     const cleanPrice = parseFloat(newInventoryForm.price);
     const cleanStock = parseInt(newInventoryForm.stock, 10);
-
     const newItem = {
       id: itemId,
       name: newInventoryForm.name.trim(),
@@ -946,7 +762,6 @@ export default function App() {
       price: isNaN(cleanPrice) || cleanPrice < 0 ? 0 : cleanPrice,
       stock: isNaN(cleanStock) || cleanStock < 0 ? 0 : cleanStock,
     };
-
     setInventory((prev) => [...prev, newItem].sort((a, b) => a.name.localeCompare(b.name)));
     setShowAddInventoryModal(false);
     setNewInventoryForm({ name: "", category: "minibar", price: "6", stock: "20" });
@@ -965,33 +780,27 @@ export default function App() {
 
   const handleSaveInventoryEdit = (itemId) => {
     if (!editInventoryForm.name.trim()) return;
-
     const cleanPrice = parseFloat(editInventoryForm.price);
     const cleanStock = parseInt(editInventoryForm.stock, 10);
-
     const updatedPayload = {
       name: editInventoryForm.name.trim(),
       category: editInventoryForm.category || "minibar",
       price: isNaN(cleanPrice) || cleanPrice < 0 ? 0 : cleanPrice,
       stock: isNaN(cleanStock) || cleanStock < 0 ? 0 : cleanStock,
     };
-
-    setInventory((prev) =>
-      prev.map((item) => (item.id === itemId ? { ...item, ...updatedPayload } : item))
-    );
+    setInventory((prev) => prev.map((item) => (item.id === itemId ? { ...item, ...updatedPayload } : item)));
     setEditingInventoryId(null);
     update(ref(rtdb, `inventory/${itemId}`), updatedPayload);
   };
 
   const handleDeleteInventoryItem = (item) => {
-    if (!window.confirm(`Permanently remove "${item.name}" from inventory?`)) return;
+    if (!window.confirm(`Delete "${item.name}"?`)) return;
     setInventory((prev) => prev.filter((i) => i.id !== item.id));
     remove(ref(rtdb, `inventory/${item.id}`));
   };
 
   const handleQuickAddMinibar = (item) => {
     if (!currentRoom) return;
-
     const now = new Date();
     const itemId = `itm_${Date.now()}`;
     const newItem = {
@@ -1002,12 +811,91 @@ export default function App() {
       total: item.price,
       timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
     };
-
     set(ref(rtdb, `rooms/${currentRoom.id}/orderItems/${itemId}`), newItem);
     if (item.stock > 0) handleUpdateStockLevel(item.id, -1);
   };
 
-  // --- GENERAL APP ACTIONS ---
+  const handleCreateStaff = (e) => {
+    e.preventDefault();
+    if (!newStaffForm.name.trim()) return;
+    const staffId = `stf_${Date.now()}`;
+    const newStaff = {
+      id: staffId,
+      name: newStaffForm.name.trim(),
+      role: newStaffForm.role || "Front Desk",
+      pin: newStaffForm.pin || "0000",
+      type: newStaffForm.type || "Full-Time",
+      baseSalary: parseFloat(newStaffForm.baseSalary) || 0,
+      allowances: parseFloat(newStaffForm.allowances) || 0,
+      serviceCharge: parseFloat(newStaffForm.serviceCharge) || 0,
+      bonus: parseFloat(newStaffForm.bonus) || 0,
+      paid: false,
+      phone: newStaffForm.phone || "",
+      clockIn: "",
+      clockOut: "",
+      isOnDuty: false
+    };
+    setStaff((prev) => [...prev, newStaff]);
+    setShowAddStaffModal(false);
+    setNewStaffForm({
+      name: "",
+      role: "Front Desk",
+      pin: "1234",
+      type: "Full-Time",
+      baseSalary: "2500",
+      allowances: "300",
+      serviceCharge: "350",
+      bonus: "100",
+      phone: "",
+    });
+    set(ref(rtdb, `staff/${staffId}`), newStaff);
+  };
+
+  const handleStartEditStaff = (member) => {
+    setEditingStaffId(member.id);
+    setEditStaffForm({
+      name: member.name || "",
+      role: member.role || "Front Desk",
+      pin: member.pin || "1234",
+      type: member.type || "Full-Time",
+      baseSalary: String(member.baseSalary ?? 0),
+      allowances: String(member.allowances ?? 0),
+      serviceCharge: String(member.serviceCharge ?? 0),
+      bonus: String(member.bonus ?? 0),
+      phone: member.phone || "",
+    });
+  };
+
+  const handleSaveStaffEdit = (staffId) => {
+    if (!editStaffForm.name.trim()) return;
+    const updatedPayload = {
+      name: editStaffForm.name.trim(),
+      role: editStaffForm.role,
+      pin: editStaffForm.pin || "0000",
+      type: editStaffForm.type,
+      baseSalary: parseFloat(editStaffForm.baseSalary) || 0,
+      allowances: parseFloat(editStaffForm.allowances) || 0,
+      serviceCharge: parseFloat(editStaffForm.serviceCharge) || 0,
+      bonus: parseFloat(editStaffForm.bonus) || 0,
+      phone: editStaffForm.phone || "",
+    };
+    setStaff((prev) => prev.map((s) => (s.id === staffId ? { ...s, ...updatedPayload } : s)));
+    setEditingStaffId(null);
+    update(ref(rtdb, `staff/${staffId}`), updatedPayload);
+  };
+
+  const handleToggleStaffPayout = (staffId, currentStatus) => {
+    const nextStatus = !currentStatus;
+    setStaff((prev) => prev.map((s) => (s.id === staffId ? { ...s, paid: nextStatus } : s)));
+    update(ref(rtdb, `staff/${staffId}`), { paid: nextStatus });
+  };
+
+  const handleDeleteStaff = (member) => {
+    if (!window.confirm(`Permanently remove ${member.name}?`)) return;
+    setStaff((prev) => prev.filter((s) => s.id !== member.id));
+    remove(ref(rtdb, `staff/${member.id}`));
+  };
+
   const handleSaveSettings = (updated) => {
     setSettings(updated);
     set(ref(rtdb, "hotel_config/profile"), updated);
@@ -1020,12 +908,10 @@ export default function App() {
   const handleOpenOrderAndCheckIn = (e) => {
     e.preventDefault();
     if (!checkInModalRoom || !guestForm.name) return;
-
     const nights = guestForm.nights || 1;
     const now = new Date();
     const orderId = `ORD-${checkInModalRoom.number}-${Date.now().toString().slice(-4)}`;
     const itemId = `itm_${Date.now()}`;
-
     const initialOrderItem = {
       id: itemId,
       description: `Room Stay (${nights} Night${nights > 1 ? "s" : ""})`,
@@ -1034,7 +920,6 @@ export default function App() {
       total: checkInModalRoom.rate * nights,
       timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
     };
-
     const roomPayload = {
       status: "occupied",
       orderId,
@@ -1045,7 +930,6 @@ export default function App() {
       checkOut: new Date(Date.now() + nights * 86400000).toISOString().split("T")[0],
       orderItems: { [itemId]: initialOrderItem },
     };
-
     update(ref(rtdb, `rooms/${checkInModalRoom.id}`), roomPayload);
     setCheckInModalRoom(null);
     setGuestForm({ name: "", phone: "", nights: 1 });
@@ -1054,12 +938,10 @@ export default function App() {
   const handleAddItemToOrder = (e) => {
     e.preventDefault();
     if (!newItemDesc || !newItemPrice || !currentRoom) return;
-
     const unitPrice = parseFloat(newItemPrice);
     const quantity = parseInt(newItemQty, 10) || 1;
     const now = new Date();
     const itemId = `itm_${Date.now()}`;
-
     const newItem = {
       id: itemId,
       description: newItemDesc,
@@ -1068,7 +950,6 @@ export default function App() {
       total: unitPrice * quantity,
       timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
     };
-
     set(ref(rtdb, `rooms/${currentRoom.id}/orderItems/${itemId}`), newItem);
     setNewItemDesc("");
     setNewItemPrice("");
@@ -1105,7 +986,6 @@ export default function App() {
   const handleCreateRoom = (e) => {
     e.preventDefault();
     if (!newRoomForm.number) return;
-
     const roomId = String(newRoomForm.number).trim();
     const newRoomData = {
       id: roomId,
@@ -1114,7 +994,6 @@ export default function App() {
       rate: Number(newRoomForm.rate) || 100,
       status: newRoomForm.status,
     };
-
     set(ref(rtdb, `rooms/${roomId}`), newRoomData);
     setShowAddRoomModal(false);
     setNewRoomForm({ number: "", type: "Ocean Breeze King", rate: 180, status: "available" });
@@ -1129,18 +1008,14 @@ export default function App() {
   };
 
   const handleDeleteRoom = (roomId, roomNumber) => {
-    if (window.confirm(`Permanently remove Room #${roomNumber}?`)) {
+    if (window.confirm(`Delete Room #${roomNumber}?`)) {
       remove(ref(rtdb, `rooms/${roomId}`));
     }
   };
 
-  // Filtered queries
   const filteredInventory = inventory.filter((item) => {
-    const matchesCategory =
-      inventoryCategoryFilter === "all" || item.category === inventoryCategoryFilter;
-    const matchesSearch = (item.name || "")
-      .toLowerCase()
-      .includes(inventorySearchQuery.toLowerCase());
+    const matchesCategory = inventoryCategoryFilter === "all" || item.category === inventoryCategoryFilter;
+    const matchesSearch = (item.name || "").toLowerCase().includes(inventorySearchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
 
@@ -1149,9 +1024,7 @@ export default function App() {
     return s.name.toLowerCase().includes(q) || s.role.toLowerCase().includes(q);
   });
 
-  // Payroll Metrics using Hotel Compensation Model
   const totalPayrollGross = staff.reduce((acc, s) => acc + calculateStaffGross(s), 0);
-  const totalBaseSalaries = staff.reduce((acc, s) => acc + (Number(s.baseSalary) || 0), 0);
   const totalServiceCharges = staff.reduce((acc, s) => acc + (Number(s.serviceCharge) || 0), 0);
   const onDutyCount = staff.filter((s) => s.isOnDuty).length;
 
@@ -1163,12 +1036,109 @@ export default function App() {
       <div className="flex h-screen items-center justify-center bg-[#FAF9F5]">
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 border-4 border-[#14B8A6] border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-[#091D26] font-semibold text-sm">Loading Thalassa Hotel OS...</p>
+          <p className="text-[#091D26] font-semibold text-sm">Loading Thalassa Resort Cloud...</p>
         </div>
       </div>
     );
   }
 
+  // =========================================================
+  // SCREEN: PIN-PAD TERMINAL LOCK SCREEN (IF NOT LOGGED IN)
+  // =========================================================
+  if (!currentUser) {
+    return (
+      <div className="flex min-h-screen bg-gradient-to-br from-[#06151E] via-[#091D26] to-[#0F2D3C] text-white items-center justify-center p-4">
+        <div className="w-full max-w-sm bg-white/5 backdrop-blur-md border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col items-center">
+          {/* Logo / Header */}
+          <div className="w-14 h-14 rounded-2xl bg-[#14B8A6] flex items-center justify-center text-white mb-4 shadow-lg shadow-[#14B8A6]/30">
+            <Waves className="w-8 h-8" />
+          </div>
+          <h1 className="text-xl font-bold tracking-tight text-white">{settings.hotelName}</h1>
+          <p className="text-xs text-[#2DD4BF] font-medium mt-0.5">Staff POS & PMS Terminal Lock</p>
+
+          {/* PIN Input Indicator */}
+          <div className="my-6 flex flex-col items-center w-full">
+            <div className="flex items-center gap-3 h-10">
+              {[0, 1, 2, 3].map((idx) => (
+                <div
+                  key={idx}
+                  className={`w-3.5 h-3.5 rounded-full transition-all duration-200 ${
+                    pinInput.length > idx
+                      ? "bg-[#14B8A6] scale-125 shadow-md shadow-[#14B8A6]/50"
+                      : "border-2 border-white/20"
+                  }`}
+                />
+              ))}
+            </div>
+
+            {pinError ? (
+              <span className="text-xs font-semibold text-[#F43F5E] mt-2 animate-shake">
+                {pinError}
+              </span>
+            ) : (
+              <span className="text-[11px] text-slate-400 mt-2">Enter 4-Digit Staff PIN</span>
+            )}
+          </div>
+
+          {/* On-Screen Touch PIN Pad */}
+          <div className="grid grid-cols-3 gap-3 w-full max-w-[280px]">
+            {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((digit) => (
+              <button
+                key={digit}
+                type="button"
+                onClick={() => handlePinDigit(digit)}
+                className="h-14 rounded-2xl bg-white/5 hover:bg-white/15 active:scale-95 text-lg font-bold transition-all border border-white/5 flex items-center justify-center shadow-sm"
+              >
+                {digit}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={handlePinClear}
+              className="h-14 rounded-2xl bg-white/5 hover:bg-white/10 active:scale-95 text-xs font-bold transition-all border border-white/5 text-slate-400 flex items-center justify-center uppercase tracking-wider"
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              onClick={() => handlePinDigit("0")}
+              className="h-14 rounded-2xl bg-white/5 hover:bg-white/15 active:scale-95 text-lg font-bold transition-all border border-white/5 flex items-center justify-center shadow-sm"
+            >
+              0
+            </button>
+            <button
+              type="button"
+              onClick={handlePinDelete}
+              className="h-14 rounded-2xl bg-white/5 hover:bg-white/10 active:scale-95 text-base font-bold transition-all border border-white/5 text-slate-400 flex items-center justify-center"
+            >
+              <Delete className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Preset Demo Pins for Instant Access */}
+          <div className="mt-6 pt-4 border-t border-white/10 w-full text-center">
+            <p className="text-[10px] text-slate-400 uppercase font-semibold">Demo Staff PIN Codes:</p>
+            <div className="flex flex-wrap justify-center gap-1.5 mt-2">
+              {staff.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => verifyPin(s.pin)}
+                  className="px-2 py-0.5 bg-white/5 hover:bg-white/15 rounded text-[10px] font-mono text-[#2DD4BF] border border-white/5"
+                >
+                  {s.name.split(" ")[0]} ({s.pin})
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================================
+  // MAIN AUTHENTICATED WORKSPACE
+  // =========================================================
   return (
     <div className="flex h-screen overflow-hidden bg-[#FAF9F5] text-[#091D26]">
       {/* DESKTOP SIDEBAR */}
@@ -1183,6 +1153,24 @@ export default function App() {
           </div>
         </div>
 
+        {/* Current Authenticated Staff Card */}
+        <div className="p-4 border-b border-[#0F2D3C] bg-white/5 flex items-center justify-between">
+          <div className="truncate">
+            <span className="text-[10px] uppercase font-bold text-[#2DD4BF] flex items-center gap-1">
+              <ShieldCheck className="w-3 h-3" /> {currentUser.role}
+            </span>
+            <div className="text-sm font-bold text-white truncate">{currentUser.name}</div>
+          </div>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="p-1.5 rounded-lg bg-white/10 hover:bg-[#F43F5E] text-slate-300 hover:text-white transition-colors"
+            title="Lock Terminal"
+          >
+            <Lock className="w-4 h-4" />
+          </button>
+        </div>
+
         <nav className="flex-1 px-3 py-6 space-y-1.5 overflow-y-auto">
           {[
             { id: "frontdesk", label: "Front Desk & Status", icon: Bed },
@@ -1191,23 +1179,34 @@ export default function App() {
             { id: "room-admin", label: "Room Management", icon: SlidersHorizontal },
             { id: "staff", label: "Staff & Attendance", icon: Users },
             { id: "settings", label: "Hotel Settings", icon: Settings },
-          ].map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setActiveTab(id)}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                activeTab === id ? "bg-[#0D9488] text-white shadow-sm" : "text-slate-300 hover:bg-[#0F2D3C] hover:text-white"
-              }`}
-            >
-              <Icon className="w-4 h-4" /> {label}
-            </button>
-          ))}
+          ].map(({ id, label, icon: Icon }) => {
+            const hasAccess = canAccessTab(id);
+            if (!hasAccess) return null; // Role-based hiding
+
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setActiveTab(id)}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === id ? "bg-[#0D9488] text-white shadow-sm" : "text-slate-300 hover:bg-[#0F2D3C] hover:text-white"
+                }`}
+              >
+                <Icon className="w-4 h-4" /> {label}
+              </button>
+            );
+          })}
         </nav>
 
-        <div className="p-4 border-t border-[#0F2D3C] bg-[#06151E]/40">
-          <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Connected Engine</p>
-          <p className="text-xs text-[#2DD4BF] font-mono truncate mt-0.5">Firebase Realtime DB</p>
+        <div className="p-4 border-t border-[#0F2D3C] bg-[#06151E]/40 flex justify-between items-center text-xs">
+          <span className="text-slate-400 font-mono text-[10px]">Session Active</span>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="text-[11px] text-[#F43F5E] hover:underline font-semibold"
+          >
+            Lock Screen
+          </button>
         </div>
       </aside>
 
@@ -1219,14 +1218,31 @@ export default function App() {
             <Building2 className="w-5 h-5 text-[#2DD4BF]" />
             <span className="font-bold text-sm">Thalassa POS</span>
           </div>
-          <button type="button" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-1 rounded text-slate-300">
-            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="p-1 rounded bg-white/10 text-slate-300"
+              title="Lock Terminal"
+            >
+              <Lock className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="p-1 rounded text-slate-300"
+            >
+              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
+          </div>
         </header>
 
-        {/* Mobile Navigation Drawer */}
+        {/* Mobile Drawer */}
         {mobileMenuOpen && (
           <div className="no-print md:hidden bg-[#091D26] border-b border-[#0F2D3C] p-4 space-y-2 z-50 text-white shadow-xl">
+            <div className="text-xs pb-2 border-b border-white/10 text-[#2DD4BF] font-semibold">
+              Logged in: {currentUser.name} ({currentUser.role})
+            </div>
             {[
               { id: "frontdesk", label: "Front Desk" },
               { id: "active-orders", label: "Active Bills & Tabs" },
@@ -1234,19 +1250,22 @@ export default function App() {
               { id: "room-admin", label: "Room Management" },
               { id: "staff", label: "Staff & Attendance" },
               { id: "settings", label: "Hotel Settings" },
-            ].map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => {
-                  setActiveTab(item.id);
-                  setMobileMenuOpen(false);
-                }}
-                className={`w-full text-left py-2 px-3 rounded text-sm ${activeTab === item.id ? "bg-[#0D9488]" : ""}`}
-              >
-                {item.label}
-              </button>
-            ))}
+            ].map((item) => {
+              if (!canAccessTab(item.id)) return null;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveTab(item.id);
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`w-full text-left py-2 px-3 rounded text-sm ${activeTab === item.id ? "bg-[#0D9488]" : ""}`}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
           </div>
         )}
 
@@ -1331,13 +1350,15 @@ export default function App() {
                             >
                               Tab / Items
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => handleInitiateSettleOrder(room)}
-                              className="flex-1 bg-[#F43F5E] hover:bg-[#E11D48] text-white py-2 rounded-lg text-xs font-bold"
-                            >
-                              Settle Order
-                            </button>
+                            {(isManager || isFrontDesk) && (
+                              <button
+                                type="button"
+                                onClick={() => handleInitiateSettleOrder(room)}
+                                className="flex-1 bg-[#F43F5E] hover:bg-[#E11D48] text-white py-2 rounded-lg text-xs font-bold"
+                              >
+                                Settle Order
+                              </button>
+                            )}
                           </>
                         )}
                         {room.status === "cleaning" && (
@@ -1349,7 +1370,7 @@ export default function App() {
                             <CheckCircle2 className="w-3.5 h-3.5" /> Mark Ready
                           </button>
                         )}
-                        {room.status === "maintenance" && (
+                        {room.status === "maintenance" && isManager && (
                           <button
                             type="button"
                             onClick={() => updateRoomStatus(room.id, "available")}
@@ -1367,7 +1388,7 @@ export default function App() {
           )}
 
           {/* TAB 2: ACTIVE BILLS */}
-          {activeTab === "active-orders" && (
+          {activeTab === "active-orders" && canAccessTab("active-orders") && (
             <div className="max-w-7xl mx-auto space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
@@ -1486,14 +1507,16 @@ export default function App() {
                             >
                               Settle Bill <ArrowRight className="w-3.5 h-3.5" />
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteActiveBill(room)}
-                              className="p-2 border border-coral-200 text-coral-600 hover:bg-coral-50 rounded-lg text-xs transition-colors"
-                              title="Delete / Void this active bill"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            {isManager && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteActiveBill(room)}
+                                className="p-2 border border-coral-200 text-coral-600 hover:bg-coral-50 rounded-lg text-xs transition-colors"
+                                title="Delete / Void this active bill"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1583,7 +1606,6 @@ export default function App() {
                       </table>
                     </div>
 
-                    {/* Quick Minibar Dispatch */}
                     <div className="bg-white rounded-xl border border-[#E6DFD3] shadow-sm p-6 space-y-3">
                       <h4 className="font-bold text-sm text-[#091D26] uppercase">Instant Minibar Dispatch</h4>
                       <div className="space-y-2">
@@ -1609,49 +1631,23 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 3: INVENTORY & MINIBAR */}
-          {activeTab === "inventory" && (
+          {/* TAB 3: INVENTORY */}
+          {activeTab === "inventory" && canAccessTab("inventory") && (
             <div className="max-w-7xl mx-auto space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <h2 className="text-2xl font-bold text-[#091D26]">Inventory & Minibar Management</h2>
-                  <p className="text-sm text-slate-500">
-                    Realtime Database synchronization for room minibar consumables and amenities.
-                  </p>
+                  <p className="text-sm text-slate-500">Realtime Database synchronization for room minibar consumables and amenities.</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowAddInventoryModal(true)}
-                  className="inline-flex items-center gap-2 bg-[#14B8A6] hover:bg-[#0D9488] text-white px-4 py-2.5 rounded-lg text-xs font-bold shadow-sm transition-all"
-                >
-                  <PackagePlus className="w-4 h-4" /> Add Inventory Item
-                </button>
-              </div>
-
-              {/* Metric Cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div className="bg-white border border-[#E6DFD3] rounded-xl p-4 shadow-sm">
-                  <p className="text-xs font-semibold uppercase text-slate-400">Total Items</p>
-                  <p className="text-2xl font-black text-[#091D26] mt-1">{inventory.length}</p>
-                </div>
-                <div className="bg-white border border-[#E6DFD3] rounded-xl p-4 shadow-sm">
-                  <p className="text-xs font-semibold uppercase text-[#0F766E]">Minibar Products</p>
-                  <p className="text-2xl font-black text-[#0F766E] mt-1">
-                    {inventory.filter((i) => i.category === "minibar").length}
-                  </p>
-                </div>
-                <div className="bg-white border border-[#E6DFD3] rounded-xl p-4 shadow-sm">
-                  <p className="text-xs font-semibold uppercase text-amber-700">Amenities / Linens</p>
-                  <p className="text-2xl font-black text-amber-700 mt-1">
-                    {inventory.filter((i) => i.category !== "minibar").length}
-                  </p>
-                </div>
-                <div className="bg-white border border-[#E6DFD3] rounded-xl p-4 shadow-sm">
-                  <p className="text-xs font-semibold uppercase text-[#F43F5E]">Low Stock (&lt;10)</p>
-                  <p className="text-2xl font-black text-[#F43F5E] mt-1">
-                    {inventory.filter((i) => i.stock < 10).length}
-                  </p>
-                </div>
+                {isManager && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAddInventoryModal(true)}
+                    className="inline-flex items-center gap-2 bg-[#14B8A6] hover:bg-[#0D9488] text-white px-4 py-2.5 rounded-lg text-xs font-bold shadow-sm transition-all"
+                  >
+                    <PackagePlus className="w-4 h-4" /> Add Inventory Item
+                  </button>
+                )}
               </div>
 
               {/* Table */}
@@ -1664,7 +1660,7 @@ export default function App() {
                       <th className="p-3.5 text-right">Billable Price</th>
                       <th className="p-3.5 text-center">Stock Level</th>
                       <th className="p-3.5 text-center">Quick Adjust</th>
-                      <th className="p-3.5 text-center">Actions</th>
+                      {isManager && <th className="p-3.5 text-center">Actions</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#F3EFE6]">
@@ -1707,25 +1703,27 @@ export default function App() {
                               </button>
                             </div>
                           </td>
-                          <td className="p-3.5 text-center">
-                            {isEditing ? (
-                              <button
-                                type="button"
-                                onClick={() => handleSaveInventoryEdit(item.id)}
-                                className="p-1 bg-[#14B8A6] text-white rounded"
-                              >
-                                <Check className="w-3.5 h-3.5" />
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => handleStartEditInventory(item)}
-                                className="text-slate-400 hover:text-[#0D9488] p-1"
-                              >
-                                <Edit2 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                          </td>
+                          {isManager && (
+                            <td className="p-3.5 text-center">
+                              {isEditing ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleSaveInventoryEdit(item.id)}
+                                  className="p-1 bg-[#14B8A6] text-white rounded"
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartEditInventory(item)}
+                                  className="text-slate-400 hover:text-[#0D9488] p-1"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </td>
+                          )}
                         </tr>
                       );
                     })}
@@ -1735,8 +1733,8 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 4: ROOM MANAGEMENT */}
-          {activeTab === "room-admin" && (
+          {/* TAB 4: ROOM MANAGEMENT (MANAGER ONLY) */}
+          {activeTab === "room-admin" && isManager && (
             <div className="max-w-7xl mx-auto space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
@@ -1760,7 +1758,6 @@ export default function App() {
                       <th className="p-3.5">Room Type</th>
                       <th className="p-3.5">Rate / Night</th>
                       <th className="p-3.5">Current Status</th>
-                      <th className="p-3.5 text-center">Change Status</th>
                       <th className="p-3.5 text-center">Actions</th>
                     </tr>
                   </thead>
@@ -1774,24 +1771,6 @@ export default function App() {
                           <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold capitalize bg-[#CCFBF1] text-[#0F766E]">
                             {room.status}
                           </span>
-                        </td>
-                        <td className="p-3.5 text-center">
-                          <div className="inline-flex rounded-lg border border-[#E6DFD3] p-0.5 bg-[#FAF9F5] gap-1">
-                            <button
-                              type="button"
-                              onClick={() => updateRoomStatus(room.id, "available")}
-                              className="px-2 py-1 rounded text-[10px] font-semibold text-slate-600 hover:bg-white"
-                            >
-                              Ready
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => updateRoomStatus(room.id, "cleaning")}
-                              className="px-2 py-1 rounded text-[10px] font-semibold text-slate-600 hover:bg-white"
-                            >
-                              Clean
-                            </button>
-                          </div>
                         </td>
                         <td className="p-3.5 text-center">
                           <button
@@ -1810,8 +1789,8 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 5: STAFF MANAGEMENT, ATTENDANCE & PAYROLL (HOTEL COMPENSATION MODEL) */}
-          {activeTab === "staff" && (
+          {/* TAB 5: STAFF & ATTENDANCE */}
+          {activeTab === "staff" && canAccessTab("staff") && (
             <div className="max-w-7xl mx-auto space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
@@ -1826,41 +1805,21 @@ export default function App() {
                     onClick={handlePrintDailyAttendance}
                     className="inline-flex items-center gap-2 bg-[#0F2D3C] hover:bg-[#091D26] text-white px-4 py-2.5 rounded-lg text-xs font-bold shadow-sm transition-all"
                   >
-                    <FileSpreadsheet className="w-4 h-4 text-[#2DD4BF]" /> Print Daily Attendance
+                    <FileSpreadsheet className="w-4 h-4 text-[#2DD4BF]" /> Print Attendance
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowAddStaffModal(true)}
-                    className="inline-flex items-center gap-2 bg-[#14B8A6] hover:bg-[#0D9488] text-white px-4 py-2.5 rounded-lg text-xs font-bold shadow-sm transition-all"
-                  >
-                    <UserPlus className="w-4 h-4" /> Add Team Member
-                  </button>
+                  {isManager && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAddStaffModal(true)}
+                      className="inline-flex items-center gap-2 bg-[#14B8A6] hover:bg-[#0D9488] text-white px-4 py-2.5 rounded-lg text-xs font-bold shadow-sm transition-all"
+                    >
+                      <UserPlus className="w-4 h-4" /> Add Team Member
+                    </button>
+                  )}
                 </div>
               </div>
 
-              {/* Roster & Hotel Payroll Executive Metrics */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div className="bg-white border border-[#E6DFD3] rounded-xl p-4 shadow-sm">
-                  <p className="text-xs font-semibold uppercase text-slate-400">Total Personnel</p>
-                  <p className="text-2xl font-black text-[#091D26] mt-1">{staff.length}</p>
-                </div>
-                <div className="bg-white border border-[#E6DFD3] rounded-xl p-4 shadow-sm">
-                  <p className="text-xs font-semibold uppercase text-[#0D9488]">Currently On Duty</p>
-                  <p className="text-2xl font-black text-[#0D9488] mt-1">{onDutyCount} Staff</p>
-                </div>
-                <div className="bg-white border border-[#E6DFD3] rounded-xl p-4 shadow-sm">
-                  <p className="text-xs font-semibold uppercase text-amber-700">Total Service Charge Pool</p>
-                  <p className="text-2xl font-black text-amber-700 mt-1">{settings.currency}{totalServiceCharges.toFixed(2)}</p>
-                </div>
-                <div className="bg-white border border-[#E6DFD3] rounded-xl p-4 shadow-sm">
-                  <p className="text-xs font-semibold uppercase text-[#091D26]">Total Monthly Payroll</p>
-                  <p className="text-2xl font-black text-[#0D9488] mt-1">
-                    {settings.currency}{totalPayrollGross.toFixed(2)}
-                  </p>
-                </div>
-              </div>
-
-              {/* View Switcher: Daily Attendance vs Compensation Roster */}
+              {/* View Switcher */}
               <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
                 <div className="flex bg-[#F3EFE6] p-1 rounded-lg border border-[#E6DFD3]">
                   <button
@@ -1870,325 +1829,135 @@ export default function App() {
                       staffViewSubTab === "attendance" ? "bg-[#0F2D3C] text-white shadow-sm" : "text-slate-600 hover:text-black"
                     }`}
                   >
-                    <Clock className="w-3.5 h-3.5 text-[#2DD4BF]" /> Daily In/Out Attendance Sheet
+                    <Clock className="w-3.5 h-3.5 text-[#2DD4BF]" /> Daily In/Out Attendance
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setStaffViewSubTab("roster")}
-                    className={`px-4 py-1.5 rounded-md text-xs font-bold flex items-center gap-1.5 transition-all ${
-                      staffViewSubTab === "roster" ? "bg-[#0F2D3C] text-white shadow-sm" : "text-slate-600 hover:text-black"
-                    }`}
-                  >
-                    <Coins className="w-3.5 h-3.5 text-[#2DD4BF]" /> Salary, Allowances & Bonuses
-                  </button>
-                </div>
-
-                <div className="relative w-full sm:w-72">
-                  <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Search staff by name or role..."
-                    value={staffSearchQuery}
-                    onChange={(e) => setStaffSearchQuery(e.target.value)}
-                    className="w-full bg-white border border-[#E6DFD3] rounded-lg pl-9 pr-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
-                  />
+                  {isManager && (
+                    <button
+                      type="button"
+                      onClick={() => setStaffViewSubTab("roster")}
+                      className={`px-4 py-1.5 rounded-md text-xs font-bold flex items-center gap-1.5 transition-all ${
+                        staffViewSubTab === "roster" ? "bg-[#0F2D3C] text-white shadow-sm" : "text-slate-600 hover:text-black"
+                      }`}
+                    >
+                      <Coins className="w-3.5 h-3.5 text-[#2DD4BF]" /> Payroll & Remuneration
+                    </button>
+                  )}
                 </div>
               </div>
 
-              {/* VIEW 1: DAILY IN/OUT ATTENDANCE SHEET */}
+              {/* ATTENDANCE SHEET */}
               {staffViewSubTab === "attendance" && (
                 <div className="bg-white rounded-xl border border-[#E6DFD3] shadow-sm overflow-hidden">
-                  <div className="p-4 border-b border-[#F3EFE6] flex justify-between items-center bg-[#FAF9F5]">
-                    <div>
-                      <h3 className="font-bold text-sm text-[#091D26]">Daily Shift Time-Clock Log</h3>
-                      <p className="text-[11px] text-slate-500">Record employee clock-in and clock-out timestamps for today</p>
-                    </div>
-                    <span className="text-xs font-mono font-bold text-[#0F766E] bg-[#CCFBF1] px-2.5 py-1 rounded">
-                      {new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
-                    </span>
-                  </div>
-
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-[#F3EFE6] border-b border-[#E6DFD3] uppercase font-semibold text-slate-500">
-                        <tr>
-                          <th className="p-3.5">Employee</th>
-                          <th className="p-3.5">Role</th>
-                          <th className="p-3.5 text-center">Clock-In Time</th>
-                          <th className="p-3.5 text-center">Clock-Out Time</th>
-                          <th className="p-3.5 text-center">Duty Status</th>
-                          <th className="p-3.5 text-center">Time-Clock Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[#F3EFE6]">
-                        {filteredStaff.map((member) => (
-                          <tr key={member.id} className="hover:bg-[#FAF9F5] transition-colors">
-                            <td className="p-3.5 font-bold text-[#091D26]">
-                              <div className="text-sm">{member.name}</div>
-                              <div className="text-[10px] text-slate-400 font-mono">PIN: ****{member.pin.slice(-2)}</div>
-                            </td>
-                            <td className="p-3.5">
-                              <span className="font-semibold text-slate-800 block">{member.role}</span>
-                              <span className="text-[10px] text-slate-500">{member.type}</span>
-                            </td>
-                            <td className="p-3.5 text-center font-mono font-bold text-slate-800">
-                              {member.clockIn ? (
-                                <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded">
-                                  {member.clockIn}
-                                </span>
-                              ) : (
-                                <span className="text-slate-400 italic">--:--</span>
-                              )}
-                            </td>
-                            <td className="p-3.5 text-center font-mono font-bold text-slate-800">
-                              {member.clockOut ? (
-                                <span className="bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded">
-                                  {member.clockOut}
-                                </span>
-                              ) : (
-                                <span className="text-slate-400 italic">--:--</span>
-                              )}
-                            </td>
-                            <td className="p-3.5 text-center">
-                              <span
-                                className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
-                                  member.isOnDuty
-                                    ? "bg-[#CCFBF1] text-[#0F766E] border border-[#2DD4BF]"
-                                    : member.clockOut
-                                    ? "bg-slate-100 text-slate-600"
-                                    : "bg-[#FFE4E6] text-[#F43F5E]"
-                                }`}
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#F3EFE6] border-b border-[#E6DFD3] uppercase font-semibold text-slate-500">
+                      <tr>
+                        <th className="p-3.5">Employee</th>
+                        <th className="p-3.5">Role</th>
+                        <th className="p-3.5 text-center">Clock-In</th>
+                        <th className="p-3.5 text-center">Clock-Out</th>
+                        <th className="p-3.5 text-center">Duty Status</th>
+                        <th className="p-3.5 text-center">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#F3EFE6]">
+                      {filteredStaff.map((member) => (
+                        <tr key={member.id} className="hover:bg-[#FAF9F5] transition-colors">
+                          <td className="p-3.5 font-bold text-[#091D26]">{member.name}</td>
+                          <td className="p-3.5">{member.role}</td>
+                          <td className="p-3.5 text-center font-mono font-bold text-slate-800">{member.clockIn || "--:--"}</td>
+                          <td className="p-3.5 text-center font-mono font-bold text-slate-800">{member.clockOut || "--:--"}</td>
+                          <td className="p-3.5 text-center">
+                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
+                              member.isOnDuty ? "bg-[#CCFBF1] text-[#0F766E]" : "bg-slate-100 text-slate-600"
+                            }`}>
+                              {member.isOnDuty ? "On Duty" : "Off Duty"}
+                            </span>
+                          </td>
+                          <td className="p-3.5 text-center">
+                            {!member.isOnDuty ? (
+                              <button
+                                type="button"
+                                onClick={() => handleClockIn(member.id)}
+                                className="px-3 py-1.5 bg-[#0D9488] hover:bg-[#0F766E] text-white rounded-lg text-xs font-bold"
                               >
-                                {member.isOnDuty ? "On Duty" : member.clockOut ? "Completed" : "Off Duty"}
-                              </span>
-                            </td>
-                            <td className="p-3.5 text-center">
-                              <div className="inline-flex gap-1.5">
-                                {!member.isOnDuty ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleClockIn(member.id)}
-                                    className="px-3 py-1.5 bg-[#0D9488] hover:bg-[#0F766E] text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-sm"
-                                  >
-                                    <LogIn className="w-3.5 h-3.5" /> Clock In
-                                  </button>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleClockOut(member.id)}
-                                    className="px-3 py-1.5 bg-[#F43F5E] hover:bg-[#E11D48] text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-sm"
-                                  >
-                                    <LogOut className="w-3.5 h-3.5" /> Clock Out
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                                Clock In
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleClockOut(member.id)}
+                                className="px-3 py-1.5 bg-[#F43F5E] hover:bg-[#E11D48] text-white rounded-lg text-xs font-bold"
+                              >
+                                Clock Out
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
 
-              {/* VIEW 2: SALARY, ALLOWANCES, SERVICE CHARGE & BONUSES */}
-              {staffViewSubTab === "roster" && (
+              {/* PAYROLL VIEW (MANAGER ONLY) */}
+              {staffViewSubTab === "roster" && isManager && (
                 <div className="bg-white rounded-xl border border-[#E6DFD3] shadow-sm overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-[#F3EFE6] border-b border-[#E6DFD3] uppercase font-semibold text-slate-500">
-                        <tr>
-                          <th className="p-3.5">Staff & Role</th>
-                          <th className="p-3.5 text-right">Base Monthly</th>
-                          <th className="p-3.5 text-right">Allowances</th>
-                          <th className="p-3.5 text-right">Service Charge</th>
-                          <th className="p-3.5 text-right">Bonus</th>
-                          <th className="p-3.5 text-right">Gross Total</th>
-                          <th className="p-3.5 text-center">Disbursement</th>
-                          <th className="p-3.5 text-center">Payslip</th>
-                          <th className="p-3.5 text-center">Actions</th>
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#F3EFE6] border-b border-[#E6DFD3] uppercase font-semibold text-slate-500">
+                      <tr>
+                        <th className="p-3.5">Staff & Role</th>
+                        <th className="p-3.5 text-right">Base</th>
+                        <th className="p-3.5 text-right">Allowances</th>
+                        <th className="p-3.5 text-right">Service Charge</th>
+                        <th className="p-3.5 text-right">Bonus</th>
+                        <th className="p-3.5 text-right">Total Gross</th>
+                        <th className="p-3.5 text-center">Status</th>
+                        <th className="p-3.5 text-center">Slip</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#F3EFE6]">
+                      {filteredStaff.map((member) => (
+                        <tr key={member.id}>
+                          <td className="p-3.5 font-bold text-[#091D26]">
+                            {member.name}
+                            <div className="text-[10px] text-slate-400 font-mono">{member.role}</div>
+                          </td>
+                          <td className="p-3.5 text-right">{settings.currency}{Number(member.baseSalary).toFixed(2)}</td>
+                          <td className="p-3.5 text-right">{settings.currency}{Number(member.allowances).toFixed(2)}</td>
+                          <td className="p-3.5 text-right">{settings.currency}{Number(member.serviceCharge).toFixed(2)}</td>
+                          <td className="p-3.5 text-right">{settings.currency}{Number(member.bonus).toFixed(2)}</td>
+                          <td className="p-3.5 text-right font-black text-[#0D9488]">{settings.currency}{calculateStaffGross(member).toFixed(2)}</td>
+                          <td className="p-3.5 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleStaffPayout(member.id, member.paid)}
+                              className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                                member.paid ? "bg-[#CCFBF1] text-[#0F766E]" : "bg-[#FFE4E6] text-[#F43F5E]"
+                              }`}
+                            >
+                              {member.paid ? "Paid" : "Pending"}
+                            </button>
+                          </td>
+                          <td className="p-3.5 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handlePrintPayslip(member)}
+                              className="p-1 bg-[#0F2D3C] text-white rounded text-xs"
+                            >
+                              Slip
+                            </button>
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[#F3EFE6]">
-                        {filteredStaff.map((member) => {
-                          const isEditing = editingStaffId === member.id;
-                          const grossPay = calculateStaffGross(member);
-
-                          return (
-                            <tr key={member.id} className="hover:bg-[#FAF9F5] transition-colors">
-                              {/* Staff Name & Role */}
-                              <td className="p-3.5 font-bold text-[#091D26]">
-                                {isEditing ? (
-                                  <div className="space-y-1">
-                                    <input
-                                      type="text"
-                                      className="w-full border border-[#14B8A6] rounded px-2 py-1 text-xs bg-white"
-                                      value={editStaffForm.name}
-                                      onChange={(e) => setEditStaffForm({ ...editStaffForm, name: e.target.value })}
-                                    />
-                                    <select
-                                      value={editStaffForm.role}
-                                      onChange={(e) => setEditStaffForm({ ...editStaffForm, role: e.target.value })}
-                                      className="w-full border border-[#D3C8B7] rounded px-1.5 py-1 text-[11px] bg-white"
-                                    >
-                                      <option value="General Manager">General Manager</option>
-                                      <option value="Front Desk Supervisor">Front Desk Supervisor</option>
-                                      <option value="Front Desk Agent">Front Desk Agent</option>
-                                      <option value="Housekeeping Lead">Housekeeping Lead</option>
-                                      <option value="Housekeeping Staff">Housekeeping Staff</option>
-                                      <option value="Maintenance Technician">Maintenance Technician</option>
-                                      <option value="F&B Service / Restaurant">F&B Service / Restaurant</option>
-                                      <option value="Bartender">Bartender</option>
-                                    </select>
-                                  </div>
-                                ) : (
-                                  <div>
-                                    <div className="text-sm font-bold text-[#091D26]">{member.name}</div>
-                                    <div className="text-[11px] text-[#0F766E] font-medium">{member.role}</div>
-                                    <div className="text-[10px] text-slate-400 font-mono">PIN: ****{member.pin.slice(-2)}</div>
-                                  </div>
-                                )}
-                              </td>
-
-                              {/* Base Monthly Salary */}
-                              <td className="p-3.5 text-right font-medium">
-                                {isEditing ? (
-                                  <input
-                                    type="number"
-                                    className="w-20 border border-[#14B8A6] rounded px-2 py-1 text-xs text-right bg-white"
-                                    value={editStaffForm.baseSalary}
-                                    onChange={(e) => setEditStaffForm({ ...editStaffForm, baseSalary: e.target.value })}
-                                  />
-                                ) : (
-                                  `${settings.currency}${Number(member.baseSalary || 0).toFixed(2)}`
-                                )}
-                              </td>
-
-                              {/* Allowances */}
-                              <td className="p-3.5 text-right font-medium">
-                                {isEditing ? (
-                                  <input
-                                    type="number"
-                                    className="w-16 border border-[#14B8A6] rounded px-2 py-1 text-xs text-right bg-white"
-                                    value={editStaffForm.allowances}
-                                    onChange={(e) => setEditStaffForm({ ...editStaffForm, allowances: e.target.value })}
-                                  />
-                                ) : (
-                                  `${settings.currency}${Number(member.allowances || 0).toFixed(2)}`
-                                )}
-                              </td>
-
-                              {/* Service Charge Share */}
-                              <td className="p-3.5 text-right font-medium">
-                                {isEditing ? (
-                                  <input
-                                    type="number"
-                                    className="w-16 border border-[#14B8A6] rounded px-2 py-1 text-xs text-right bg-white"
-                                    value={editStaffForm.serviceCharge}
-                                    onChange={(e) => setEditStaffForm({ ...editStaffForm, serviceCharge: e.target.value })}
-                                  />
-                                ) : (
-                                  `${settings.currency}${Number(member.serviceCharge || 0).toFixed(2)}`
-                                )}
-                              </td>
-
-                              {/* Bonus */}
-                              <td className="p-3.5 text-right font-medium">
-                                {isEditing ? (
-                                  <input
-                                    type="number"
-                                    className="w-16 border border-[#14B8A6] rounded px-2 py-1 text-xs text-right bg-white"
-                                    value={editStaffForm.bonus}
-                                    onChange={(e) => setEditStaffForm({ ...editStaffForm, bonus: e.target.value })}
-                                  />
-                                ) : (
-                                  `${settings.currency}${Number(member.bonus || 0).toFixed(2)}`
-                                )}
-                              </td>
-
-                              {/* Gross Total */}
-                              <td className="p-3.5 text-right font-black text-sm text-[#0D9488]">
-                                {settings.currency}{grossPay.toFixed(2)}
-                              </td>
-
-                              {/* Payout Status Toggle */}
-                              <td className="p-3.5 text-center">
-                                <button
-                                  type="button"
-                                  onClick={() => handleToggleStaffPayout(member.id, member.paid)}
-                                  className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase transition-all ${
-                                    member.paid
-                                      ? "bg-[#CCFBF1] text-[#0F766E] border border-[#2DD4BF]"
-                                      : "bg-[#FFE4E6] text-[#F43F5E] border border-coral-200 hover:bg-coral-100"
-                                  }`}
-                                >
-                                  {member.paid ? "Settled" : "Pending"}
-                                </button>
-                              </td>
-
-                              {/* Official Payslip Print */}
-                              <td className="p-3.5 text-center">
-                                <button
-                                  type="button"
-                                  onClick={() => handlePrintPayslip(member)}
-                                  className="p-1.5 bg-[#0F2D3C] hover:bg-[#091D26] text-white rounded-lg text-xs font-semibold inline-flex items-center gap-1"
-                                  title="Print Official Payslip"
-                                >
-                                  <Printer className="w-3.5 h-3.5 text-[#2DD4BF]" /> Slip
-                                </button>
-                              </td>
-
-                              {/* Actions */}
-                              <td className="p-3.5 text-center">
-                                {isEditing ? (
-                                  <div className="inline-flex items-center gap-1">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleSaveStaffEdit(member.id)}
-                                      className="p-1 bg-[#14B8A6] hover:bg-[#0D9488] text-white rounded"
-                                    >
-                                      <Check className="w-3.5 h-3.5" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => setEditingStaffId(null)}
-                                      className="p-1 bg-slate-200 hover:bg-slate-300 text-slate-600 rounded"
-                                    >
-                                      <X className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <div className="inline-flex items-center gap-1.5">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleStartEditStaff(member)}
-                                      className="text-slate-400 hover:text-[#0D9488] p-1"
-                                    >
-                                      <Edit2 className="w-3.5 h-3.5" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDeleteStaff(member)}
-                                      className="text-[#F43F5E] hover:text-[#E11D48] p-1"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
           )}
 
-          {/* TAB 6: SETTINGS */}
-          {activeTab === "settings" && (
+          {/* TAB 6: SETTINGS (MANAGER ONLY) */}
+          {activeTab === "settings" && isManager && (
             <div className="max-w-3xl mx-auto bg-white border border-[#E6DFD3] rounded-xl p-6 shadow-sm space-y-6">
               <div>
                 <h2 className="text-2xl font-bold text-[#091D26]">Hotel Details & Letterhead Configuration</h2>
@@ -2256,44 +2025,36 @@ export default function App() {
         </main>
       </div>
 
-      {/* MODAL 1: CHECK-IN */}
+      {/* CHECK-IN MODAL */}
       {checkInModalRoom && (
-        <div className="no-print fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-[#E6DFD3]">
             <div className="flex justify-between items-center mb-4">
-              <div>
-                <span className="text-xs uppercase font-bold text-[#0F766E]">New Guest Order</span>
-                <h3 className="font-bold text-lg text-[#091D26]">Open Order - Room #{checkInModalRoom.number}</h3>
-              </div>
+              <h3 className="font-bold text-lg text-[#091D26]">Check In - Room #{checkInModalRoom.number}</h3>
               <button type="button" onClick={() => setCheckInModalRoom(null)} className="text-slate-400">
                 <X className="w-5 h-5" />
               </button>
             </div>
-
             <form onSubmit={handleOpenOrderAndCheckIn} className="space-y-4 text-xs">
               <div>
                 <label className="block font-semibold mb-1">Guest Full Name</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Marina Sterling"
                   value={guestForm.name}
                   onChange={(e) => setGuestForm({ ...guestForm, name: e.target.value })}
                   className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
                 />
               </div>
-
               <div>
                 <label className="block font-semibold mb-1">Phone Number</label>
                 <input
                   type="tel"
-                  placeholder="+1 (555) 000-0000"
                   value={guestForm.phone}
                   onChange={(e) => setGuestForm({ ...guestForm, phone: e.target.value })}
                   className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
                 />
               </div>
-
               <div>
                 <label className="block font-semibold mb-1">Nights</label>
                 <input
@@ -2305,18 +2066,6 @@ export default function App() {
                   className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
                 />
               </div>
-
-              <div className="bg-[#FAF9F5] p-3 rounded-lg border border-[#E6DFD3]">
-                <div className="flex justify-between text-slate-500 mb-1">
-                  <span>Room Rate:</span>
-                  <span>{settings.currency}{checkInModalRoom.rate}/night</span>
-                </div>
-                <div className="flex justify-between font-bold text-[#091D26]">
-                  <span>Initial Order Value:</span>
-                  <span>{settings.currency}{(checkInModalRoom.rate * (guestForm.nights || 1)).toFixed(2)}</span>
-                </div>
-              </div>
-
               <button type="submit" className="w-full bg-[#14B8A6] hover:bg-[#0D9488] text-white font-bold py-3 rounded-lg">
                 Open Order & Check In
               </button>
@@ -2325,411 +2074,192 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL 2: ORDER SETTLEMENT */}
+      {/* SETTLEMENT MODAL */}
       {settleOrderRoom && (
-        <div className="no-print fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-[#E6DFD3]">
             <div className="flex justify-between items-start mb-4 pb-3 border-b border-[#E6DFD3]">
               <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs uppercase font-bold text-[#0F766E]">Order Settlement</span>
-                  <span className="font-mono text-xs text-slate-500">{settleOrderRoom.orderId}</span>
-                </div>
+                <span className="text-xs uppercase font-bold text-[#0F766E]">Order Settlement</span>
                 <h3 className="font-black text-xl text-[#091D26]">Room #{settleOrderRoom.number}</h3>
-                <p className="text-xs text-slate-500">Guest: {settleOrderRoom.guestName || "Walk-In"}</p>
               </div>
-              <button type="button" onClick={() => setSettleOrderRoom(null)} className="text-slate-400 hover:text-slate-600">
+              <button type="button" onClick={() => setSettleOrderRoom(null)} className="text-slate-400">
                 <X className="w-5 h-5" />
               </button>
             </div>
-
-            <div className="max-h-44 overflow-y-auto border border-[#E6DFD3] rounded-lg p-3 bg-[#FAF9F5] mb-4 text-xs space-y-1.5">
-              {settleOrderRoom.orderItems?.map((item) => (
-                <div key={item.id} className="flex justify-between py-1 border-b border-slate-100 last:border-none">
-                  <div>
-                    <span className="font-semibold text-slate-800">{item.quantity}x {item.description}</span>
-                    {item.timestamp && <span className="text-[10px] text-slate-400 block">{item.timestamp}</span>}
-                  </div>
-                  <span className="font-semibold text-[#091D26]">{settings.currency}{Number(item.total).toFixed(2)}</span>
-                </div>
-              ))}
-              <div className="pt-2 flex justify-between font-black text-sm text-[#091D26]">
-                <span>Total Balance to Settle:</span>
-                <span className="text-[#0D9488] text-base">
-                  {settings.currency}{calculateTotal(settleOrderRoom).toFixed(2)}
-                </span>
-              </div>
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-xs font-semibold text-slate-700 mb-2">Tender Method:</label>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { id: "Credit Card", icon: CreditCard },
-                  { id: "Cash", icon: Banknote },
-                  { id: "Transfer", icon: Building2 },
-                ].map(({ id, icon: Icon }) => (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => setSettlementMethod(id)}
-                    className={`py-2 text-xs font-bold rounded-lg border flex items-center justify-center gap-1.5 transition-all ${
-                      settlementMethod === id
-                        ? "bg-[#0F2D3C] text-white border-[#0F2D3C]"
-                        : "bg-white text-slate-700 border-[#E6DFD3] hover:bg-[#F3EFE6]"
-                    }`}
-                  >
-                    <Icon className="w-3.5 h-3.5" /> {id}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {settlementMethod === "Cash" && (
-              <div className="bg-[#FAF9F5] p-3 rounded-xl border border-[#E6DFD3] mb-4 flex items-center gap-3 text-xs">
-                <div className="flex-1">
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Cash Tendered:</label>
-                  <input
-                    type="number"
-                    placeholder="0.00"
-                    value={cashTendered}
-                    onChange={(e) => setCashTendered(e.target.value)}
-                    className="w-full border border-[#D3C8B7] rounded-lg px-2.5 py-1.5 font-bold text-sm focus:outline-none"
-                  />
-                </div>
-                <div className="flex-1 text-right">
-                  <span className="block text-[11px] font-semibold text-slate-600">Change Due:</span>
-                  <span className="text-base font-black text-[#0D9488]">
-                    {settings.currency}{changeDue.toFixed(2)}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            <div className="bg-sand-100 p-2.5 rounded-lg border border-sand-200 text-xs text-slate-600 mb-5 flex items-center gap-2">
-              <Printer className="w-4 h-4 text-[#0D9488]" />
-              <span>
-                Final letterhead invoice ({printFormat === "thermal" ? "80mm Thermal" : "Official A4"}) will auto-print upon confirmation.
-              </span>
-            </div>
-
+            <div className="text-xs mb-4">Total Settling: <b>{settings.currency}{calculateTotal(settleOrderRoom).toFixed(2)}</b></div>
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => setSettleOrderRoom(null)}
-                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-3 rounded-lg text-xs font-semibold"
-              >
-                Back
-              </button>
-              <button
-                type="button"
                 onClick={handleConfirmOrderSettlement}
-                className="flex-2 bg-[#0D9488] hover:bg-[#0F766E] text-white py-3 px-6 rounded-lg text-xs font-bold shadow-md flex items-center justify-center gap-1.5"
+                className="w-full bg-[#0D9488] hover:bg-[#0F766E] text-white py-3 rounded-lg text-xs font-bold"
               >
-                <Check className="w-4 h-4" /> Confirm Payment & Settle
+                Confirm Payment & Settle
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL 3: ADD NEW ROOM */}
-      {showAddRoomModal && (
-        <div className="no-print fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      {/* ADD ROOM MODAL */}
+      {showAddRoomModal && isManager && (
+        <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-[#E6DFD3]">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-lg text-[#091D26]">Add New Hotel Room</h3>
+              <h3 className="font-bold text-lg text-[#091D26]">Add Hotel Room</h3>
               <button type="button" onClick={() => setShowAddRoomModal(false)} className="text-slate-400">
                 <X className="w-5 h-5" />
               </button>
             </div>
-
             <form onSubmit={handleCreateRoom} className="space-y-4 text-xs">
               <div>
                 <label className="block font-semibold mb-1">Room Number</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. 301, 302, PH-A"
                   value={newRoomForm.number}
                   onChange={(e) => setNewRoomForm({ ...newRoomForm, number: e.target.value })}
-                  className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
+                  className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
                 />
               </div>
-
               <div>
-                <label className="block font-semibold mb-1">Room Category / Type</label>
-                <select
-                  value={newRoomForm.type}
-                  onChange={(e) => setNewRoomForm({ ...newRoomForm, type: e.target.value })}
-                  className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white focus:outline-none"
-                >
-                  <option value="Ocean Breeze King">Ocean Breeze King</option>
-                  <option value="Lagoon View Double">Lagoon View Double</option>
-                  <option value="Coral Penthouse Suite">Coral Penthouse Suite</option>
-                  <option value="Family Beachside Villa">Family Beachside Villa</option>
-                  <option value="Standard Coastal Queen">Standard Coastal Queen</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-semibold mb-1">Base Nightly Rate ({settings.currency})</label>
+                <label className="block font-semibold mb-1">Nightly Rate</label>
                 <input
                   type="number"
                   required
-                  min="0"
-                  step="0.01"
                   value={newRoomForm.rate}
                   onChange={(e) => setNewRoomForm({ ...newRoomForm, rate: e.target.value })}
-                  className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
+                  className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
                 />
               </div>
-
-              <div>
-                <label className="block font-semibold mb-1">Initial Status</label>
-                <select
-                  value={newRoomForm.status}
-                  onChange={(e) => setNewRoomForm({ ...newRoomForm, status: e.target.value })}
-                  className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white focus:outline-none"
-                >
-                  <option value="available">Available</option>
-                  <option value="cleaning">Needs Cleaning</option>
-                  <option value="maintenance">Under Maintenance</option>
-                </select>
-              </div>
-
-              <button
-                type="submit"
-                className="w-full bg-[#14B8A6] hover:bg-[#0D9488] text-white font-bold py-3 rounded-lg transition-colors mt-2"
-              >
-                Register Room to Cloud
+              <button type="submit" className="w-full bg-[#14B8A6] text-white font-bold py-3 rounded-lg">
+                Register Room
               </button>
             </form>
           </div>
         </div>
       )}
 
-      {/* MODAL 4: ADD INVENTORY / MINIBAR ITEM */}
-      {showAddInventoryModal && (
-        <div className="no-print fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      {/* ADD INVENTORY MODAL */}
+      {showAddInventoryModal && isManager && (
+        <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-[#E6DFD3]">
             <div className="flex justify-between items-center mb-4">
-              <div>
-                <span className="text-xs uppercase font-bold text-[#0F766E]">Stock Catalog</span>
-                <h3 className="font-bold text-lg text-[#091D26]">Add New Stock / Minibar Item</h3>
-              </div>
+              <h3 className="font-bold text-lg text-[#091D26]">Add Inventory Item</h3>
               <button type="button" onClick={() => setShowAddInventoryModal(false)} className="text-slate-400">
                 <X className="w-5 h-5" />
               </button>
             </div>
-
             <form onSubmit={handleCreateInventoryItem} className="space-y-4 text-xs">
               <div>
-                <label className="block font-semibold mb-1">Product / Item Name</label>
+                <label className="block font-semibold mb-1">Product Name</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. San Pellegrino 500ml, Cashew Tin"
                   value={newInventoryForm.name}
                   onChange={(e) => setNewInventoryForm({ ...newInventoryForm, name: e.target.value })}
-                  className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
+                  className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
                 />
               </div>
-
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold mb-1">Category</label>
-                  <select
-                    value={newInventoryForm.category}
-                    onChange={(e) => setNewInventoryForm({ ...newInventoryForm, category: e.target.value })}
-                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white focus:outline-none"
-                  >
-                    <option value="minibar">Minibar</option>
-                    <option value="amenity">Amenity</option>
-                    <option value="linen">Linen</option>
-                    <option value="beverage">Beverage</option>
-                    <option value="snack">Snack</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1">Billable Price ({settings.currency})</label>
+                  <label className="block font-semibold mb-1">Price</label>
                   <input
                     type="number"
                     step="0.01"
-                    min="0"
-                    placeholder="0.00"
                     value={newInventoryForm.price}
                     onChange={(e) => setNewInventoryForm({ ...newInventoryForm, price: e.target.value })}
-                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
+                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
                   />
-                  <span className="text-[10px] text-slate-400">Set 0 for free amenities</span>
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Stock</label>
+                  <input
+                    type="number"
+                    value={newInventoryForm.stock}
+                    onChange={(e) => setNewInventoryForm({ ...newInventoryForm, stock: e.target.value })}
+                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
+                  />
                 </div>
               </div>
-
-              <div>
-                <label className="block font-semibold mb-1">Initial Stock Count</label>
-                <input
-                  type="number"
-                  min="0"
-                  required
-                  value={newInventoryForm.stock}
-                  onChange={(e) => setNewInventoryForm({ ...newInventoryForm, stock: e.target.value })}
-                  className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="w-full bg-[#14B8A6] hover:bg-[#0D9488] text-white font-bold py-3 rounded-lg transition-colors mt-2"
-              >
-                Save Item to Database
+              <button type="submit" className="w-full bg-[#14B8A6] text-white font-bold py-3 rounded-lg">
+                Save Product
               </button>
             </form>
           </div>
         </div>
       )}
 
-      {/* MODAL 5: ADD STAFF MEMBER & COMPENSATION PROFILE */}
-      {showAddStaffModal && (
-        <div className="no-print fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      {/* ADD STAFF MODAL */}
+      {showAddStaffModal && isManager && (
+        <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-[#E6DFD3]">
             <div className="flex justify-between items-center mb-4">
-              <div>
-                <span className="text-xs uppercase font-bold text-[#0F766E]">Remuneration Setup</span>
-                <h3 className="font-bold text-lg text-[#091D26]">Add Staff Member & Compensation</h3>
-              </div>
+              <h3 className="font-bold text-lg text-[#091D26]">Add Team Member & Salary</h3>
               <button type="button" onClick={() => setShowAddStaffModal(false)} className="text-slate-400">
                 <X className="w-5 h-5" />
               </button>
             </div>
-
             <form onSubmit={handleCreateStaff} className="space-y-4 text-xs">
               <div>
-                <label className="block font-semibold mb-1">Full Legal Name</label>
+                <label className="block font-semibold mb-1">Full Name</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Malia Chang"
                   value={newStaffForm.name}
                   onChange={(e) => setNewStaffForm({ ...newStaffForm, name: e.target.value })}
-                  className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
+                  className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
                 />
               </div>
-
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold mb-1">Operational Role</label>
+                  <label className="block font-semibold mb-1">Role</label>
                   <select
                     value={newStaffForm.role}
                     onChange={(e) => setNewStaffForm({ ...newStaffForm, role: e.target.value })}
-                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white focus:outline-none"
+                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white"
                   >
                     <option value="General Manager">General Manager</option>
-                    <option value="Front Desk Supervisor">Front Desk Supervisor</option>
-                    <option value="Front Desk Agent">Front Desk Agent</option>
-                    <option value="Housekeeping Lead">Housekeeping Lead</option>
-                    <option value="Housekeeping Staff">Housekeeping Staff</option>
-                    <option value="Maintenance Technician">Maintenance Technician</option>
-                    <option value="F&B Service / Restaurant">F&B Service / Restaurant</option>
-                    <option value="Bartender">Bartender</option>
-                    <option value="Security Officer">Security Officer</option>
+                    <option value="Front Desk">Front Desk</option>
+                    <option value="Housekeeping">Housekeeping</option>
+                    <option value="Maintenance">Maintenance</option>
+                    <option value="F&B Service">F&B Service</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block font-semibold mb-1">Employment Term</label>
-                  <select
-                    value={newStaffForm.type}
-                    onChange={(e) => setNewStaffForm({ ...newStaffForm, type: e.target.value })}
-                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white focus:outline-none"
-                  >
-                    <option value="Full-Time">Full-Time</option>
-                    <option value="Part-Time">Part-Time</option>
-                    <option value="Casual">Casual</option>
-                    <option value="Contractor">Contractor</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Monthly Remuneration Components */}
-              <div className="bg-[#FAF9F5] p-3 rounded-xl border border-[#E6DFD3] space-y-2">
-                <span className="block font-bold text-[11px] uppercase text-[#0F766E]">Monthly Compensation Structure ({settings.currency})</span>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-semibold mb-0.5">Base Monthly Salary</label>
-                    <input
-                      type="number"
-                      min="0"
-                      required
-                      value={newStaffForm.baseSalary}
-                      onChange={(e) => setNewStaffForm({ ...newStaffForm, baseSalary: e.target.value })}
-                      className="w-full border border-[#D3C8B7] rounded px-2.5 py-1.5 bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold mb-0.5">Monthly Allowances</label>
-                    <input
-                      type="number"
-                      min="0"
-                      placeholder="0"
-                      value={newStaffForm.allowances}
-                      onChange={(e) => setNewStaffForm({ ...newStaffForm, allowances: e.target.value })}
-                      className="w-full border border-[#D3C8B7] rounded px-2.5 py-1.5 bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold mb-0.5">Service Charge Share</label>
-                    <input
-                      type="number"
-                      min="0"
-                      placeholder="0"
-                      value={newStaffForm.serviceCharge}
-                      onChange={(e) => setNewStaffForm({ ...newStaffForm, serviceCharge: e.target.value })}
-                      className="w-full border border-[#D3C8B7] rounded px-2.5 py-1.5 bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold mb-0.5">Expected Monthly Bonus</label>
-                    <input
-                      type="number"
-                      min="0"
-                      placeholder="0"
-                      value={newStaffForm.bonus}
-                      onChange={(e) => setNewStaffForm({ ...newStaffForm, bonus: e.target.value })}
-                      className="w-full border border-[#D3C8B7] rounded px-2.5 py-1.5 bg-white"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold mb-1">Access PIN (4 Digits)</label>
+                  <label className="block font-semibold mb-1">PIN (4-digits)</label>
                   <input
                     type="text"
                     maxLength={6}
                     required
                     value={newStaffForm.pin}
                     onChange={(e) => setNewStaffForm({ ...newStaffForm, pin: e.target.value })}
-                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1">Phone Contact</label>
-                  <input
-                    type="tel"
-                    placeholder="+1 (555) 000-0000"
-                    value={newStaffForm.phone}
-                    onChange={(e) => setNewStaffForm({ ...newStaffForm, phone: e.target.value })}
-                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
+                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
                   />
                 </div>
               </div>
-
-              <button
-                type="submit"
-                className="w-full bg-[#14B8A6] hover:bg-[#0D9488] text-white font-bold py-3 rounded-lg transition-colors mt-2"
-              >
-                Register Team Member & Remuneration
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1">Base Monthly Salary ({settings.currency})</label>
+                  <input
+                    type="number"
+                    value={newStaffForm.baseSalary}
+                    onChange={(e) => setNewStaffForm({ ...newStaffForm, baseSalary: e.target.value })}
+                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Allowances ({settings.currency})</label>
+                  <input
+                    type="number"
+                    value={newStaffForm.allowances}
+                    onChange={(e) => setNewStaffForm({ ...newStaffForm, allowances: e.target.value })}
+                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
+                  />
+                </div>
+              </div>
+              <button type="submit" className="w-full bg-[#14B8A6] text-white font-bold py-3 rounded-lg">
+                Register Employee
               </button>
             </form>
           </div>
