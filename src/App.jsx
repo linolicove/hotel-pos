@@ -40,7 +40,8 @@ import {
   Calendar,
   LogIn,
   LogOut,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Coins
 } from "lucide-react";
 
 // --- 1. FIREBASE CONFIGURATION (REALTIME DATABASE) ---
@@ -78,15 +79,18 @@ const INITIAL_INVENTORY_SEEDS = [
   { id: "inv7", name: "Macadamia Nut Cookie Tin", category: "snack", price: 9, stock: 14 }
 ];
 
+// Hospitality Staff Seeds with Base Salary + Allowance + Service Charge + Bonus
 const INITIAL_STAFF_SEEDS = [
   { 
     id: "s1", 
     name: "Kailani Silva", 
-    role: "Manager", 
+    role: "General Manager", 
     pin: "1001", 
     type: "Full-Time", 
-    hourlyRate: 35, 
-    hoursWorked: 40, 
+    baseSalary: 4200, 
+    allowances: 600,
+    serviceCharge: 450,
+    bonus: 300,
     paid: true, 
     phone: "+1 808-555-0112",
     clockIn: "08:00 AM",
@@ -96,11 +100,13 @@ const INITIAL_STAFF_SEEDS = [
   { 
     id: "s2", 
     name: "Noah Jensen", 
-    role: "Front Desk", 
+    role: "Front Desk Supervisor", 
     pin: "2044", 
     type: "Full-Time", 
-    hourlyRate: 22, 
-    hoursWorked: 38, 
+    baseSalary: 2800, 
+    allowances: 350,
+    serviceCharge: 380,
+    bonus: 150,
     paid: false, 
     phone: "+1 808-555-0123",
     clockIn: "07:30 AM",
@@ -110,11 +116,13 @@ const INITIAL_STAFF_SEEDS = [
   { 
     id: "s3", 
     name: "Leilani Kea", 
-    role: "Housekeeping", 
+    role: "Housekeeping Lead", 
     pin: "3055", 
-    type: "Part-Time", 
-    hourlyRate: 20, 
-    hoursWorked: 25, 
+    type: "Full-Time", 
+    baseSalary: 2400, 
+    allowances: 300,
+    serviceCharge: 350,
+    bonus: 100,
     paid: false, 
     phone: "+1 808-555-0145",
     clockIn: "09:00 AM",
@@ -124,11 +132,13 @@ const INITIAL_STAFF_SEEDS = [
   { 
     id: "s4", 
     name: "Akamu Flores", 
-    role: "Maintenance", 
+    role: "Maintenance Technician", 
     pin: "4088", 
-    type: "Casual", 
-    hourlyRate: 24, 
-    hoursWorked: 16, 
+    type: "Part-Time", 
+    baseSalary: 1900, 
+    allowances: 200,
+    serviceCharge: 250,
+    bonus: 50,
     paid: true, 
     phone: "+1 808-555-0189",
     clockIn: "",
@@ -371,9 +381,14 @@ function buildA4Html({ settings, room, isTemporary, settlementMethod, total }) {
   `;
 }
 
-// Built-in Official A4 Payslip & Payroll Generator
+// Built-in Official A4 Payslip & Itemized Compensation Generator
 function buildPayslipHtml({ settings, staffMember }) {
-  const grossPay = (Number(staffMember.hourlyRate) || 0) * (Number(staffMember.hoursWorked) || 0);
+  const base = Number(staffMember.baseSalary) || 0;
+  const allowances = Number(staffMember.allowances) || 0;
+  const serviceCharge = Number(staffMember.serviceCharge) || 0;
+  const bonus = Number(staffMember.bonus) || 0;
+  const grossPay = base + allowances + serviceCharge + bonus;
+
   return `
     <div class="a4-container">
       <div style="border-bottom: 3px double #091D26; padding-bottom: 16px; display: flex; justify-content: space-between; align-items: flex-start;">
@@ -382,74 +397,87 @@ function buildPayslipHtml({ settings, staffMember }) {
             ${settings.hotelName}
           </h1>
           <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; text-transform: uppercase; color: #555; letter-spacing: 1px;">
-            Employee Compensation & Payroll Statement
+            Monthly Remuneration & Payroll Statement
           </p>
           <p style="margin: 4px 0 0 0; font-size: 11px; color: #333;">
             ${settings.address} | Tel: ${settings.phone}
           </p>
           <p style="margin: 2px 0 0 0; font-size: 11px; color: #333;">
-            Tax ID / Reg: ${settings.taxNumber}
+            Tax Registration / Reg: ${settings.taxNumber}
           </p>
         </div>
         <div style="text-align: right;">
           <div style="display: inline-block; border: 2px solid #091D26; padding: 6px 14px; font-weight: bold; font-size: 12px; text-transform: uppercase;">
             OFFICIAL PAYSLIP
           </div>
-          <p style="margin: 8px 0 0 0; font-size: 12px;"><b>Pay Date:</b> ${new Date().toLocaleDateString()}</p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;"><b>Employee Ref:</b> ${staffMember.id}</p>
+          <p style="margin: 8px 0 0 0; font-size: 12px;"><b>Disbursement Date:</b> ${new Date().toLocaleDateString()}</p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;"><b>Staff Reference:</b> ${staffMember.id}</p>
         </div>
       </div>
 
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 20px 0; padding: 12px 16px; border: 1px solid #091D26; border-radius: 4px;">
         <div>
-          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Employee Details</p>
+          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Employee Profile</p>
           <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold;">${staffMember.name}</p>
           <p style="margin: 2px 0 0 0; font-size: 12px;">Designated Role: <b>${staffMember.role}</b></p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;">Contact: ${staffMember.phone || "N/A"}</p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;">Contact: ${staffMember.phone || "No direct phone"}</p>
         </div>
         <div style="text-align: right;">
-          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Employment Term</p>
+          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Terms & Status</p>
           <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold;">${staffMember.type || "Full-Time"}</p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;">Base Hourly Rate: <b>${settings.currency}${Number(staffMember.hourlyRate).toFixed(2)}/hr</b></p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;">Payout Status: <b>${staffMember.paid ? "SETTLED / PAID" : "PENDING DISBURSEMENT"}</b></p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;">Pay Cycle: <b>Monthly</b></p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;">Remittance Status: <b>${staffMember.paid ? "PAID IN FULL" : "PENDING DISBURSEMENT"}</b></p>
         </div>
       </div>
 
       <table style="margin: 20px 0; font-size: 12px;">
         <thead>
-          <tr style="border-bottom: 2px solid #091D26; text-align: left;">
-            <th style="padding: 10px 4px; text-transform: uppercase; font-size: 11px;">Earnings Description</th>
-            <th style="padding: 10px 4px; text-align: center; text-transform: uppercase; font-size: 11px;">Hours Logged</th>
-            <th style="padding: 10px 4px; text-align: right; text-transform: uppercase; font-size: 11px;">Pay Rate</th>
-            <th style="padding: 10px 4px; text-align: right; text-transform: uppercase; font-size: 11px;">Gross Total</th>
+          <tr style="border-bottom: 2px solid #091D26; text-align: left; background: #F3EFE6;">
+            <th style="padding: 10px 8px; text-transform: uppercase; font-size: 11px;">Earnings Component</th>
+            <th style="padding: 10px 8px; text-transform: uppercase; font-size: 11px;">Allocation Category</th>
+            <th style="padding: 10px 8px; text-align: right; text-transform: uppercase; font-size: 11px;">Gross Amount</th>
           </tr>
         </thead>
         <tbody>
           <tr style="border-bottom: 1px solid #ddd;">
-            <td style="padding: 10px 4px;">Regular Shift Duties & Service</td>
-            <td style="padding: 10px 4px; text-align: center;">${staffMember.hoursWorked || 0} hrs</td>
-            <td style="padding: 10px 4px; text-align: right;">${settings.currency}${Number(staffMember.hourlyRate).toFixed(2)}</td>
-            <td style="padding: 10px 4px; text-align: right; font-weight: bold;">${settings.currency}${grossPay.toFixed(2)}</td>
+            <td style="padding: 10px 8px; font-weight: bold;">Base Monthly Salary</td>
+            <td style="padding: 10px 8px; color: #666;">Contractual Base Wage</td>
+            <td style="padding: 10px 8px; text-align: right; font-weight: bold;">${settings.currency}${base.toFixed(2)}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #ddd;">
+            <td style="padding: 10px 8px; font-weight: bold;">Allowances</td>
+            <td style="padding: 10px 8px; color: #666;">Housing, Transport & Food Stipend</td>
+            <td style="padding: 10px 8px; text-align: right; font-weight: bold;">${settings.currency}${allowances.toFixed(2)}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #ddd;">
+            <td style="padding: 10px 8px; font-weight: bold;">Service Charge Share</td>
+            <td style="padding: 10px 8px; color: #666;">Resort Service Charge Pool Distribution</td>
+            <td style="padding: 10px 8px; text-align: right; font-weight: bold;">${settings.currency}${serviceCharge.toFixed(2)}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #ddd;">
+            <td style="padding: 10px 8px; font-weight: bold;">Performance & Seasonal Bonus</td>
+            <td style="padding: 10px 8px; color: #666;">Incentives & Departmental Bonuses</td>
+            <td style="padding: 10px 8px; text-align: right; font-weight: bold;">${settings.currency}${bonus.toFixed(2)}</td>
           </tr>
         </tbody>
       </table>
 
-      <div style="border-top: 2px solid #091D26; border-bottom: 2px solid #091D26; padding: 12px 4px; margin: 24px 0; display: flex; justify-content: space-between; align-items: center;">
+      <div style="border-top: 2px solid #091D26; border-bottom: 2px solid #091D26; padding: 14px 8px; margin: 24px 0; display: flex; justify-content: space-between; align-items: center;">
         <span style="font-size: 14px; font-weight: bold; text-transform: uppercase;">
-          Net Remittance Payable:
+          Total Net Monthly Remittance:
         </span>
-        <span style="font-size: 20px; font-weight: 900; color: #0D9488;">
+        <span style="font-size: 22px; font-weight: 900; color: #0D9488;">
           ${settings.currency}${grossPay.toFixed(2)}
         </span>
       </div>
 
       <div style="margin-top: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; font-size: 11px;">
         <div>
-          <p style="font-weight: bold; text-transform: uppercase; margin-bottom: 30px;">Employee Acknowledgment:</p>
+          <p style="font-weight: bold; text-transform: uppercase; margin-bottom: 30px;">Staff Member Acknowledgment:</p>
           <div style="border-bottom: 1px solid #000; width: 80%;"></div>
         </div>
         <div style="text-align: right;">
-          <p style="font-weight: bold; text-transform: uppercase; margin-bottom: 30px;">Payroll / General Manager:</p>
+          <p style="font-weight: bold; text-transform: uppercase; margin-bottom: 30px;">Financial Controller / HR:</p>
           <div style="border-bottom: 1px solid #000; width: 80%; margin-left: auto;"></div>
         </div>
       </div>
@@ -482,13 +510,7 @@ function buildDailyAttendanceHtml({ settings, staffList }) {
         </div>
       </div>
 
-      <div style="margin: 20px 0 10px 0;">
-        <span style="font-size: 12px; font-weight: bold; text-transform: uppercase; color: #0F766E;">
-          Logged Duty Roster (${staffList.length} Active Personnel)
-        </span>
-      </div>
-
-      <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px;">
+      <table style="width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px;">
         <thead>
           <tr style="border-bottom: 2px solid #091D26; background: #F3EFE6;">
             <th style="padding: 10px 6px; text-align: left;">Employee Name</th>
@@ -496,14 +518,14 @@ function buildDailyAttendanceHtml({ settings, staffList }) {
             <th style="padding: 10px 6px; text-align: center;">Shift In</th>
             <th style="padding: 10px 6px; text-align: center;">Shift Out</th>
             <th style="padding: 10px 6px; text-align: center;">Duty Status</th>
-            <th style="padding: 10px 6px; text-align: center;">Staff Signature</th>
+            <th style="padding: 10px 6px; text-align: center;">Signature</th>
           </tr>
         </thead>
         <tbody>
           ${staffList.map((member) => `
             <tr style="border-bottom: 1px solid #ddd;">
               <td style="padding: 10px 6px; font-weight: bold;">${member.name}</td>
-              <td style="padding: 10px 6px;">${member.role} (${member.type})</td>
+              <td style="padding: 10px 6px;">${member.role}</td>
               <td style="padding: 10px 6px; text-align: center; font-family: monospace;">${member.clockIn || "--:--"}</td>
               <td style="padding: 10px 6px; text-align: center; font-family: monospace;">${member.clockOut || "--:--"}</td>
               <td style="padding: 10px 6px; text-align: center; font-weight: bold; color: ${member.isOnDuty ? "#0D9488" : "#888"};">
@@ -514,17 +536,6 @@ function buildDailyAttendanceHtml({ settings, staffList }) {
           `).join("")}
         </tbody>
       </table>
-
-      <div style="margin-top: 50px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; font-size: 11px;">
-        <div>
-          <p style="font-weight: bold; text-transform: uppercase; margin-bottom: 30px;">Shift Supervisor Verification:</p>
-          <div style="border-bottom: 1px solid #000; width: 80%;"></div>
-        </div>
-        <div style="text-align: right;">
-          <p style="font-weight: bold; text-transform: uppercase; margin-bottom: 30px;">General Manager Sign-off:</p>
-          <div style="border-bottom: 1px solid #000; width: 80%; margin-left: auto;"></div>
-        </div>
-      </div>
     </div>
   `;
 }
@@ -586,7 +597,7 @@ export default function App() {
     stock: "",
   });
 
-  // Staff & Attendance State
+  // Staff & Compensation Management State
   const [showAddStaffModal, setShowAddStaffModal] = useState(false);
   const [staffSearchQuery, setStaffSearchQuery] = useState("");
   const [staffViewSubTab, setStaffViewSubTab] = useState("roster"); // "roster" | "attendance"
@@ -595,7 +606,10 @@ export default function App() {
     role: "Front Desk",
     pin: "1234",
     type: "Full-Time",
-    hourlyRate: "22",
+    baseSalary: "2500",
+    allowances: "300",
+    serviceCharge: "350",
+    bonus: "100",
     phone: "",
   });
   const [editingStaffId, setEditingStaffId] = useState(null);
@@ -604,8 +618,10 @@ export default function App() {
     role: "Front Desk",
     pin: "",
     type: "Full-Time",
-    hourlyRate: "",
-    hoursWorked: "",
+    baseSalary: "",
+    allowances: "",
+    serviceCharge: "",
+    bonus: "",
     phone: "",
     clockIn: "",
     clockOut: ""
@@ -641,7 +657,7 @@ export default function App() {
             checkOut: "2026-10-02",
             orderItems: {
               "i1": { id: "i1", description: "Room Charge (2 Nights)", quantity: 2, unitPrice: 220, total: 440, timestamp: "Sep 28, 14:30" },
-              "i2": { id: "i2", description: "Minibar: Artisanal Sparkling Water", quantity: 2, unitPrice: 6, total: 12, timestamp: "Sep 29, 10:15" },
+              "i2": { id: "i2", description: "Minibar: Artisanal Water", quantity: 2, unitPrice: 6, total: 12, timestamp: "Sep 29, 10:15" },
             },
           },
           "102": { id: "102", number: "102", type: "Lagoon View Double", rate: 180, status: "available" },
@@ -692,7 +708,7 @@ export default function App() {
       }
     });
 
-    // Staff Listener
+    // Staff & Salary Listener with Model Conversion
     const staffRef = ref(rtdb, "staff");
     const unsubStaff = onValue(staffRef, (snapshot) => {
       const data = snapshot.val();
@@ -704,8 +720,10 @@ export default function App() {
         const staffList = Object.keys(data).map((k) => ({
           ...data[k],
           id: k,
-          hourlyRate: Number(data[k].hourlyRate) || 0,
-          hoursWorked: Number(data[k].hoursWorked) || 0,
+          baseSalary: Number(data[k].baseSalary) || Number(data[k].hourlyRate ? data[k].hourlyRate * 160 : 2200),
+          allowances: Number(data[k].allowances) || 0,
+          serviceCharge: Number(data[k].serviceCharge) || 0,
+          bonus: Number(data[k].bonus) || 0,
           paid: Boolean(data[k].paid),
           clockIn: data[k].clockIn || "",
           clockOut: data[k].clockOut || "",
@@ -726,10 +744,13 @@ export default function App() {
 
   const currentRoom = rooms.find((r) => r.id === selectedRoomId) || rooms[0];
 
-  // Calculations
+  // Helper Calculations
   const calculateTotal = (room) => room?.orderItems?.reduce((acc, item) => acc + (Number(item.total) || 0), 0) || 0;
   const printTargetRoom = settleOrderRoom || currentRoom;
   const printTargetTotal = calculateTotal(printTargetRoom);
+
+  // Helper Staff Gross Calculation
+  const calculateStaffGross = (s) => (Number(s.baseSalary) || 0) + (Number(s.allowances) || 0) + (Number(s.serviceCharge) || 0) + (Number(s.bonus) || 0);
 
   // --- PRINT DRIVERS ---
   const handlePrintTemporaryBill = (room) => {
@@ -776,13 +797,9 @@ export default function App() {
     printIsolatedDocument(html, "a4");
   };
 
-  // --- TIMECLOCK & ATTENDANCE ACTIONS ---
-  const formatTimeNow = () => {
-    const d = new Date();
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
+  // --- TIMECLOCK ACTIONS ---
+  const formatTimeNow = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-  // One-tap Clock In
   const handleClockIn = (staffId) => {
     const timeStr = formatTimeNow();
     setStaff((prev) =>
@@ -795,35 +812,113 @@ export default function App() {
     });
   };
 
-  // One-tap Clock Out & Auto-Add Shift Hours
   const handleClockOut = (staffId) => {
-    const member = staff.find((s) => s.id === staffId);
-    if (!member) return;
     const timeStr = formatTimeNow();
-
-    // Default to +8 hrs shift or estimate duration
-    const addedShiftHours = 8; 
-    const updatedTotalHours = Math.max(0, (member.hoursWorked || 0) + addedShiftHours);
-
     setStaff((prev) =>
-      prev.map((s) => (s.id === staffId ? { 
-        ...s, 
-        clockOut: timeStr, 
-        isOnDuty: false, 
-        hoursWorked: updatedTotalHours, 
-        paid: false 
-      } : s))
+      prev.map((s) => (s.id === staffId ? { ...s, clockOut: timeStr, isOnDuty: false } : s))
     );
-
     update(ref(rtdb, `staff/${staffId}`), {
       clockOut: timeStr,
-      isOnDuty: false,
-      hoursWorked: updatedTotalHours,
-      paid: false
+      isOnDuty: false
     });
   };
 
-  // --- STAFF & INVENTORY HANDLERS ---
+  // --- STAFF & COMPENSATION HANDLERS ---
+  const handleCreateStaff = (e) => {
+    e.preventDefault();
+    if (!newStaffForm.name.trim()) return;
+
+    const staffId = `stf_${Date.now()}`;
+    const newStaff = {
+      id: staffId,
+      name: newStaffForm.name.trim(),
+      role: newStaffForm.role || "Front Desk",
+      pin: newStaffForm.pin || "0000",
+      type: newStaffForm.type || "Full-Time",
+      baseSalary: parseFloat(newStaffForm.baseSalary) || 0,
+      allowances: parseFloat(newStaffForm.allowances) || 0,
+      serviceCharge: parseFloat(newStaffForm.serviceCharge) || 0,
+      bonus: parseFloat(newStaffForm.bonus) || 0,
+      paid: false,
+      phone: newStaffForm.phone || "",
+      clockIn: "",
+      clockOut: "",
+      isOnDuty: false
+    };
+
+    setStaff((prev) => [...prev, newStaff]);
+    setShowAddStaffModal(false);
+    setNewStaffForm({
+      name: "",
+      role: "Front Desk",
+      pin: "1234",
+      type: "Full-Time",
+      baseSalary: "2500",
+      allowances: "300",
+      serviceCharge: "350",
+      bonus: "100",
+      phone: "",
+    });
+
+    set(ref(rtdb, `staff/${staffId}`), newStaff);
+  };
+
+  const handleStartEditStaff = (member) => {
+    setEditingStaffId(member.id);
+    setEditStaffForm({
+      name: member.name || "",
+      role: member.role || "Front Desk",
+      pin: member.pin || "1234",
+      type: member.type || "Full-Time",
+      baseSalary: String(member.baseSalary ?? 0),
+      allowances: String(member.allowances ?? 0),
+      serviceCharge: String(member.serviceCharge ?? 0),
+      bonus: String(member.bonus ?? 0),
+      phone: member.phone || "",
+      clockIn: member.clockIn || "",
+      clockOut: member.clockOut || ""
+    });
+  };
+
+  const handleSaveStaffEdit = (staffId) => {
+    if (!editStaffForm.name.trim()) return;
+
+    const updatedPayload = {
+      name: editStaffForm.name.trim(),
+      role: editStaffForm.role,
+      pin: editStaffForm.pin || "0000",
+      type: editStaffForm.type,
+      baseSalary: parseFloat(editStaffForm.baseSalary) || 0,
+      allowances: parseFloat(editStaffForm.allowances) || 0,
+      serviceCharge: parseFloat(editStaffForm.serviceCharge) || 0,
+      bonus: parseFloat(editStaffForm.bonus) || 0,
+      phone: editStaffForm.phone || "",
+      clockIn: editStaffForm.clockIn || "",
+      clockOut: editStaffForm.clockOut || ""
+    };
+
+    setStaff((prev) =>
+      prev.map((s) => (s.id === staffId ? { ...s, ...updatedPayload } : s))
+    );
+    setEditingStaffId(null);
+    update(ref(rtdb, `staff/${staffId}`), updatedPayload);
+  };
+
+  const handleToggleStaffPayout = (staffId, currentStatus) => {
+    const nextStatus = !currentStatus;
+    setStaff((prev) =>
+      prev.map((s) => (s.id === staffId ? { ...s, paid: nextStatus } : s))
+    );
+    update(ref(rtdb, `staff/${staffId}`), { paid: nextStatus });
+  };
+
+  const handleDeleteStaff = (member) => {
+    if (!window.confirm(`Permanently remove ${member.name} from records?`)) return;
+    setStaff((prev) => prev.filter((s) => s.id !== member.id));
+    remove(ref(rtdb, `staff/${member.id}`));
+  };
+
+  // --- INVENTORY ACTIONS ---
   const handleUpdateStockLevel = (itemId, delta) => {
     if (!itemId) return;
     const target = inventory.find((i) => i.id === itemId);
@@ -912,96 +1007,7 @@ export default function App() {
     if (item.stock > 0) handleUpdateStockLevel(item.id, -1);
   };
 
-  const handleCreateStaff = (e) => {
-    e.preventDefault();
-    if (!newStaffForm.name.trim()) return;
-
-    const staffId = `stf_${Date.now()}`;
-    const cleanRate = parseFloat(newStaffForm.hourlyRate);
-
-    const newStaff = {
-      id: staffId,
-      name: newStaffForm.name.trim(),
-      role: newStaffForm.role || "Front Desk",
-      pin: newStaffForm.pin || "0000",
-      type: newStaffForm.type || "Full-Time",
-      hourlyRate: isNaN(cleanRate) || cleanRate < 0 ? 20 : cleanRate,
-      hoursWorked: 0,
-      paid: false,
-      phone: newStaffForm.phone || "",
-      clockIn: "",
-      clockOut: "",
-      isOnDuty: false
-    };
-
-    setStaff((prev) => [...prev, newStaff]);
-    setShowAddStaffModal(false);
-    setNewStaffForm({
-      name: "",
-      role: "Front Desk",
-      pin: "1234",
-      type: "Full-Time",
-      hourlyRate: "22",
-      phone: "",
-    });
-
-    set(ref(rtdb, `staff/${staffId}`), newStaff);
-  };
-
-  const handleStartEditStaff = (member) => {
-    setEditingStaffId(member.id);
-    setEditStaffForm({
-      name: member.name || "",
-      role: member.role || "Front Desk",
-      pin: member.pin || "1234",
-      type: member.type || "Full-Time",
-      hourlyRate: String(member.hourlyRate ?? 20),
-      hoursWorked: String(member.hoursWorked ?? 0),
-      phone: member.phone || "",
-      clockIn: member.clockIn || "",
-      clockOut: member.clockOut || ""
-    });
-  };
-
-  const handleSaveStaffEdit = (staffId) => {
-    if (!editStaffForm.name.trim()) return;
-
-    const cleanRate = parseFloat(editStaffForm.hourlyRate);
-    const cleanHours = parseFloat(editStaffForm.hoursWorked);
-
-    const updatedPayload = {
-      name: editStaffForm.name.trim(),
-      role: editStaffForm.role,
-      pin: editStaffForm.pin || "0000",
-      type: editStaffForm.type,
-      hourlyRate: isNaN(cleanRate) || cleanRate < 0 ? 0 : cleanRate,
-      hoursWorked: isNaN(cleanHours) || cleanHours < 0 ? 0 : cleanHours,
-      phone: editStaffForm.phone || "",
-      clockIn: editStaffForm.clockIn || "",
-      clockOut: editStaffForm.clockOut || ""
-    };
-
-    setStaff((prev) =>
-      prev.map((s) => (s.id === staffId ? { ...s, ...updatedPayload } : s))
-    );
-    setEditingStaffId(null);
-    update(ref(rtdb, `staff/${staffId}`), updatedPayload);
-  };
-
-  const handleToggleStaffPayout = (staffId, currentStatus) => {
-    const nextStatus = !currentStatus;
-    setStaff((prev) =>
-      prev.map((s) => (s.id === staffId ? { ...s, paid: nextStatus } : s))
-    );
-    update(ref(rtdb, `staff/${staffId}`), { paid: nextStatus });
-  };
-
-  const handleDeleteStaff = (member) => {
-    if (!window.confirm(`Permanently remove ${member.name} from staff records?`)) return;
-    setStaff((prev) => prev.filter((s) => s.id !== member.id));
-    remove(ref(rtdb, `staff/${member.id}`));
-  };
-
+  // --- GENERAL APP ACTIONS ---
   const handleSaveSettings = (updated) => {
     setSettings(updated);
     set(ref(rtdb, "hotel_config/profile"), updated);
@@ -1143,9 +1149,10 @@ export default function App() {
     return s.name.toLowerCase().includes(q) || s.role.toLowerCase().includes(q);
   });
 
-  // Payroll & Attendance Metrics
-  const totalPayrollGross = staff.reduce((acc, s) => acc + (s.hourlyRate * s.hoursWorked), 0);
-  const totalHoursLogged = staff.reduce((acc, s) => acc + s.hoursWorked, 0);
+  // Payroll Metrics using Hotel Compensation Model
+  const totalPayrollGross = staff.reduce((acc, s) => acc + calculateStaffGross(s), 0);
+  const totalBaseSalaries = staff.reduce((acc, s) => acc + (Number(s.baseSalary) || 0), 0);
+  const totalServiceCharges = staff.reduce((acc, s) => acc + (Number(s.serviceCharge) || 0), 0);
   const onDutyCount = staff.filter((s) => s.isOnDuty).length;
 
   const parsedTendered = parseFloat(cashTendered) || 0;
@@ -1647,38 +1654,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Search & Category Filter */}
-              <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
-                <div className="relative w-full sm:w-72">
-                  <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Search stock item..."
-                    value={inventorySearchQuery}
-                    onChange={(e) => setInventorySearchQuery(e.target.value)}
-                    className="w-full bg-white border border-[#E6DFD3] rounded-lg pl-9 pr-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
-                  />
-                </div>
-
-                <div className="flex gap-1 overflow-x-auto w-full sm:w-auto pb-1">
-                  {["all", "minibar", "amenity", "linen", "beverage", "snack"].map((cat) => (
-                    <button
-                      key={cat}
-                      type="button"
-                      onClick={() => setInventoryCategoryFilter(cat)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize whitespace-nowrap transition-all ${
-                        inventoryCategoryFilter === cat
-                          ? "bg-[#0F2D3C] text-white"
-                          : "bg-white border border-[#E6DFD3] text-slate-600 hover:bg-[#FAF9F5]"
-                      }`}
-                    >
-                      {cat}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Inventory Table */}
+              {/* Table */}
               <div className="bg-white rounded-xl border border-[#E6DFD3] shadow-sm overflow-hidden">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-[#F3EFE6] border-b border-[#E6DFD3] uppercase font-semibold text-slate-500">
@@ -1705,77 +1681,27 @@ export default function App() {
                                 onChange={(e) => setEditInventoryForm({ ...editInventoryForm, name: e.target.value })}
                               />
                             ) : (
-                              <div className="flex items-center gap-2">
-                                <span>{item.name}</span>
-                                {item.stock < 10 && (
-                                  <span className="flex items-center gap-0.5 text-[10px] bg-[#FFE4E6] text-[#F43F5E] px-1.5 py-0.5 rounded font-bold">
-                                    <AlertTriangle className="w-2.5 h-2.5" /> Low
-                                  </span>
-                                )}
-                              </div>
+                              item.name
                             )}
                           </td>
-                          <td className="p-3.5">
-                            {isEditing ? (
-                              <select
-                                value={editInventoryForm.category}
-                                onChange={(e) => setEditInventoryForm({ ...editInventoryForm, category: e.target.value })}
-                                className="border border-[#14B8A6] rounded px-1.5 py-1 text-xs bg-white focus:outline-none"
-                              >
-                                <option value="minibar">Minibar</option>
-                                <option value="amenity">Amenity</option>
-                                <option value="linen">Linen</option>
-                                <option value="beverage">Beverage</option>
-                                <option value="snack">Snack</option>
-                              </select>
-                            ) : (
-                              <span className="bg-[#F3EFE6] text-slate-600 px-2 py-0.5 rounded text-[10px] font-semibold uppercase">
-                                {item.category}
-                              </span>
-                            )}
-                          </td>
+                          <td className="p-3.5">{item.category}</td>
                           <td className="p-3.5 text-right font-medium">
-                            {isEditing ? (
-                              <input
-                                type="number"
-                                step="0.01"
-                                className="w-20 border border-[#14B8A6] rounded px-2 py-1 text-xs text-right focus:outline-none bg-white"
-                                value={editInventoryForm.price}
-                                onChange={(e) => setEditInventoryForm({ ...editInventoryForm, price: e.target.value })}
-                              />
-                            ) : item.price > 0 ? (
-                              `${settings.currency}${Number(item.price).toFixed(2)}`
-                            ) : (
-                              <span className="text-slate-400 italic">Free</span>
-                            )}
+                            {item.price > 0 ? `${settings.currency}${Number(item.price).toFixed(2)}` : "Free"}
                           </td>
-                          <td className="p-3.5 text-center font-bold">
-                            {isEditing ? (
-                              <input
-                                type="number"
-                                className="w-16 border border-[#14B8A6] rounded px-2 py-1 text-xs text-center focus:outline-none bg-white"
-                                value={editInventoryForm.stock}
-                                onChange={(e) => setEditInventoryForm({ ...editInventoryForm, stock: e.target.value })}
-                              />
-                            ) : (
-                              <span className={item.stock < 10 ? "text-[#F43F5E] font-black" : "text-[#091D26]"}>
-                                {item.stock}
-                              </span>
-                            )}
-                          </td>
+                          <td className="p-3.5 text-center font-bold">{item.stock}</td>
                           <td className="p-3.5 text-center">
                             <div className="inline-flex items-center gap-1">
                               <button
                                 type="button"
                                 onClick={() => handleUpdateStockLevel(item.id, -1)}
-                                className="px-2 py-0.5 border border-[#D3C8B7] rounded hover:bg-[#F3EFE6] text-xs font-bold transition-colors"
+                                className="px-2 py-0.5 border border-[#D3C8B7] rounded hover:bg-[#F3EFE6] text-xs font-bold"
                               >
                                 -
                               </button>
                               <button
                                 type="button"
                                 onClick={() => handleUpdateStockLevel(item.id, 1)}
-                                className="px-2 py-0.5 border border-[#D3C8B7] rounded hover:bg-[#F3EFE6] text-xs font-bold transition-colors"
+                                className="px-2 py-0.5 border border-[#D3C8B7] rounded hover:bg-[#F3EFE6] text-xs font-bold"
                               >
                                 +
                               </button>
@@ -1783,39 +1709,21 @@ export default function App() {
                           </td>
                           <td className="p-3.5 text-center">
                             {isEditing ? (
-                              <div className="inline-flex items-center gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() => handleSaveInventoryEdit(item.id)}
-                                  className="p-1 bg-[#14B8A6] hover:bg-[#0D9488] text-white rounded transition-colors"
-                                >
-                                  <Check className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setEditingInventoryId(null)}
-                                  className="p-1 bg-slate-200 hover:bg-slate-300 text-slate-600 rounded transition-colors"
-                                >
-                                  <X className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleSaveInventoryEdit(item.id)}
+                                className="p-1 bg-[#14B8A6] text-white rounded"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                              </button>
                             ) : (
-                              <div className="inline-flex items-center gap-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => handleStartEditInventory(item)}
-                                  className="text-slate-400 hover:text-[#0D9488] p-1 transition-colors"
-                                >
-                                  <Edit2 className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteInventoryItem(item)}
-                                  className="text-[#F43F5E] hover:text-[#E11D48] p-1 transition-colors"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleStartEditInventory(item)}
+                                className="text-slate-400 hover:text-[#0D9488] p-1"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
                             )}
                           </td>
                         </tr>
@@ -1883,13 +1791,6 @@ export default function App() {
                             >
                               Clean
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => updateRoomStatus(room.id, "maintenance")}
-                              className="px-2 py-1 rounded text-[10px] font-semibold text-slate-600 hover:bg-white"
-                            >
-                              Out of Order
-                            </button>
                           </div>
                         </td>
                         <td className="p-3.5 text-center">
@@ -1909,14 +1810,14 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 5: STAFF MANAGEMENT, ATTENDANCE & PAYROLL */}
+          {/* TAB 5: STAFF MANAGEMENT, ATTENDANCE & PAYROLL (HOTEL COMPENSATION MODEL) */}
           {activeTab === "staff" && (
             <div className="max-w-7xl mx-auto space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-2xl font-bold text-[#091D26] tracking-tight">Staff, Attendance & Payroll</h2>
+                  <h2 className="text-2xl font-bold text-[#091D26] tracking-tight">Staff, Attendance & Remuneration</h2>
                   <p className="text-sm text-slate-500">
-                    Track daily in/out shift attendance, manage team roles, and disburse official wage slips.
+                    Track daily in/out shift attendance, base monthly salaries, service charge share, and bonuses.
                   </p>
                 </div>
                 <div className="flex gap-2">
@@ -1932,12 +1833,12 @@ export default function App() {
                     onClick={() => setShowAddStaffModal(true)}
                     className="inline-flex items-center gap-2 bg-[#14B8A6] hover:bg-[#0D9488] text-white px-4 py-2.5 rounded-lg text-xs font-bold shadow-sm transition-all"
                   >
-                    <UserPlus className="w-4 h-4" /> Add Staff Member
+                    <UserPlus className="w-4 h-4" /> Add Team Member
                   </button>
                 </div>
               </div>
 
-              {/* Roster & Attendance Executive Metrics */}
+              {/* Roster & Hotel Payroll Executive Metrics */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div className="bg-white border border-[#E6DFD3] rounded-xl p-4 shadow-sm">
                   <p className="text-xs font-semibold uppercase text-slate-400">Total Personnel</p>
@@ -1948,18 +1849,18 @@ export default function App() {
                   <p className="text-2xl font-black text-[#0D9488] mt-1">{onDutyCount} Staff</p>
                 </div>
                 <div className="bg-white border border-[#E6DFD3] rounded-xl p-4 shadow-sm">
-                  <p className="text-xs font-semibold uppercase text-amber-700">Total Hours Logged</p>
-                  <p className="text-2xl font-black text-amber-700 mt-1">{totalHoursLogged} hrs</p>
+                  <p className="text-xs font-semibold uppercase text-amber-700">Total Service Charge Pool</p>
+                  <p className="text-2xl font-black text-amber-700 mt-1">{settings.currency}{totalServiceCharges.toFixed(2)}</p>
                 </div>
                 <div className="bg-white border border-[#E6DFD3] rounded-xl p-4 shadow-sm">
-                  <p className="text-xs font-semibold uppercase text-[#F43F5E]">Est. Gross Payroll</p>
-                  <p className="text-2xl font-black text-[#091D26] mt-1">
+                  <p className="text-xs font-semibold uppercase text-[#091D26]">Total Monthly Payroll</p>
+                  <p className="text-2xl font-black text-[#0D9488] mt-1">
                     {settings.currency}{totalPayrollGross.toFixed(2)}
                   </p>
                 </div>
               </div>
 
-              {/* View Switcher: Daily Attendance vs Payroll Roster */}
+              {/* View Switcher: Daily Attendance vs Compensation Roster */}
               <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
                 <div className="flex bg-[#F3EFE6] p-1 rounded-lg border border-[#E6DFD3]">
                   <button
@@ -1978,7 +1879,7 @@ export default function App() {
                       staffViewSubTab === "roster" ? "bg-[#0F2D3C] text-white shadow-sm" : "text-slate-600 hover:text-black"
                     }`}
                   >
-                    <DollarSign className="w-3.5 h-3.5 text-[#2DD4BF]" /> Employment & Payroll
+                    <Coins className="w-3.5 h-3.5 text-[#2DD4BF]" /> Salary, Allowances & Bonuses
                   </button>
                 </div>
 
@@ -2015,7 +1916,7 @@ export default function App() {
                           <th className="p-3.5">Role</th>
                           <th className="p-3.5 text-center">Clock-In Time</th>
                           <th className="p-3.5 text-center">Clock-Out Time</th>
-                          <th className="p-3.5 text-center">Current Status</th>
+                          <th className="p-3.5 text-center">Duty Status</th>
                           <th className="p-3.5 text-center">Time-Clock Actions</th>
                         </tr>
                       </thead>
@@ -2090,19 +1991,20 @@ export default function App() {
                 </div>
               )}
 
-              {/* VIEW 2: EMPLOYMENT ROSTER & PAYROLL */}
+              {/* VIEW 2: SALARY, ALLOWANCES, SERVICE CHARGE & BONUSES */}
               {staffViewSubTab === "roster" && (
                 <div className="bg-white rounded-xl border border-[#E6DFD3] shadow-sm overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs">
                       <thead className="bg-[#F3EFE6] border-b border-[#E6DFD3] uppercase font-semibold text-slate-500">
                         <tr>
-                          <th className="p-3.5">Staff Details</th>
-                          <th className="p-3.5">Role & Term</th>
-                          <th className="p-3.5">Hourly Rate</th>
-                          <th className="p-3.5 text-center">Hours Worked</th>
-                          <th className="p-3.5 text-right">Gross Pay</th>
-                          <th className="p-3.5 text-center">Payout Status</th>
+                          <th className="p-3.5">Staff & Role</th>
+                          <th className="p-3.5 text-right">Base Monthly</th>
+                          <th className="p-3.5 text-right">Allowances</th>
+                          <th className="p-3.5 text-right">Service Charge</th>
+                          <th className="p-3.5 text-right">Bonus</th>
+                          <th className="p-3.5 text-right">Gross Total</th>
+                          <th className="p-3.5 text-center">Disbursement</th>
                           <th className="p-3.5 text-center">Payslip</th>
                           <th className="p-3.5 text-center">Actions</th>
                         </tr>
@@ -2110,10 +2012,11 @@ export default function App() {
                       <tbody className="divide-y divide-[#F3EFE6]">
                         {filteredStaff.map((member) => {
                           const isEditing = editingStaffId === member.id;
-                          const grossPay = (member.hourlyRate || 0) * (member.hoursWorked || 0);
+                          const grossPay = calculateStaffGross(member);
 
                           return (
                             <tr key={member.id} className="hover:bg-[#FAF9F5] transition-colors">
+                              {/* Staff Name & Role */}
                               <td className="p-3.5 font-bold text-[#091D26]">
                                 {isEditing ? (
                                   <div className="space-y-1">
@@ -2123,90 +2026,92 @@ export default function App() {
                                       value={editStaffForm.name}
                                       onChange={(e) => setEditStaffForm({ ...editStaffForm, name: e.target.value })}
                                     />
-                                    <input
-                                      type="text"
-                                      placeholder="Phone"
-                                      className="w-full border border-[#D3C8B7] rounded px-2 py-1 text-[11px] bg-white"
-                                      value={editStaffForm.phone}
-                                      onChange={(e) => setEditStaffForm({ ...editStaffForm, phone: e.target.value })}
-                                    />
+                                    <select
+                                      value={editStaffForm.role}
+                                      onChange={(e) => setEditStaffForm({ ...editStaffForm, role: e.target.value })}
+                                      className="w-full border border-[#D3C8B7] rounded px-1.5 py-1 text-[11px] bg-white"
+                                    >
+                                      <option value="General Manager">General Manager</option>
+                                      <option value="Front Desk Supervisor">Front Desk Supervisor</option>
+                                      <option value="Front Desk Agent">Front Desk Agent</option>
+                                      <option value="Housekeeping Lead">Housekeeping Lead</option>
+                                      <option value="Housekeeping Staff">Housekeeping Staff</option>
+                                      <option value="Maintenance Technician">Maintenance Technician</option>
+                                      <option value="F&B Service / Restaurant">F&B Service / Restaurant</option>
+                                      <option value="Bartender">Bartender</option>
+                                    </select>
                                   </div>
                                 ) : (
                                   <div>
                                     <div className="text-sm font-bold text-[#091D26]">{member.name}</div>
-                                    <div className="text-[11px] text-slate-400 font-mono">PIN: ****{member.pin.slice(-2)} | {member.phone || "No phone"}</div>
+                                    <div className="text-[11px] text-[#0F766E] font-medium">{member.role}</div>
+                                    <div className="text-[10px] text-slate-400 font-mono">PIN: ****{member.pin.slice(-2)}</div>
                                   </div>
                                 )}
                               </td>
 
-                              <td className="p-3.5">
-                                {isEditing ? (
-                                  <div className="space-y-1">
-                                    <select
-                                      value={editStaffForm.role}
-                                      onChange={(e) => setEditStaffForm({ ...editStaffForm, role: e.target.value })}
-                                      className="w-full border border-[#14B8A6] rounded px-1.5 py-1 text-xs bg-white"
-                                    >
-                                      <option value="Manager">Manager</option>
-                                      <option value="Front Desk">Front Desk</option>
-                                      <option value="Housekeeping">Housekeeping</option>
-                                      <option value="Maintenance">Maintenance</option>
-                                      <option value="F&B / Restaurant">F&B / Restaurant</option>
-                                      <option value="Bartender">Bartender</option>
-                                      <option value="Security">Security</option>
-                                    </select>
-                                    <select
-                                      value={editStaffForm.type}
-                                      onChange={(e) => setEditStaffForm({ ...editStaffForm, type: e.target.value })}
-                                      className="w-full border border-[#D3C8B7] rounded px-1.5 py-1 text-[11px] bg-white"
-                                    >
-                                      <option value="Full-Time">Full-Time</option>
-                                      <option value="Part-Time">Part-Time</option>
-                                      <option value="Casual">Casual</option>
-                                      <option value="Contractor">Contractor</option>
-                                    </select>
-                                  </div>
-                                ) : (
-                                  <div>
-                                    <span className="font-semibold text-[#091D26] block">{member.role}</span>
-                                    <span className="bg-[#CCFBF1] text-[#0F766E] text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">
-                                      {member.type || "Full-Time"}
-                                    </span>
-                                  </div>
-                                )}
-                              </td>
-
-                              <td className="p-3.5 font-medium text-slate-800">
+                              {/* Base Monthly Salary */}
+                              <td className="p-3.5 text-right font-medium">
                                 {isEditing ? (
                                   <input
                                     type="number"
-                                    step="0.5"
-                                    className="w-20 border border-[#14B8A6] rounded px-2 py-1 text-xs bg-white"
-                                    value={editStaffForm.hourlyRate}
-                                    onChange={(e) => setEditStaffForm({ ...editStaffForm, hourlyRate: e.target.value })}
+                                    className="w-20 border border-[#14B8A6] rounded px-2 py-1 text-xs text-right bg-white"
+                                    value={editStaffForm.baseSalary}
+                                    onChange={(e) => setEditStaffForm({ ...editStaffForm, baseSalary: e.target.value })}
                                   />
                                 ) : (
-                                  `${settings.currency}${Number(member.hourlyRate).toFixed(2)}/hr`
+                                  `${settings.currency}${Number(member.baseSalary || 0).toFixed(2)}`
                                 )}
                               </td>
 
-                              <td className="p-3.5 text-center">
+                              {/* Allowances */}
+                              <td className="p-3.5 text-right font-medium">
                                 {isEditing ? (
                                   <input
                                     type="number"
-                                    className="w-16 border border-[#14B8A6] rounded px-2 py-1 text-xs text-center bg-white"
-                                    value={editStaffForm.hoursWorked}
-                                    onChange={(e) => setEditStaffForm({ ...editStaffForm, hoursWorked: e.target.value })}
+                                    className="w-16 border border-[#14B8A6] rounded px-2 py-1 text-xs text-right bg-white"
+                                    value={editStaffForm.allowances}
+                                    onChange={(e) => setEditStaffForm({ ...editStaffForm, allowances: e.target.value })}
                                   />
                                 ) : (
-                                  <span className="font-bold text-[#091D26]">{member.hoursWorked || 0} hrs</span>
+                                  `${settings.currency}${Number(member.allowances || 0).toFixed(2)}`
                                 )}
                               </td>
 
+                              {/* Service Charge Share */}
+                              <td className="p-3.5 text-right font-medium">
+                                {isEditing ? (
+                                  <input
+                                    type="number"
+                                    className="w-16 border border-[#14B8A6] rounded px-2 py-1 text-xs text-right bg-white"
+                                    value={editStaffForm.serviceCharge}
+                                    onChange={(e) => setEditStaffForm({ ...editStaffForm, serviceCharge: e.target.value })}
+                                  />
+                                ) : (
+                                  `${settings.currency}${Number(member.serviceCharge || 0).toFixed(2)}`
+                                )}
+                              </td>
+
+                              {/* Bonus */}
+                              <td className="p-3.5 text-right font-medium">
+                                {isEditing ? (
+                                  <input
+                                    type="number"
+                                    className="w-16 border border-[#14B8A6] rounded px-2 py-1 text-xs text-right bg-white"
+                                    value={editStaffForm.bonus}
+                                    onChange={(e) => setEditStaffForm({ ...editStaffForm, bonus: e.target.value })}
+                                  />
+                                ) : (
+                                  `${settings.currency}${Number(member.bonus || 0).toFixed(2)}`
+                                )}
+                              </td>
+
+                              {/* Gross Total */}
                               <td className="p-3.5 text-right font-black text-sm text-[#0D9488]">
                                 {settings.currency}{grossPay.toFixed(2)}
                               </td>
 
+                              {/* Payout Status Toggle */}
                               <td className="p-3.5 text-center">
                                 <button
                                   type="button"
@@ -2217,20 +2122,23 @@ export default function App() {
                                       : "bg-[#FFE4E6] text-[#F43F5E] border border-coral-200 hover:bg-coral-100"
                                   }`}
                                 >
-                                  {member.paid ? "Paid" : "Mark Paid"}
+                                  {member.paid ? "Settled" : "Pending"}
                                 </button>
                               </td>
 
+                              {/* Official Payslip Print */}
                               <td className="p-3.5 text-center">
                                 <button
                                   type="button"
                                   onClick={() => handlePrintPayslip(member)}
                                   className="p-1.5 bg-[#0F2D3C] hover:bg-[#091D26] text-white rounded-lg text-xs font-semibold inline-flex items-center gap-1"
+                                  title="Print Official Payslip"
                                 >
                                   <Printer className="w-3.5 h-3.5 text-[#2DD4BF]" /> Slip
                                 </button>
                               </td>
 
+                              {/* Actions */}
                               <td className="p-3.5 text-center">
                                 {isEditing ? (
                                   <div className="inline-flex items-center gap-1">
@@ -2681,14 +2589,14 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL 5: ADD STAFF MEMBER */}
+      {/* MODAL 5: ADD STAFF MEMBER & COMPENSATION PROFILE */}
       {showAddStaffModal && (
         <div className="no-print fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-[#E6DFD3]">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-[#E6DFD3]">
             <div className="flex justify-between items-center mb-4">
               <div>
-                <span className="text-xs uppercase font-bold text-[#0F766E]">Team Roster</span>
-                <h3 className="font-bold text-lg text-[#091D26]">Add Staff Member & Role</h3>
+                <span className="text-xs uppercase font-bold text-[#0F766E]">Remuneration Setup</span>
+                <h3 className="font-bold text-lg text-[#091D26]">Add Staff Member & Compensation</h3>
               </div>
               <button type="button" onClick={() => setShowAddStaffModal(false)} className="text-slate-400">
                 <X className="w-5 h-5" />
@@ -2716,13 +2624,15 @@ export default function App() {
                     onChange={(e) => setNewStaffForm({ ...newStaffForm, role: e.target.value })}
                     className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white focus:outline-none"
                   >
-                    <option value="Manager">Manager</option>
-                    <option value="Front Desk">Front Desk</option>
-                    <option value="Housekeeping">Housekeeping</option>
-                    <option value="Maintenance">Maintenance</option>
-                    <option value="F&B / Restaurant">F&B / Restaurant</option>
+                    <option value="General Manager">General Manager</option>
+                    <option value="Front Desk Supervisor">Front Desk Supervisor</option>
+                    <option value="Front Desk Agent">Front Desk Agent</option>
+                    <option value="Housekeeping Lead">Housekeeping Lead</option>
+                    <option value="Housekeeping Staff">Housekeeping Staff</option>
+                    <option value="Maintenance Technician">Maintenance Technician</option>
+                    <option value="F&B Service / Restaurant">F&B Service / Restaurant</option>
                     <option value="Bartender">Bartender</option>
-                    <option value="Security">Security</option>
+                    <option value="Security Officer">Security Officer</option>
                   </select>
                 </div>
                 <div>
@@ -2740,19 +2650,58 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold mb-1">Base Hourly Rate ({settings.currency})</label>
-                  <input
-                    type="number"
-                    step="0.50"
-                    min="0"
-                    required
-                    value={newStaffForm.hourlyRate}
-                    onChange={(e) => setNewStaffForm({ ...newStaffForm, hourlyRate: e.target.value })}
-                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
-                  />
+              {/* Monthly Remuneration Components */}
+              <div className="bg-[#FAF9F5] p-3 rounded-xl border border-[#E6DFD3] space-y-2">
+                <span className="block font-bold text-[11px] uppercase text-[#0F766E]">Monthly Compensation Structure ({settings.currency})</span>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold mb-0.5">Base Monthly Salary</label>
+                    <input
+                      type="number"
+                      min="0"
+                      required
+                      value={newStaffForm.baseSalary}
+                      onChange={(e) => setNewStaffForm({ ...newStaffForm, baseSalary: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded px-2.5 py-1.5 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold mb-0.5">Monthly Allowances</label>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="0"
+                      value={newStaffForm.allowances}
+                      onChange={(e) => setNewStaffForm({ ...newStaffForm, allowances: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded px-2.5 py-1.5 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold mb-0.5">Service Charge Share</label>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="0"
+                      value={newStaffForm.serviceCharge}
+                      onChange={(e) => setNewStaffForm({ ...newStaffForm, serviceCharge: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded px-2.5 py-1.5 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold mb-0.5">Expected Monthly Bonus</label>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="0"
+                      value={newStaffForm.bonus}
+                      onChange={(e) => setNewStaffForm({ ...newStaffForm, bonus: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded px-2.5 py-1.5 bg-white"
+                    />
+                  </div>
                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold mb-1">Access PIN (4 Digits)</label>
                   <input
@@ -2761,27 +2710,26 @@ export default function App() {
                     required
                     value={newStaffForm.pin}
                     onChange={(e) => setNewStaffForm({ ...newStaffForm, pin: e.target.value })}
-                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
+                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
                   />
                 </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold mb-1">Phone Number</label>
-                <input
-                  type="tel"
-                  placeholder="+1 (555) 000-0000"
-                  value={newStaffForm.phone}
-                  onChange={(e) => setNewStaffForm({ ...newStaffForm, phone: e.target.value })}
-                  className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
-                />
+                <div>
+                  <label className="block font-semibold mb-1">Phone Contact</label>
+                  <input
+                    type="tel"
+                    placeholder="+1 (555) 000-0000"
+                    value={newStaffForm.phone}
+                    onChange={(e) => setNewStaffForm({ ...newStaffForm, phone: e.target.value })}
+                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
+                  />
+                </div>
               </div>
 
               <button
                 type="submit"
                 className="w-full bg-[#14B8A6] hover:bg-[#0D9488] text-white font-bold py-3 rounded-lg transition-colors mt-2"
               >
-                Register Staff to Database
+                Register Team Member & Remuneration
               </button>
             </form>
           </div>
