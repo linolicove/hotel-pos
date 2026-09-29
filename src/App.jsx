@@ -71,6 +71,241 @@ const INITIAL_INVENTORY_SEEDS = [
   { id: "inv7", name: "Macadamia Nut Cookie Tin", category: "snack", price: 9, stock: 14 }
 ];
 
+// --- 2. PROGRAMMATIC ISOLATED PRINT ENGINE ---
+// Creates a clean, hidden window ensuring the main web app never prints
+function printIsolatedDocument(htmlBody, mode = "thermal") {
+  const existingFrame = document.getElementById("pos-print-frame");
+  if (existingFrame) existingFrame.remove();
+
+  const iframe = document.createElement("iframe");
+  iframe.id = "pos-print-frame";
+  iframe.style.position = "fixed";
+  iframe.style.right = "0";
+  iframe.style.bottom = "0";
+  iframe.style.width = "0px";
+  iframe.style.height = "0px";
+  iframe.style.border = "none";
+  document.body.appendChild(iframe);
+
+  const doc = iframe.contentWindow.document;
+
+  const styles = `
+    <style>
+      @page {
+        size: ${mode === "thermal" ? "72mm auto" : "A4 portrait"};
+        margin: ${mode === "thermal" ? "0mm" : "15mm"};
+      }
+      html, body {
+        margin: 0;
+        padding: 0;
+        background: #ffffff !important;
+        color: #000000 !important;
+        font-family: ${mode === "thermal" ? "'Courier New', Courier, monospace" : "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"};
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      .thermal-container {
+        width: 68mm;
+        margin: 0 auto;
+        padding: 2mm 0;
+        font-size: 11px;
+        line-height: 1.25;
+      }
+      .a4-container {
+        width: 100%;
+        max-width: 210mm;
+        margin: 0 auto;
+        font-size: 12px;
+        line-height: 1.4;
+        color: #091D26;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+    </style>
+  `;
+
+  doc.open();
+  doc.write(`<!DOCTYPE html><html><head><title>Print Preview</title>${styles}</head><body>${htmlBody}</body></html>`);
+  doc.close();
+
+  setTimeout(() => {
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+    setTimeout(() => iframe.remove(), 1000);
+  }, 250);
+}
+
+// Built-in Thermal 80mm Letterhead & Receipt Generator
+function buildThermalHtml({ settings, room, isTemporary, settlementMethod, total }) {
+  const items = room?.orderItems || [];
+  return `
+    <div class="thermal-container">
+      <div style="text-align: center; border-bottom: 1px dashed #000; padding-bottom: 8px;">
+        <div style="font-size: 11px;">* * * * * * * * * * * * * * * * *</div>
+        <div style="font-weight: 900; font-size: 15px; text-transform: uppercase; margin: 4px 0 2px 0;">
+          ${settings.hotelName}
+        </div>
+        <div style="font-size: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">
+          COASTAL RESORT & SUITES
+        </div>
+        <div style="font-size: 10px; margin-top: 4px;">${settings.address}</div>
+        <div style="font-size: 10px;">Tel: ${settings.phone}</div>
+        <div style="font-size: 10px;">Tax Reg / VAT: ${settings.taxNumber}</div>
+        <div style="font-size: 11px; margin-top: 4px;">* * * * * * * * * * * * * * * * *</div>
+        <div style="margin-top: 6px; font-weight: bold; font-size: 12px; text-transform: uppercase;">
+          ${isTemporary ? "-- PRE-CHECK / GUEST TAB --" : "-- FINAL SETTLED INVOICE --"}
+        </div>
+      </div>
+
+      <div style="padding: 6px 0; border-bottom: 1px dashed #000; font-size: 10px;">
+        <div style="display: flex; justify-content: space-between;">
+          <span>ORDER: ${room?.orderId || `ORD-${room?.number}`}</span>
+          <span>ROOM: #${room?.number}</span>
+        </div>
+        <div>GUEST: ${room?.guestName || "Walk-In"}</div>
+        <div>TYPE: ${room?.type || "Standard"}</div>
+        <div style="display: flex; justify-content: space-between;">
+          <span>STATUS: ${isTemporary ? "PENDING" : `PAID (${settlementMethod})`}</span>
+          <span>${new Date().toLocaleDateString()}</span>
+        </div>
+      </div>
+
+      <table style="margin: 6px 0; font-size: 11px;">
+        <thead>
+          <tr style="border-bottom: 1px solid #000;">
+            <th style="text-align: left; padding: 4px 0;">ITEM</th>
+            <th style="text-align: center; padding: 4px 0;">QTY</th>
+            <th style="text-align: right; padding: 4px 0;">AMT</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${items.map(item => `
+            <tr style="border-bottom: 1px dotted #ccc;">
+              <td style="padding: 4px 0; max-width: 38mm; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                ${item.description}
+              </td>
+              <td style="text-align: center; padding: 4px 0;">${item.quantity}</td>
+              <td style="text-align: right; padding: 4px 0;">${settings.currency}${Number(item.total).toFixed(2)}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+
+      <div style="border-top: 1px dashed #000; padding-top: 6px; font-size: 13px; font-weight: bold;">
+        <div style="display: flex; justify-content: space-between;">
+          <span>${isTemporary ? "TOTAL DUE:" : "TOTAL PAID:"}</span>
+          <span>${settings.currency}${Number(total).toFixed(2)}</span>
+        </div>
+      </div>
+
+      <div style="text-align: center; margin-top: 14px; padding-top: 8px; border-top: 1px dashed #000; font-size: 10px;">
+        <div>${isTemporary ? "Please review before settlement" : settings.footerNote}</div>
+        <div style="font-size: 9px; margin-top: 4px; color: #444;">Powered by Thalassa PMS</div>
+      </div>
+    </div>
+  `;
+}
+
+// Built-in Official A4 Letterhead & Invoice Generator
+function buildA4Html({ settings, room, isTemporary, settlementMethod, total }) {
+  const items = room?.orderItems || [];
+  return `
+    <div class="a4-container">
+      <div style="border-bottom: 3px double #091D26; padding-bottom: 16px; display: flex; justify-content: space-between; align-items: flex-start;">
+        <div>
+          <h1 style="font-size: 24px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; margin: 0; color: #091D26;">
+            ${settings.hotelName}
+          </h1>
+          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; text-transform: uppercase; color: #555; letter-spacing: 1px;">
+            Luxury Coastal Retreat & Suites
+          </p>
+          <p style="margin: 4px 0 0 0; fontSize: 11px; color: #333;">
+            ${settings.address} | Tel: ${settings.phone}
+          </p>
+          <p style="margin: 2px 0 0 0; font-size: 11px; color: #333;">
+            Email: ${settings.email} | Tax ID / VAT: ${settings.taxNumber}
+          </p>
+        </div>
+        <div style="text-align: right;">
+          <div style="display: inline-block; border: 2px solid #091D26; padding: 6px 14px; font-weight: bold; font-size: 12px; text-transform: uppercase;">
+            ${isTemporary ? "INTERIM GUEST STATEMENT" : "OFFICIAL TAX INVOICE"}
+          </div>
+          <p style="margin: 8px 0 0 0; font-size: 12px;"><b>Date:</b> ${new Date().toLocaleDateString()}</p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;"><b>Folio No:</b> ${room?.orderId || `ORD-${room?.number}`}</p>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 20px 0; padding: 12px 16px; border: 1px solid #091D26; border-radius: 4px;">
+        <div>
+          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Guest Information</p>
+          <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold;">${room?.guestName || "Unregistered Guest"}</p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;">Contact: ${room?.guestPhone || "No contact recorded"}</p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;">Payment Method: <b>${isTemporary ? "Pending" : settlementMethod}</b></p>
+        </div>
+        <div style="text-align: right;">
+          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Stay Information</p>
+          <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold;">Room #${room?.number}</p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;">Category: ${room?.type}</p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;">Period: ${room?.checkIn} to ${room?.checkOut}</p>
+        </div>
+      </div>
+
+      <table style="margin: 20px 0; font-size: 12px;">
+        <thead>
+          <tr style="border-bottom: 2px solid #091D26; text-align: left;">
+            <th style="padding: 10px 4px; text-transform: uppercase; font-size: 11px;">Description</th>
+            <th style="padding: 10px 4px; text-align: center; text-transform: uppercase; font-size: 11px;">Qty</th>
+            <th style="padding: 10px 4px; text-align: right; text-transform: uppercase; font-size: 11px;">Unit Rate</th>
+            <th style="padding: 10px 4px; text-align: right; text-transform: uppercase; font-size: 11px;">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${items.map(item => `
+            <tr style="border-bottom: 1px solid #ddd;">
+              <td style="padding: 10px 4px;">
+                <span style="font-weight: 600;">${item.description}</span>
+                ${item.timestamp ? `<span style="font-size: 10px; color: #555; display: block;">${item.timestamp}</span>` : ""}
+              </td>
+              <td style="padding: 10px 4px; text-align: center;">${item.quantity}</td>
+              <td style="padding: 10px 4px; text-align: right;">${settings.currency}${Number(item.unitPrice).toFixed(2)}</td>
+              <td style="padding: 10px 4px; text-align: right; font-weight: bold;">${settings.currency}${Number(item.total).toFixed(2)}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+
+      <div style="border-top: 2px solid #091D26; border-bottom: 2px solid #091D26; padding: 12px 4px; margin: 24px 0; display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 14px; font-weight: bold; text-transform: uppercase;">
+          ${isTemporary ? "Total Due / Balance:" : `Total Settled in Full (${settlementMethod}):`}
+        </span>
+        <span style="font-size: 20px; font-weight: 900;">
+          ${settings.currency}${Number(total).toFixed(2)}
+        </span>
+      </div>
+
+      <div style="margin-top: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; font-size: 11px;">
+        <div>
+          <p style="font-weight: bold; text-transform: uppercase; margin-bottom: 30px;">Guest Signature:</p>
+          <div style="border-bottom: 1px solid #000; width: 80%;"></div>
+        </div>
+        <div style="text-align: right;">
+          <p style="font-weight: bold; text-transform: uppercase; margin-bottom: 30px;">Front Desk Agent:</p>
+          <div style="border-bottom: 1px solid #000; width: 80%; margin-left: auto;"></div>
+        </div>
+      </div>
+
+      <div style="margin-top: 50px; text-align: center; font-size: 11px; border-top: 1px solid #ddd; padding-top: 12px;">
+        <p style="margin: 0; font-weight: 500;">${settings.footerNote}</p>
+        <p style="margin: 4px 0 0 0; font-size: 10px; color: #666;">
+          Thank you for choosing ${settings.hotelName}. This document serves as an official accounting folio.
+        </p>
+      </div>
+    </div>
+  `;
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState("frontdesk");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -85,7 +320,6 @@ export default function App() {
   // Active Selection & Print Mode State
   const [selectedRoomId, setSelectedRoomId] = useState("");
   const [printFormat, setPrintFormat] = useState("thermal"); // 'thermal' or 'a4'
-  const [isTemporaryBill, setIsTemporaryBill] = useState(false);
 
   // Front Desk Modals
   const [checkInModalRoom, setCheckInModalRoom] = useState(null);
@@ -128,7 +362,7 @@ export default function App() {
     stock: "",
   });
 
-  // --- 2. REALTIME DATABASE LISTENERS ---
+  // --- REALTIME DATABASE LISTENERS ---
   useEffect(() => {
     // A. Hotel Settings Listener
     const settingsRef = ref(rtdb, "hotel_config/profile");
@@ -251,7 +485,44 @@ export default function App() {
   const printTargetRoom = settleOrderRoom || currentRoom;
   const printTargetTotal = calculateTotal(printTargetRoom);
 
-  // --- 3. ACTIONS ---
+  // --- ISOLATED PRINT HANDLERS ---
+  const handlePrintTemporaryBill = (room) => {
+    setSelectedRoomId(room.id);
+    const total = calculateTotal(room);
+    const html = printFormat === "thermal"
+      ? buildThermalHtml({ settings, room, isTemporary: true, settlementMethod: "Pending", total })
+      : buildA4Html({ settings, room, isTemporary: true, settlementMethod: "Pending", total });
+
+    printIsolatedDocument(html, printFormat);
+  };
+
+  const handleConfirmOrderSettlement = () => {
+    if (!settleOrderRoom) return;
+
+    const total = calculateTotal(settleOrderRoom);
+    const html = printFormat === "thermal"
+      ? buildThermalHtml({ settings, room: settleOrderRoom, isTemporary: false, settlementMethod, total })
+      : buildA4Html({ settings, room: settleOrderRoom, isTemporary: false, settlementMethod, total });
+
+    // 1. Trigger isolated document print (0% dashboard bleed)
+    printIsolatedDocument(html, printFormat);
+
+    // 2. Release room to cleaning in RTDB
+    update(ref(rtdb, `rooms/${settleOrderRoom.id}`), {
+      status: "cleaning",
+      orderId: null,
+      openedAt: null,
+      guestName: "",
+      guestPhone: "",
+      checkIn: "",
+      checkOut: "",
+      orderItems: null,
+    });
+
+    setSettleOrderRoom(null);
+  };
+
+  // --- INVENTORY ACTIONS ---
   const handleUpdateStockLevel = (itemId, delta) => {
     if (!itemId) return;
     const target = inventory.find((i) => i.id === itemId);
@@ -448,39 +719,6 @@ export default function App() {
     }
   };
 
-  // Printing Handlers
-  const handlePrintTemporaryBill = (room) => {
-    setSelectedRoomId(room.id);
-    setIsTemporaryBill(true);
-    setTimeout(() => {
-      window.print();
-    }, 150);
-  };
-
-  const handleConfirmOrderSettlement = () => {
-    if (!settleOrderRoom) return;
-    setIsTemporaryBill(false);
-
-    // Auto-trigger print
-    setTimeout(() => {
-      window.print();
-    }, 180);
-
-    // Update RTDB Room to Cleaning
-    update(ref(rtdb, `rooms/${settleOrderRoom.id}`), {
-      status: "cleaning",
-      orderId: null,
-      openedAt: null,
-      guestName: "",
-      guestPhone: "",
-      checkIn: "",
-      checkOut: "",
-      orderItems: null,
-    });
-
-    setSettleOrderRoom(null);
-  };
-
   const handleCreateRoom = (e) => {
     e.preventDefault();
     if (!newRoomForm.number) return;
@@ -546,7 +784,7 @@ export default function App() {
           </div>
           <div>
             <h1 className="text-base font-bold tracking-tight leading-tight">Thalassa</h1>
-            <p className="text-[11px] text-[#2DD4BF] font-medium">Hotel OS & POS</p>
+            <p className="text-[11px] text-[#2DD4BF] font-medium">Hotel OS & POS (RTDB)</p>
           </div>
         </div>
 
@@ -1846,195 +2084,6 @@ export default function App() {
           </div>
         </div>
       )}
-
-      {/* =========================================================
-          PRINT ENGINE CONTAINER WITH BUILT-IN LETTERHEADS
-          Rendered via @media print (uses #print-root and .print-only)
-          ========================================================= */}
-      <div id="print-root" className="print-only">
-        {printFormat === "thermal" ? (
-          /* =========================================================
-             BUILT-IN THERMAL 80mm LETTERHEAD & RECEIPT
-             ========================================================= */
-          <div className="thermal-document">
-            {/* Header Letterhead */}
-            <div style={{ textAlign: "center", paddingBottom: "8px", borderBottom: "1px dashed #000" }}>
-              <div style={{ fontSize: "11px", letterSpacing: "1px" }}>* * * * * * * * * * * * * * * * *</div>
-              <div style={{ fontWeight: "900", fontSize: "15px", textTransform: "uppercase", margin: "4px 0 2px 0" }}>
-                {settings.hotelName}
-              </div>
-              <div style={{ fontSize: "10px", fontWeight: "bold", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                COASTAL RESORT & SUITES
-              </div>
-              <div style={{ fontSize: "10px", marginTop: "4px" }}>{settings.address}</div>
-              <div style={{ fontSize: "10px" }}>Tel: {settings.phone}</div>
-              <div style={{ fontSize: "10px" }}>Tax Reg / VAT: {settings.taxNumber}</div>
-              <div style={{ fontSize: "11px", marginTop: "4px" }}>* * * * * * * * * * * * * * * * *</div>
-              <div style={{ marginTop: "6px", fontWeight: "bold", fontSize: "12px", textTransform: "uppercase" }}>
-                {isTemporaryBill ? "-- PRE-CHECK / GUEST TAB --" : "-- FINAL SETTLED INVOICE --"}
-              </div>
-            </div>
-
-            {/* Stay & Room Details */}
-            <div style={{ padding: "6px 0", borderBottom: "1px dashed #000", fontSize: "10px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>ORDER: {printTargetRoom?.orderId || `ORD-${printTargetRoom?.number}`}</span>
-                <span>ROOM: #{printTargetRoom?.number}</span>
-              </div>
-              <div>GUEST: {printTargetRoom?.guestName || "Walk-In"}</div>
-              <div>ROOM TYPE: {printTargetRoom?.type || "Standard"}</div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>STATUS: {isTemporaryBill ? "PENDING" : `PAID (${settlementMethod})`}</span>
-                <span>{new Date().toLocaleDateString()}</span>
-              </div>
-            </div>
-
-            {/* Line Items */}
-            <table style={{ width: "100%", textAlign: "left", margin: "6px 0", borderCollapse: "collapse", fontSize: "11px" }}>
-              <thead>
-                <tr style={{ borderBottom: "1px solid #000" }}>
-                  <th style={{ padding: "4px 0" }}>ITEM</th>
-                  <th style={{ textAlign: "center", padding: "4px 0" }}>QTY</th>
-                  <th style={{ textAlign: "right", padding: "4px 0" }}>AMT</th>
-                </tr>
-              </thead>
-              <tbody>
-                {printTargetRoom?.orderItems?.map((item) => (
-                  <tr key={item.id} style={{ borderBottom: "1px dotted #ccc" }}>
-                    <td style={{ padding: "4px 0", maxWidth: "40mm", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {item.description}
-                    </td>
-                    <td style={{ textAlign: "center", padding: "4px 0" }}>{item.quantity}</td>
-                    <td style={{ textAlign: "right", padding: "4px 0" }}>
-                      {settings.currency}{Number(item.total).toFixed(2)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            {/* Total Block */}
-            <div style={{ borderTop: "1px dashed #000", paddingTop: "6px", fontSize: "13px", fontWeight: "bold" }}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>{isTemporaryBill ? "TOTAL DUE:" : "TOTAL PAID:"}</span>
-                <span>{settings.currency}{printTargetTotal.toFixed(2)}</span>
-              </div>
-            </div>
-
-            {/* Thermal Footer */}
-            <div style={{ textAlign: "center", marginTop: "14px", paddingTop: "8px", borderTop: "1px dashed #000", fontSize: "10px" }}>
-              <div>{isTemporaryBill ? "This is a statement of account, not a tax invoice." : settings.footerNote}</div>
-              <div style={{ fontSize: "9px", marginTop: "4px", color: "#444" }}>Powered by Thalassa PMS</div>
-            </div>
-          </div>
-        ) : (
-          /* =========================================================
-             BUILT-IN OFFICIAL A4 LETTERHEAD & TAX INVOICE
-             ========================================================= */
-          <div className="a4-document">
-            {/* Elegant Coastal Letterhead Banner */}
-            <div style={{ borderBottom: "3px double #091D26", paddingBottom: "16px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-              <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-                <div style={{ width: "48px", height: "48px", borderRadius: "8px", border: "2px solid #091D26", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Waves style={{ width: "28px", height: "28px", color: "#091D26" }} />
-                </div>
-                <div>
-                  <h1 style={{ fontSize: "24px", fontWeight: "900", letterSpacing: "1px", textTransform: "uppercase", margin: 0, color: "#091D26" }}>
-                    {settings.hotelName}
-                  </h1>
-                  <p style={{ margin: "2px 0 0 0", fontSize: "11px", fontWeight: "bold", textTransform: "uppercase", color: "#555", letterSpacing: "1px" }}>
-                    Luxury Coastal Retreat & Suites
-                  </p>
-                  <p style={{ margin: "4px 0 0 0", fontSize: "11px", color: "#333" }}>
-                    {settings.address} | Tel: {settings.phone}
-                  </p>
-                  <p style={{ margin: "2px 0 0 0", fontSize: "11px", color: "#333" }}>
-                    Email: {settings.email} | Tax ID: {settings.taxNumber}
-                  </p>
-                </div>
-              </div>
-              <div style={{ textAlign: "right" }}>
-                <div style={{ display: "inline-block", border: "2px solid #091D26", padding: "6px 14px", fontWeight: "bold", fontSize: "12px", textTransform: "uppercase", letterSpacing: "1px" }}>
-                  {isTemporaryBill ? "INTERIM GUEST STATEMENT" : "OFFICIAL TAX INVOICE"}
-                </div>
-                <p style={{ margin: "8px 0 0 0", fontSize: "12px" }}><b>Date:</b> {new Date().toLocaleDateString()}</p>
-                <p style={{ margin: "2px 0 0 0", fontSize: "12px" }}><b>Folio No:</b> {printTargetRoom?.orderId || `ORD-${printTargetRoom?.number}`}</p>
-              </div>
-            </div>
-
-            {/* Guest & Reservation Metadata Grid */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", margin: "20px 0", padding: "12px 16px", border: "1px solid #091D26", borderRadius: "4px" }}>
-              <div>
-                <p style={{ margin: 0, fontSize: "10px", textTransform: "uppercase", fontWeight: "bold", color: "#555" }}>Guest Details</p>
-                <p style={{ margin: "4px 0 0 0", fontSize: "15px", fontWeight: "bold" }}>{printTargetRoom?.guestName || "Unregistered Guest"}</p>
-                <p style={{ margin: "2px 0 0 0", fontSize: "12px" }}>Contact: {printTargetRoom?.guestPhone || "No contact recorded"}</p>
-                <p style={{ margin: "2px 0 0 0", fontSize: "12px" }}>Payment Tendered: <b>{isTemporaryBill ? "Pending" : settlementMethod}</b></p>
-              </div>
-              <div style={{ textAlign: "right" }}>
-                <p style={{ margin: 0, fontSize: "10px", textTransform: "uppercase", fontWeight: "bold", color: "#555" }}>Reservation Stay Information</p>
-                <p style={{ margin: "4px 0 0 0", fontSize: "15px", fontWeight: "bold" }}>Room #{printTargetRoom?.number}</p>
-                <p style={{ margin: "2px 0 0 0", fontSize: "12px" }}>Category: {printTargetRoom?.type}</p>
-                <p style={{ margin: "2px 0 0 0", fontSize: "12px" }}>Duration: {printTargetRoom?.checkIn} to {printTargetRoom?.checkOut}</p>
-              </div>
-            </div>
-
-            {/* Itemized Folio Table */}
-            <table style={{ width: "100%", borderCollapse: "collapse", margin: "20px 0", fontSize: "12px" }}>
-              <thead>
-                <tr style={{ borderBottom: "2px solid #091D26", textAlign: "left" }}>
-                  <th style={{ padding: "10px 4px", textTransform: "uppercase", fontSize: "11px" }}>Description</th>
-                  <th style={{ padding: "10px 4px", textAlign: "center", textTransform: "uppercase", fontSize: "11px" }}>Qty</th>
-                  <th style={{ padding: "10px 4px", textAlign: "right", textTransform: "uppercase", fontSize: "11px" }}>Unit Rate</th>
-                  <th style={{ padding: "10px 4px", textAlign: "right", textTransform: "uppercase", fontSize: "11px" }}>Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {printTargetRoom?.orderItems?.map((item) => (
-                  <tr key={item.id} style={{ borderBottom: "1px solid #ddd" }}>
-                    <td style={{ padding: "10px 4px" }}>
-                      <span style={{ fontWeight: "600" }}>{item.description}</span>
-                      {item.timestamp && <span style={{ fontSize: "10px", color: "#555", display: "block" }}>{item.timestamp}</span>}
-                    </td>
-                    <td style={{ padding: "10px 4px", textAlign: "center" }}>{item.quantity}</td>
-                    <td style={{ padding: "10px 4px", textAlign: "right" }}>{settings.currency}{Number(item.unitPrice).toFixed(2)}</td>
-                    <td style={{ padding: "10px 4px", textAlign: "right", fontWeight: "bold" }}>{settings.currency}{Number(item.total).toFixed(2)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            {/* Financial Summary */}
-            <div style={{ borderTop: "2px solid #091D26", borderBottom: "2px solid #091D26", padding: "12px 4px", margin: "24px 0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: "14px", fontWeight: "bold", textTransform: "uppercase" }}>
-                {isTemporaryBill ? "Current Total Due / Unsettled:" : `Total Paid in Full (${settlementMethod}):`}
-              </span>
-              <span style={{ fontSize: "20px", fontWeight: "900" }}>
-                {settings.currency}{printTargetTotal.toFixed(2)}
-              </span>
-            </div>
-
-            {/* Official Letterhead Signatures & Remarks */}
-            <div style={{ marginTop: "40px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "40px", fontSize: "11px" }}>
-              <div>
-                <p style={{ fontWeight: "bold", textTransform: "uppercase", marginBottom: "30px" }}>Guest Signature:</p>
-                <div style={{ borderBottom: "1px solid #000", width: "80%" }}></div>
-              </div>
-              <div style={{ textAlign: "right" }}>
-                <p style={{ fontWeight: "bold", textTransform: "uppercase", marginBottom: "30px" }}>Authorized Front Desk Agent:</p>
-                <div style={{ borderBottom: "1px solid #000", width: "80%", marginLeft: "auto" }}></div>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div style={{ marginTop: "50px", textAlign: "center", fontSize: "11px", borderTop: "1px solid #ddd", paddingTop: "12px" }}>
-              <p style={{ margin: 0, fontWeight: "500" }}>{settings.footerNote}</p>
-              <p style={{ margin: "4px 0 0 0", fontSize: "10px", color: "#666" }}>
-                Thank you for choosing {settings.hotelName}. This document serves as an official accounting receipt.
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
     </div>
   );
 }
