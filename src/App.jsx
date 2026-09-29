@@ -46,6 +46,11 @@ import {
   Camera,
   Upload,
   Image as ImageIcon,
+  Save,
+  Download,
+  Send,
+  Volume2,
+  VolumeX,
   RefreshCw
 } from "lucide-react";
 
@@ -64,24 +69,54 @@ const firebaseConfig = {
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const rtdb = getDatabase(app);
 
+// Comprehensive settings schema matching your settings image
 const DEFAULT_SETTINGS = {
-  hotelName: "Azure Cove Boutique Resort",
-  taxNumber: "TX-998234-CY",
-  phone: "+1 (808) 555-0199",
-  email: "concierge@azurecove.com",
-  address: "104 Ocean Drive, Kailua-Kona, HI",
-  currency: "$",
-  footerNote: "Mahalo for staying with us at Azure Cove. Safe travels!",
+  // Company & Business Information
+  hotelName: "Linoli Cove Midigama",
+  tagline: "RESTAURANT & BAR",
+  legalEntity: "Linoli Cove Leisure (Pvt) Ltd",
+  companyRegNo: "PV-00285111",
+  taxNumber: "TIN-109284719",
+  terminalId: "LINOLI-MAIN-01",
+  phone: "+94 74 036 4741",
+  email: "info@linolicove.me",
+  website: "www.linolicove.me",
+  address: "502 A Matara Road, Midigama, 81700",
+
+  // Automated Email Dispatch
+  emailRecipient: "linolicove@gmail.com",
+  emailScheduleTime: "23:30",
+  emailStatus: "Disabled (Manual trigger only)",
+
+  // Thermal Auto-Printer Configuration
+  paperRollWidth: "80mm", // '80mm' or '58mm'
+  receiptFontSize: "14px - Extra Bold & Large",
+  receiptFontType: "Monospace (Classic ESC/POS)",
+  slipMargins: "2mm - Standard Thermal Margin",
+  autoPrintKOT: "Yes - Print KOT & BOT Slips",
+  autoPrintSettlement: "Yes - Print Final Tax Invoice",
+
+  // Automated Cash Drawer Solenoid
+  autoDrawerKick: "Enabled (Auto-Pop on Payment)",
+  drawerKickTrigger: "Cash Payments Only",
+  drawerPinout: "Pin 2 / ESC p 0 (Epson, Rongta, Xprint)",
+  drawerChime: true,
+
+  // Currency, Taxes & Surcharge Rates
+  currency: "Rs.",
+  serviceChargeRate: 10,
+  vatRate: 0,
+  headerNote: "Linoli Cove Beach Resort & Dining\nBeach Road, Midigama\nTel: +94 74 036 4741",
+  footerNote: "Thank you for your visit!\nPlease come again.",
 };
 
 const INITIAL_INVENTORY_SEEDS = [
-  { id: "inv1", name: "Artisanal Sparkling Water", category: "minibar", price: 6, stock: 48 },
-  { id: "inv2", name: "Organic Coconut Chips", category: "minibar", price: 5, stock: 32 },
-  { id: "inv3", name: "Sea Salt Scrub Pack", category: "amenity", price: 12, stock: 15 },
+  { id: "inv1", name: "Artisanal Sparkling Water", category: "minibar", price: 850, stock: 48 },
+  { id: "inv2", name: "Organic Coconut Chips", category: "minibar", price: 650, stock: 32 },
+  { id: "inv3", name: "Sea Salt Scrub Pack", category: "amenity", price: 1200, stock: 15 },
   { id: "inv4", name: "Egyptian Cotton Bath Towel", category: "linen", price: 0, stock: 75 },
-  { id: "inv5", name: "Cold Brew Coconut Latte", category: "minibar", price: 7, stock: 18 },
-  { id: "inv6", name: "Local Island Craft Beer", category: "beverage", price: 8, stock: 24 },
-  { id: "inv7", name: "Macadamia Nut Cookie Tin", category: "snack", price: 9, stock: 14 }
+  { id: "inv5", name: "Cold Brew Coconut Latte", category: "minibar", price: 950, stock: 18 },
+  { id: "inv6", name: "Local Lion Craft Beer", category: "beverage", price: 1100, stock: 24 }
 ];
 
 const INITIAL_STAFF_SEEDS = [
@@ -91,49 +126,43 @@ const INITIAL_STAFF_SEEDS = [
     role: "General Manager", 
     pin: "1001", 
     type: "Full-Time", 
-    baseSalary: 4200, 
-    allowances: 600,
-    serviceCharge: 450,
-    bonus: 300,
+    baseSalary: 125000, 
+    allowances: 25000,
+    serviceCharge: 35000,
+    bonus: 15000,
     paid: true, 
-    phone: "+1 808-555-0112",
-    clockIn: "08:00 AM",
-    clockOut: "04:30 PM",
-    isOnDuty: false
+    phone: "+94 77 123 4567"
   },
   { 
     id: "s2", 
     name: "Noah Jensen", 
-    role: "Front Desk", 
+    role: "Front Desk Supervisor", 
     pin: "2044", 
     type: "Full-Time", 
-    baseSalary: 2800, 
-    allowances: 350,
-    serviceCharge: 380,
-    bonus: 150,
+    baseSalary: 75000, 
+    allowances: 15000,
+    serviceCharge: 35000,
+    bonus: 8000,
     paid: false, 
-    phone: "+1 808-555-0123",
-    clockIn: "07:30 AM",
-    clockOut: "",
-    isOnDuty: true
+    phone: "+94 77 234 5678"
   },
   { 
     id: "s3", 
     name: "Leilani Kea", 
-    role: "Housekeeping", 
+    role: "Housekeeping Lead", 
     pin: "3055", 
     type: "Full-Time", 
-    baseSalary: 2400, 
-    allowances: 300,
-    serviceCharge: 350,
-    bonus: 100,
+    baseSalary: 65000, 
+    allowances: 12000,
+    serviceCharge: 35000,
+    bonus: 5000,
     paid: false, 
-    phone: "+1 808-555-0145",
-    clockIn: "09:00 AM",
-    clockOut: "",
-    isOnDuty: true
+    phone: "+94 77 345 6789"
   }
 ];
+
+// Helper: Get Today's Date String YYYY-MM-DD
+const getTodayKey = () => new Date().toISOString().split("T")[0];
 
 // --- 2. PROGRAMMATIC ISOLATED PRINT ENGINE ---
 function printIsolatedDocument(htmlBody, mode = "thermal") {
@@ -205,17 +234,11 @@ function buildThermalHtml({ settings, room, isTemporary, settlementMethod, total
   return `
     <div class="thermal-container">
       <div style="text-align: center; border-bottom: 1px dashed #000; padding-bottom: 8px;">
-        <div style="font-size: 11px;">* * * * * * * * * * * * * * * * *</div>
-        <div style="font-weight: 900; font-size: 15px; text-transform: uppercase; margin: 4px 0 2px 0;">
-          ${settings.hotelName}
-        </div>
-        <div style="font-size: 10px; font-weight: bold; text-transform: uppercase;">
-          COASTAL RESORT & SUITES
-        </div>
+        <div style="font-weight: 900; font-size: 15px; text-transform: uppercase;">${settings.hotelName}</div>
+        <div style="font-size: 10px; font-weight: bold; text-transform: uppercase;">${settings.tagline}</div>
         <div style="font-size: 10px; margin-top: 4px;">${settings.address}</div>
         <div style="font-size: 10px;">Tel: ${settings.phone}</div>
-        <div style="font-size: 10px;">Tax Reg / VAT: ${settings.taxNumber}</div>
-        <div style="font-size: 11px; margin-top: 4px;">* * * * * * * * * * * * * * * * *</div>
+        <div style="font-size: 10px;">Tax Reg: ${settings.taxNumber}</div>
         <div style="margin-top: 6px; font-weight: bold; font-size: 12px; text-transform: uppercase;">
           ${isTemporary ? "-- PRE-CHECK / GUEST TAB --" : "-- FINAL SETTLED INVOICE --"}
         </div>
@@ -242,9 +265,7 @@ function buildThermalHtml({ settings, room, isTemporary, settlementMethod, total
         <tbody>
           ${items.map(item => `
             <tr style="border-bottom: 1px dotted #ccc;">
-              <td style="padding: 4px 0; max-width: 38mm; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                ${item.description}
-              </td>
+              <td style="padding: 4px 0;">${item.description}</td>
               <td style="text-align: center; padding: 4px 0;">${item.quantity}</td>
               <td style="text-align: right; padding: 4px 0;">${settings.currency}${Number(item.total).toFixed(2)}</td>
             </tr>
@@ -256,7 +277,7 @@ function buildThermalHtml({ settings, room, isTemporary, settlementMethod, total
         <span>${settings.currency}${Number(total).toFixed(2)}</span>
       </div>
       <div style="text-align: center; margin-top: 14px; padding-top: 8px; border-top: 1px dashed #000; font-size: 10px;">
-        <div>${isTemporary ? "Please review before settlement" : settings.footerNote}</div>
+        <div>${settings.footerNote}</div>
       </div>
     </div>
   `;
@@ -266,17 +287,16 @@ function buildA4Html({ settings, room, isTemporary, settlementMethod, total }) {
   const items = room?.orderItems || [];
   return `
     <div class="a4-container">
-      <div style="border-bottom: 3px double #091D26; padding-bottom: 16px; display: flex; justify-content: space-between; align-items: flex-start;">
+      <div style="border-bottom: 3px double #091D26; padding-bottom: 16px; display: flex; justify-content: space-between;">
         <div>
-          <h1 style="font-size: 24px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; margin: 0; color: #091D26;">
-            ${settings.hotelName}
-          </h1>
+          <h1 style="font-size: 24px; font-weight: 900; text-transform: uppercase; margin: 0; color: #091D26;">${settings.hotelName}</h1>
+          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; text-transform: uppercase; color: #555;">${settings.tagline}</p>
           <p style="margin: 4px 0 0 0; font-size: 11px; color: #333;">${settings.address} | Tel: ${settings.phone}</p>
-          <p style="margin: 2px 0 0 0; font-size: 11px; color: #333;">Tax ID / VAT: ${settings.taxNumber}</p>
+          <p style="margin: 2px 0 0 0; font-size: 11px; color: #333;">Tax Reg: ${settings.taxNumber} | BRN: ${settings.companyRegNo}</p>
         </div>
         <div style="text-align: right;">
-          <div style="display: inline-block; border: 2px solid #091D26; padding: 6px 14px; font-weight: bold; font-size: 12px; text-transform: uppercase;">
-            ${isTemporary ? "INTERIM GUEST STATEMENT" : "OFFICIAL TAX INVOICE"}
+          <div style="display: inline-block; border: 2px solid #091D26; padding: 6px 14px; font-weight: bold; font-size: 12px;">
+            ${isTemporary ? "GUEST STATEMENT" : "OFFICIAL TAX INVOICE"}
           </div>
           <p style="margin: 8px 0 0 0; font-size: 12px;"><b>Date:</b> ${new Date().toLocaleDateString()}</p>
           <p style="margin: 2px 0 0 0; font-size: 12px;"><b>Folio No:</b> ${room?.orderId || `ORD-${room?.number}`}</p>
@@ -287,12 +307,12 @@ function buildA4Html({ settings, room, isTemporary, settlementMethod, total }) {
           <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Guest Information</p>
           <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold;">${room?.guestName || "Unregistered Guest"}</p>
           <p style="margin: 2px 0 0 0; font-size: 12px;">Contact: ${room?.guestPhone || "No contact recorded"}</p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;">Payment: <b>${isTemporary ? "Pending" : settlementMethod}</b></p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;">Settlement: <b>${isTemporary ? "Pending" : settlementMethod}</b></p>
         </div>
         <div style="text-align: right;">
-          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Stay Information</p>
+          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Stay Details</p>
           <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold;">Room #${room?.number} (${room?.type})</p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;">Period: ${room?.checkIn} to ${room?.checkOut}</p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;">Duration: ${room?.checkIn} to ${room?.checkOut}</p>
         </div>
       </div>
       <table style="margin: 20px 0; font-size: 12px;">
@@ -300,8 +320,8 @@ function buildA4Html({ settings, room, isTemporary, settlementMethod, total }) {
           <tr style="border-bottom: 2px solid #091D26; text-align: left;">
             <th style="padding: 10px 4px;">Description</th>
             <th style="padding: 10px 4px; text-align: center;">Qty</th>
-            <th style="padding: 10px 4px; text-align: right;">Unit Rate</th>
-            <th style="padding: 10px 4px; text-align: right;">Amount</th>
+            <th style="padding: 10px 4px; text-align: right;">Rate</th>
+            <th style="padding: 10px 4px; text-align: right;">Total</th>
           </tr>
         </thead>
         <tbody>
@@ -316,113 +336,18 @@ function buildA4Html({ settings, room, isTemporary, settlementMethod, total }) {
         </tbody>
       </table>
       <div style="border-top: 2px solid #091D26; border-bottom: 2px solid #091D26; padding: 12px 4px; margin: 24px 0; display: flex; justify-content: space-between; align-items: center;">
-        <span style="font-size: 14px; font-weight: bold;">${isTemporary ? "Total Due:" : `Total Paid (${settlementMethod}):`}</span>
+        <span style="font-size: 14px; font-weight: bold;">Total Paid (${settlementMethod}):</span>
         <span style="font-size: 20px; font-weight: 900;">${settings.currency}${Number(total).toFixed(2)}</span>
       </div>
-    </div>
-  `;
-}
-
-function buildPayslipHtml({ settings, staffMember }) {
-  const base = Number(staffMember.baseSalary) || 0;
-  const allowances = Number(staffMember.allowances) || 0;
-  const serviceCharge = Number(staffMember.serviceCharge) || 0;
-  const bonus = Number(staffMember.bonus) || 0;
-  const grossPay = base + allowances + serviceCharge + bonus;
-
-  return `
-    <div class="a4-container">
-      <div style="border-bottom: 3px double #091D26; padding-bottom: 16px; display: flex; justify-content: space-between; align-items: flex-start;">
-        <div>
-          <h1 style="font-size: 24px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; margin: 0; color: #091D26;">
-            ${settings.hotelName}
-          </h1>
-          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; text-transform: uppercase; color: #555;">
-            Monthly Remuneration Statement
-          </p>
-        </div>
-        <div style="text-align: right;">
-          <div style="display: inline-block; border: 2px solid #091D26; padding: 6px 14px; font-weight: bold; font-size: 12px;">
-            OFFICIAL PAYSLIP
-          </div>
-          <p style="margin: 8px 0 0 0; font-size: 12px;"><b>Date:</b> ${new Date().toLocaleDateString()}</p>
-        </div>
-      </div>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 20px 0; padding: 12px 16px; border: 1px solid #091D26; border-radius: 4px;">
-        <div>
-          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Employee</p>
-          <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold;">${staffMember.name}</p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;">Role: <b>${staffMember.role}</b></p>
-        </div>
-        <div style="text-align: right;">
-          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Status</p>
-          <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold;">${staffMember.type}</p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;">Payout: <b>${staffMember.paid ? "PAID" : "PENDING"}</b></p>
-        </div>
-      </div>
-      <table style="margin: 20px 0; font-size: 12px;">
-        <thead>
-          <tr style="border-bottom: 2px solid #091D26; background: #F3EFE6;">
-            <th style="padding: 10px 8px; text-align: left;">Earnings Component</th>
-            <th style="padding: 10px 8px; text-align: right;">Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr style="border-bottom: 1px solid #ddd;"><td style="padding: 10px 8px;">Base Monthly Salary</td><td style="padding: 10px 8px; text-align: right;">${settings.currency}${base.toFixed(2)}</td></tr>
-          <tr style="border-bottom: 1px solid #ddd;"><td style="padding: 10px 8px;">Allowances (Housing/Meals)</td><td style="padding: 10px 8px; text-align: right;">${settings.currency}${allowances.toFixed(2)}</td></tr>
-          <tr style="border-bottom: 1px solid #ddd;"><td style="padding: 10px 8px;">Service Charge Pool</td><td style="padding: 10px 8px; text-align: right;">${settings.currency}${serviceCharge.toFixed(2)}</td></tr>
-          <tr style="border-bottom: 1px solid #ddd;"><td style="padding: 10px 8px;">Bonus & Incentives</td><td style="padding: 10px 8px; text-align: right;">${settings.currency}${bonus.toFixed(2)}</td></tr>
-        </tbody>
-      </table>
-      <div style="border-top: 2px solid #091D26; padding: 14px 8px; display: flex; justify-content: space-between; align-items: center;">
-        <span style="font-size: 14px; font-weight: bold;">Total Net Remittance:</span>
-        <span style="font-size: 22px; font-weight: 900; color: #0D9488;">${settings.currency}${grossPay.toFixed(2)}</span>
+      <div style="margin-top: 50px; text-align: center; font-size: 11px; border-top: 1px solid #ddd; padding-top: 12px;">
+        <p style="margin: 0; font-weight: 500;">${settings.footerNote}</p>
       </div>
     </div>
   `;
 }
 
-function buildDailyAttendanceHtml({ settings, staffList }) {
-  return `
-    <div class="a4-container">
-      <div style="border-bottom: 3px double #091D26; padding-bottom: 16px; display: flex; justify-content: space-between;">
-        <div>
-          <h1 style="font-size: 24px; font-weight: 900; text-transform: uppercase; margin: 0; color: #091D26;">${settings.hotelName}</h1>
-          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; color: #555;">Daily Staff Shift & Attendance Sheet</p>
-        </div>
-        <div style="text-align: right;">
-          <p style="margin: 0; font-size: 12px;"><b>Date:</b> ${new Date().toLocaleDateString()}</p>
-        </div>
-      </div>
-      <table style="width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px;">
-        <thead>
-          <tr style="border-bottom: 2px solid #091D26; background: #F3EFE6;">
-            <th style="padding: 10px 6px; text-align: left;">Employee Name</th>
-            <th style="padding: 10px 6px; text-align: left;">Role</th>
-            <th style="padding: 10px 6px; text-align: center;">In</th>
-            <th style="padding: 10px 6px; text-align: center;">Out</th>
-            <th style="padding: 10px 6px; text-align: center;">Duty Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${staffList.map((m) => `
-            <tr style="border-bottom: 1px solid #ddd;">
-              <td style="padding: 10px 6px; font-weight: bold;">${m.name}</td>
-              <td style="padding: 10px 6px;">${m.role}</td>
-              <td style="padding: 10px 6px; text-align: center;">${m.clockIn || "--:--"}</td>
-              <td style="padding: 10px 6px; text-align: center;">${m.clockOut || "--:--"}</td>
-              <td style="padding: 10px 6px; text-align: center;">${m.isOnDuty ? "ON DUTY" : m.clockOut ? "COMPLETED" : "OFF DUTY"}</td>
-            </tr>
-          `).join("")}
-        </tbody>
-      </table>
-    </div>
-  `;
-}
-
-// --- 3. MAIN COMPONENT ---
+// --- 3. MAIN APP ---
 export default function App() {
-  // Authentication & Permission State
   const [currentUser, setCurrentUser] = useState(null);
   const [pinInput, setPinInput] = useState("");
   const [pinError, setPinError] = useState("");
@@ -435,6 +360,8 @@ export default function App() {
   const [rooms, setRooms] = useState([]);
   const [inventory, setInventory] = useState(INITIAL_INVENTORY_SEEDS);
   const [staff, setStaff] = useState(INITIAL_STAFF_SEEDS);
+  const [dailyAttendance, setDailyAttendance] = useState({});
+  const [selectedDate, setSelectedDate] = useState(getTodayKey());
   const [loading, setLoading] = useState(true);
 
   // Active Selection & Print Mode State
@@ -442,84 +369,31 @@ export default function App() {
   const [printFormat, setPrintFormat] = useState("thermal");
   const [isTemporaryBill, setIsTemporaryBill] = useState(false);
 
-  // Front Desk Modals & Camera/File State
+  // Modals & Camera State
   const [checkInModalRoom, setCheckInModalRoom] = useState(null);
   const [settleOrderRoom, setSettleOrderRoom] = useState(null);
   const [settlementMethod, setSettlementMethod] = useState("Credit Card");
   const [cashTendered, setCashTendered] = useState("");
   const [guestForm, setGuestForm] = useState({ name: "", phone: "", nights: 1 });
-  const [guestPhoto, setGuestPhoto] = useState(null); // Captured / Uploaded photo
-  const [isCameraActive, setIsCameraActive] = useState(false); // Live WebCam Stream Flag
+  const [guestPhoto, setGuestPhoto] = useState(null);
+  const [isCameraActive, setIsCameraActive] = useState(false);
 
-  // Refs for WebCam streaming & Canvas snapshot
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const mediaStreamRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  // Custom Item Inputs for Folio
-  const [newItemDesc, setNewItemDesc] = useState("");
-  const [newItemPrice, setNewItemPrice] = useState("");
-  const [newItemQty, setNewItemQty] = useState("1");
+  // Settings State Form
+  const [settingsForm, setSettingsForm] = useState(DEFAULT_SETTINGS);
+  const [saveSuccessMsg, setSaveSuccessMsg] = useState("");
 
-  // Room Management State
+  // Room / Stock Modals
   const [showAddRoomModal, setShowAddRoomModal] = useState(false);
-  const [newRoomForm, setNewRoomForm] = useState({
-    number: "",
-    type: "Ocean Breeze King",
-    rate: 180,
-    status: "available",
-  });
-  const [editingRoomId, setEditingRoomId] = useState(null);
-  const [editRoomRate, setEditRoomRate] = useState("");
-
-  // Inventory Management State
+  const [newRoomForm, setNewRoomForm] = useState({ number: "", type: "Ocean Breeze King", rate: 18000, status: "available" });
   const [showAddInventoryModal, setShowAddInventoryModal] = useState(false);
-  const [inventoryCategoryFilter, setInventoryCategoryFilter] = useState("all");
-  const [inventorySearchQuery, setInventorySearchQuery] = useState("");
-  const [newInventoryForm, setNewInventoryForm] = useState({
-    name: "",
-    category: "minibar",
-    price: "6",
-    stock: "20",
-  });
-  const [editingInventoryId, setEditingInventoryId] = useState(null);
-  const [editInventoryForm, setEditInventoryForm] = useState({
-    name: "",
-    category: "minibar",
-    price: "",
-    stock: "",
-  });
+  const [newInventoryForm, setNewInventoryForm] = useState({ name: "", category: "minibar", price: "850", stock: "20" });
 
-  // Staff & Compensation Management State
-  const [showAddStaffModal, setShowAddStaffModal] = useState(false);
-  const [staffSearchQuery, setStaffSearchQuery] = useState("");
-  const [staffViewSubTab, setStaffViewSubTab] = useState("roster");
-  const [newStaffForm, setNewStaffForm] = useState({
-    name: "",
-    role: "Front Desk",
-    pin: "1234",
-    type: "Full-Time",
-    baseSalary: "2500",
-    allowances: "300",
-    serviceCharge: "350",
-    bonus: "100",
-    phone: "",
-  });
-  const [editingStaffId, setEditingStaffId] = useState(null);
-  const [editStaffForm, setEditStaffForm] = useState({
-    name: "",
-    role: "Front Desk",
-    pin: "",
-    type: "Full-Time",
-    baseSalary: "",
-    allowances: "",
-    serviceCharge: "",
-    bonus: "",
-    phone: "",
-  });
-
-  // Role Permissions
+  // Permissions Map
   const isManager = currentUser?.role?.toLowerCase().includes("manager");
   const isFrontDesk = currentUser?.role?.toLowerCase().includes("front desk");
   const isHousekeeping = currentUser?.role?.toLowerCase().includes("housekeeping");
@@ -530,165 +404,32 @@ export default function App() {
     if (tabId === "frontdesk") return true;
     if (tabId === "active-orders" && (isFrontDesk || isManager)) return true;
     if (tabId === "inventory" && (isFrontDesk || isManager || isHousekeeping)) return true;
-    if (tabId === "staff" && isHousekeeping) return true;
-    if (tabId === "staff" && isManager) return true;
+    if (tabId === "staff") return true;
     if (tabId === "room-admin" && isManager) return true;
     if (tabId === "settings" && isManager) return true;
     return false;
   };
 
-  // --- CAMERA & FILE UPLOAD ENGINE ---
-  // Start tablet / device camera stream
-  const startCamera = async () => {
-    try {
-      setIsCameraActive(true);
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
-      });
-      mediaStreamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
-      }
-    } catch (err) {
-      console.error("Camera access error:", err);
-      alert("Unable to open device camera. Please check camera permissions in browser.");
-      setIsCameraActive(false);
-    }
-  };
-
-  // Stop camera stream safely
-  const stopCamera = () => {
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
-      mediaStreamRef.current = null;
-    }
-    setIsCameraActive(false);
-  };
-
-  // Capture snapshot from live video element
-  const takeSnapshot = () => {
-    if (videoRef.current && canvasRef.current) {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      canvas.width = video.videoWidth || 640;
-      canvas.height = video.videoHeight || 480;
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const base64Image = canvas.toDataURL("image/jpeg", 0.7); // Compressed JPEG
-      setGuestPhoto(base64Image);
-      stopCamera();
-    }
-  };
-
-  // Handle traditional image file upload / gallery pick
-  const handleFileUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Read and compress
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        const MAX_WIDTH = 800;
-        const scale = MAX_WIDTH / img.width;
-        canvas.width = MAX_WIDTH;
-        canvas.height = img.height * scale;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        const compressedBase64 = canvas.toDataURL("image/jpeg", 0.7);
-        setGuestPhoto(compressedBase64);
-      };
-      img.src = event.target.result;
-    };
-    reader.readAsDataURL(file);
-  };
-
-  // Clean camera up when check-in modal closes
-  const handleCloseCheckInModal = () => {
-    stopCamera();
-    setGuestPhoto(null);
-    setCheckInModalRoom(null);
-  };
-
-  // PIN Operations
-  const handlePinDigit = (digit) => {
-    if (pinInput.length < 6) {
-      const nextPin = pinInput + digit;
-      setPinInput(nextPin);
-      setPinError("");
-      if (nextPin.length >= 4) verifyPin(nextPin);
-    }
-  };
-
-  const handlePinDelete = () => {
-    setPinInput((prev) => prev.slice(0, -1));
-    setPinError("");
-  };
-
-  const handlePinClear = () => {
-    setPinInput("");
-    setPinError("");
-  };
-
-  const verifyPin = (candidatePin) => {
-    const matched = staff.find((s) => String(s.pin) === String(candidatePin));
-    if (matched) {
-      setCurrentUser(matched);
-      setPinInput("");
-      setPinError("");
-      setActiveTab("frontdesk");
-    } else {
-      if (candidatePin.length >= 4) setPinError("Invalid Access PIN");
-    }
-  };
-
-  const handleLogout = () => {
-    stopCamera();
-    setCurrentUser(null);
-    setPinInput("");
-    setPinError("");
-  };
-
-  // --- REALTIME DATABASE LISTENERS ---
+  // --- REALTIME LISTENERS ---
   useEffect(() => {
+    // 1. Settings Listener
     const settingsRef = ref(rtdb, "hotel_config/profile");
     const unsubSettings = onValue(settingsRef, (snapshot) => {
       const data = snapshot.val();
-      if (data) setSettings(data);
-      else set(settingsRef, DEFAULT_SETTINGS);
+      if (data) {
+        setSettings(data);
+        setSettingsForm(data);
+      } else {
+        set(settingsRef, DEFAULT_SETTINGS);
+        setSettingsForm(DEFAULT_SETTINGS);
+      }
     });
 
+    // 2. Rooms Listener
     const roomsRef = ref(rtdb, "rooms");
     const unsubRooms = onValue(roomsRef, (snapshot) => {
       const data = snapshot.val();
-      if (!data) {
-        const initialRooms = {
-          "101": {
-            id: "101",
-            number: "101",
-            type: "Ocean Breeze King",
-            rate: 220,
-            status: "occupied",
-            orderId: "ORD-101-9281",
-            openedAt: "2026-09-28 14:30",
-            guestName: "Marina Sterling",
-            guestPhone: "+1 555-0143",
-            checkIn: "2026-09-28",
-            checkOut: "2026-10-02",
-            orderItems: {
-              "i1": { id: "i1", description: "Room Charge (2 Nights)", quantity: 2, unitPrice: 220, total: 440, timestamp: "Sep 28, 14:30" },
-              "i2": { id: "i2", description: "Minibar: Artisanal Water", quantity: 2, unitPrice: 6, total: 12, timestamp: "Sep 29, 10:15" },
-            },
-          },
-          "102": { id: "102", number: "102", type: "Lagoon View Double", rate: 180, status: "available" },
-          "201": { id: "201", number: "201", type: "Coral Penthouse Suite", rate: 450, status: "cleaning" },
-          "202": { id: "202", number: "202", type: "Ocean Breeze King", rate: 220, status: "maintenance" },
-        };
-        set(roomsRef, initialRooms);
-      } else {
+      if (data) {
         const loadedRooms = Object.keys(data).map((key) => {
           const roomObj = data[key];
           const rawItems = roomObj.orderItems || {};
@@ -698,26 +439,18 @@ export default function App() {
           return { ...roomObj, id: key, orderItems: orderItemsArray };
         });
         setRooms(loadedRooms.sort((a, b) => String(a.number).localeCompare(String(b.number))));
-        if (!selectedRoomId && loadedRooms.length > 0) {
-          const firstOccupied = loadedRooms.find((r) => r.status === "occupied");
-          setSelectedRoomId(firstOccupied ? firstOccupied.id : loadedRooms[0].id);
-        }
       }
     });
 
+    // 3. Inventory Listener
     const invRef = ref(rtdb, "inventory");
     const unsubInv = onValue(invRef, (snapshot) => {
-      if (!snapshot.exists()) {
-        const seedMap = {};
-        INITIAL_INVENTORY_SEEDS.forEach((i) => { seedMap[i.id] = i; });
-        update(invRef, seedMap);
-      } else {
+      if (snapshot.exists()) {
         const data = snapshot.val();
         const loaded = Object.keys(data).map((key) => ({
           ...data[key],
           id: key,
-          name: data[key].name || data[key].title || "Unnamed Item",
-          category: data[key].category || "minibar",
+          name: data[key].name || "Unnamed Item",
           price: Number(data[key].price) || 0,
           stock: Number(data[key].stock) || 0,
         }));
@@ -725,29 +458,29 @@ export default function App() {
       }
     });
 
+    // 4. Staff Listener
     const staffRef = ref(rtdb, "staff");
     const unsubStaff = onValue(staffRef, (snapshot) => {
-      if (!snapshot.exists()) {
-        const seedStaffMap = {};
-        INITIAL_STAFF_SEEDS.forEach((s) => { seedStaffMap[s.id] = s; });
-        set(staffRef, seedStaffMap);
-      } else {
+      if (snapshot.exists()) {
         const data = snapshot.val();
         const staffList = Object.keys(data).map((k) => ({
           ...data[k],
           id: k,
-          baseSalary: Number(data[k].baseSalary) || 2400,
+          baseSalary: Number(data[k].baseSalary) || 0,
           allowances: Number(data[k].allowances) || 0,
           serviceCharge: Number(data[k].serviceCharge) || 0,
           bonus: Number(data[k].bonus) || 0,
-          paid: Boolean(data[k].paid),
-          clockIn: data[k].clockIn || "",
-          clockOut: data[k].clockOut || "",
-          isOnDuty: Boolean(data[k].isOnDuty)
+          paid: Boolean(data[k].paid)
         }));
         setStaff(staffList);
       }
       setLoading(false);
+    });
+
+    // 5. Daily Attendance Record Listener (Carried Forward by Date)
+    const attendanceRef = ref(rtdb, `attendance_history/${selectedDate}`);
+    const unsubAttendance = onValue(attendanceRef, (snapshot) => {
+      setDailyAttendance(snapshot.val() || {});
     });
 
     return () => {
@@ -755,492 +488,216 @@ export default function App() {
       unsubRooms();
       unsubInv();
       unsubStaff();
-      stopCamera();
+      unsubAttendance();
     };
-  }, [selectedRoomId]);
+  }, [selectedDate]);
 
   const currentRoom = rooms.find((r) => r.id === selectedRoomId) || rooms[0];
   const calculateTotal = (room) => room?.orderItems?.reduce((acc, item) => acc + (Number(item.total) || 0), 0) || 0;
   const printTargetRoom = settleOrderRoom || currentRoom;
   const printTargetTotal = calculateTotal(printTargetRoom);
-  const calculateStaffGross = (s) => (Number(s.baseSalary) || 0) + (Number(s.allowances) || 0) + (Number(s.serviceCharge) || 0) + (Number(s.bonus) || 0);
 
-  // --- ACTIONS ---
-  const handlePrintTemporaryBill = (room) => {
-    setSelectedRoomId(room.id);
-    const total = calculateTotal(room);
-    const html = printFormat === "thermal"
-      ? buildThermalHtml({ settings, room, isTemporary: true, settlementMethod: "Pending", total })
-      : buildA4Html({ settings, room, isTemporary: true, settlementMethod: "Pending", total });
-    printIsolatedDocument(html, printFormat);
+  // --- ACTIONS: SETTINGS SAVE & BACKUP ---
+  const handleSaveAllSettings = () => {
+    set(ref(rtdb, "hotel_config/profile"), settingsForm);
+    setSaveSuccessMsg("Settings Saved Successfully! ✓");
+    setTimeout(() => setSaveSuccessMsg(""), 3000);
   };
 
-  const handleConfirmOrderSettlement = () => {
-    if (!settleOrderRoom) return;
-    const total = calculateTotal(settleOrderRoom);
-    const html = printFormat === "thermal"
-      ? buildThermalHtml({ settings, room: settleOrderRoom, isTemporary: false, settlementMethod, total })
-      : buildA4Html({ settings, room: settleOrderRoom, isTemporary: false, settlementMethod, total });
-    printIsolatedDocument(html, printFormat);
-
-    update(ref(rtdb, `rooms/${settleOrderRoom.id}`), {
-      status: "cleaning",
-      orderId: null,
-      openedAt: null,
-      guestName: "",
-      guestPhone: "",
-      guestPhoto: null,
-      checkIn: "",
-      checkOut: "",
-      orderItems: null,
-    });
-    setSettleOrderRoom(null);
+  const handleDownloadBackup = () => {
+    onValue(ref(rtdb), (snap) => {
+      const fullDb = snap.val();
+      const blob = new Blob([JSON.stringify(fullDb, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `LinoliCove_Backup_${getTodayKey()}.json`;
+      a.click();
+    }, { onlyOnce: true });
   };
 
-  const handlePrintPayslip = (staffMember) => {
-    const html = buildPayslipHtml({ settings, staffMember });
-    printIsolatedDocument(html, "a4");
+  const handleRestoreBackup = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const json = JSON.parse(event.target.result);
+        if (window.confirm("Restore database from JSON file? This will overwrite existing records.")) {
+          set(ref(rtdb), json);
+          alert("Database successfully restored!");
+        }
+      } catch (err) {
+        alert("Invalid JSON backup file.");
+      }
+    };
+    reader.readAsText(file);
   };
 
-  const handlePrintDailyAttendance = () => {
-    const html = buildDailyAttendanceHtml({ settings, staffList: staff });
-    printIsolatedDocument(html, "a4");
+  const handlePurgeTestData = () => {
+    if (window.prompt('Type "CONFIRM" to clear guest orders and reset rooms to Available:') === "CONFIRM") {
+      rooms.forEach((r) => {
+        update(ref(rtdb, `rooms/${r.id}`), {
+          status: "available",
+          orderId: null,
+          openedAt: null,
+          guestName: "",
+          guestPhone: "",
+          guestPhoto: null,
+          orderItems: null
+        });
+      });
+      alert("Test transactions cleared!");
+    }
   };
 
+  // --- DAILY ATTENDANCE & PERSISTENCE ---
   const formatTimeNow = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-  const handleClockIn = (staffId) => {
+  const handleClockIn = (staffMember) => {
     const timeStr = formatTimeNow();
-    setStaff((prev) =>
-      prev.map((s) => (s.id === staffId ? { ...s, clockIn: timeStr, clockOut: "", isOnDuty: true } : s))
-    );
-    update(ref(rtdb, `staff/${staffId}`), { clockIn: timeStr, clockOut: "", isOnDuty: true });
-  };
-
-  const handleClockOut = (staffId) => {
-    const timeStr = formatTimeNow();
-    setStaff((prev) =>
-      prev.map((s) => (s.id === staffId ? { ...s, clockOut: timeStr, isOnDuty: false } : s))
-    );
-    update(ref(rtdb, `staff/${staffId}`), { clockOut: timeStr, isOnDuty: false });
-  };
-
-  const handleUpdateStockLevel = (itemId, delta) => {
-    if (!itemId) return;
-    const target = inventory.find((i) => i.id === itemId);
-    const currentStock = Number(target?.stock) || 0;
-    const newStock = Math.max(0, currentStock + delta);
-    setInventory((prev) => prev.map((item) => (item.id === itemId ? { ...item, stock: newStock } : item)));
-    update(ref(rtdb, `inventory/${itemId}`), { stock: newStock });
-  };
-
-  const handleCreateInventoryItem = (e) => {
-    e.preventDefault();
-    if (!newInventoryForm.name.trim()) return;
-    const itemId = `inv_${Date.now()}`;
-    const cleanPrice = parseFloat(newInventoryForm.price);
-    const cleanStock = parseInt(newInventoryForm.stock, 10);
-    const newItem = {
-      id: itemId,
-      name: newInventoryForm.name.trim(),
-      category: newInventoryForm.category || "minibar",
-      price: isNaN(cleanPrice) || cleanPrice < 0 ? 0 : cleanPrice,
-      stock: isNaN(cleanStock) || cleanStock < 0 ? 0 : cleanStock,
-    };
-    setInventory((prev) => [...prev, newItem].sort((a, b) => a.name.localeCompare(b.name)));
-    setShowAddInventoryModal(false);
-    setNewInventoryForm({ name: "", category: "minibar", price: "6", stock: "20" });
-    set(ref(rtdb, `inventory/${itemId}`), newItem);
-  };
-
-  const handleStartEditInventory = (item) => {
-    setEditingInventoryId(item.id);
-    setEditInventoryForm({
-      name: item.name || "",
-      category: item.category || "minibar",
-      price: String(item.price ?? 0),
-      stock: String(item.stock ?? 0),
-    });
-  };
-
-  const handleSaveInventoryEdit = (itemId) => {
-    if (!editInventoryForm.name.trim()) return;
-    const cleanPrice = parseFloat(editInventoryForm.price);
-    const cleanStock = parseInt(editInventoryForm.stock, 10);
-    const updatedPayload = {
-      name: editInventoryForm.name.trim(),
-      category: editInventoryForm.category || "minibar",
-      price: isNaN(cleanPrice) || cleanPrice < 0 ? 0 : cleanPrice,
-      stock: isNaN(cleanStock) || cleanStock < 0 ? 0 : cleanStock,
-    };
-    setInventory((prev) => prev.map((item) => (item.id === itemId ? { ...item, ...updatedPayload } : item)));
-    setEditingInventoryId(null);
-    update(ref(rtdb, `inventory/${itemId}`), updatedPayload);
-  };
-
-  const handleDeleteInventoryItem = (item) => {
-    if (!window.confirm(`Delete "${item.name}"?`)) return;
-    setInventory((prev) => prev.filter((i) => i.id !== item.id));
-    remove(ref(rtdb, `inventory/${item.id}`));
-  };
-
-  const handleQuickAddMinibar = (item) => {
-    if (!currentRoom) return;
-    const now = new Date();
-    const itemId = `itm_${Date.now()}`;
-    const newItem = {
-      id: itemId,
-      description: `Minibar: ${item.name}`,
-      quantity: 1,
-      unitPrice: item.price,
-      total: item.price,
-      timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
-    };
-    set(ref(rtdb, `rooms/${currentRoom.id}/orderItems/${itemId}`), newItem);
-    if (item.stock > 0) handleUpdateStockLevel(item.id, -1);
-  };
-
-  const handleCreateStaff = (e) => {
-    e.preventDefault();
-    if (!newStaffForm.name.trim()) return;
-    const staffId = `stf_${Date.now()}`;
-    const newStaff = {
-      id: staffId,
-      name: newStaffForm.name.trim(),
-      role: newStaffForm.role || "Front Desk",
-      pin: newStaffForm.pin || "0000",
-      type: newStaffForm.type || "Full-Time",
-      baseSalary: parseFloat(newStaffForm.baseSalary) || 0,
-      allowances: parseFloat(newStaffForm.allowances) || 0,
-      serviceCharge: parseFloat(newStaffForm.serviceCharge) || 0,
-      bonus: parseFloat(newStaffForm.bonus) || 0,
-      paid: false,
-      phone: newStaffForm.phone || "",
-      clockIn: "",
+    const day = getTodayKey();
+    const record = {
+      staffId: staffMember.id,
+      name: staffMember.name,
+      role: staffMember.role,
+      clockIn: timeStr,
       clockOut: "",
+      isOnDuty: true,
+      date: day
+    };
+    set(ref(rtdb, `attendance_history/${day}/${staffMember.id}`), record);
+  };
+
+  const handleClockOut = (staffMember) => {
+    const timeStr = formatTimeNow();
+    const day = getTodayKey();
+    update(ref(rtdb, `attendance_history/${day}/${staffMember.id}`), {
+      clockOut: timeStr,
       isOnDuty: false
-    };
-    setStaff((prev) => [...prev, newStaff]);
-    setShowAddStaffModal(false);
-    setNewStaffForm({
-      name: "",
-      role: "Front Desk",
-      pin: "1234",
-      type: "Full-Time",
-      baseSalary: "2500",
-      allowances: "300",
-      serviceCharge: "350",
-      bonus: "100",
-      phone: "",
-    });
-    set(ref(rtdb, `staff/${staffId}`), newStaff);
-  };
-
-  const handleStartEditStaff = (member) => {
-    setEditingStaffId(member.id);
-    setEditStaffForm({
-      name: member.name || "",
-      role: member.role || "Front Desk",
-      pin: member.pin || "1234",
-      type: member.type || "Full-Time",
-      baseSalary: String(member.baseSalary ?? 0),
-      allowances: String(member.allowances ?? 0),
-      serviceCharge: String(member.serviceCharge ?? 0),
-      bonus: String(member.bonus ?? 0),
-      phone: member.phone || "",
     });
   };
 
-  const handleSaveStaffEdit = (staffId) => {
-    if (!editStaffForm.name.trim()) return;
-    const updatedPayload = {
-      name: editStaffForm.name.trim(),
-      role: editStaffForm.role,
-      pin: editStaffForm.pin || "0000",
-      type: editStaffForm.type,
-      baseSalary: parseFloat(editStaffForm.baseSalary) || 0,
-      allowances: parseFloat(editStaffForm.allowances) || 0,
-      serviceCharge: parseFloat(editStaffForm.serviceCharge) || 0,
-      bonus: parseFloat(editStaffForm.bonus) || 0,
-      phone: editStaffForm.phone || "",
-    };
-    setStaff((prev) => prev.map((s) => (s.id === staffId ? { ...s, ...updatedPayload } : s)));
-    setEditingStaffId(null);
-    update(ref(rtdb, `staff/${staffId}`), updatedPayload);
-  };
-
-  const handleToggleStaffPayout = (staffId, currentStatus) => {
-    const nextStatus = !currentStatus;
-    setStaff((prev) => prev.map((s) => (s.id === staffId ? { ...s, paid: nextStatus } : s)));
-    update(ref(rtdb, `staff/${staffId}`), { paid: nextStatus });
-  };
-
-  const handleDeleteStaff = (member) => {
-    if (!window.confirm(`Permanently remove ${member.name}?`)) return;
-    setStaff((prev) => prev.filter((s) => s.id !== member.id));
-    remove(ref(rtdb, `staff/${member.id}`));
-  };
-
-  const handleSaveSettings = (updated) => {
-    setSettings(updated);
-    set(ref(rtdb, "hotel_config/profile"), updated);
-  };
-
-  const updateRoomStatus = (roomId, status) => {
-    update(ref(rtdb, `rooms/${roomId}`), { status });
-  };
-
-  // CHECK-IN WITH CAMERA / UPLOADED GUEST IMAGE
-  const handleOpenOrderAndCheckIn = (e) => {
-    e.preventDefault();
-    if (!checkInModalRoom || !guestForm.name) return;
-    stopCamera();
-
-    const nights = guestForm.nights || 1;
-    const now = new Date();
-    const orderId = `ORD-${checkInModalRoom.number}-${Date.now().toString().slice(-4)}`;
-    const itemId = `itm_${Date.now()}`;
-    const initialOrderItem = {
-      id: itemId,
-      description: `Room Stay (${nights} Night${nights > 1 ? "s" : ""})`,
-      quantity: nights,
-      unitPrice: checkInModalRoom.rate,
-      total: checkInModalRoom.rate * nights,
-      timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
-    };
-    const roomPayload = {
-      status: "occupied",
-      orderId,
-      openedAt: now.toLocaleString(),
-      guestName: guestForm.name,
-      guestPhone: guestForm.phone,
-      guestPhoto: guestPhoto || null, // Saves the captured Base64 image
-      checkIn: now.toISOString().split("T")[0],
-      checkOut: new Date(Date.now() + nights * 86400000).toISOString().split("T")[0],
-      orderItems: { [itemId]: initialOrderItem },
-    };
-    update(ref(rtdb, `rooms/${checkInModalRoom.id}`), roomPayload);
-    setGuestPhoto(null);
-    setCheckInModalRoom(null);
-    setGuestForm({ name: "", phone: "", nights: 1 });
-  };
-
-  const handleAddItemToOrder = (e) => {
-    e.preventDefault();
-    if (!newItemDesc || !newItemPrice || !currentRoom) return;
-    const unitPrice = parseFloat(newItemPrice);
-    const quantity = parseInt(newItemQty, 10) || 1;
-    const now = new Date();
-    const itemId = `itm_${Date.now()}`;
-    const newItem = {
-      id: itemId,
-      description: newItemDesc,
-      quantity,
-      unitPrice,
-      total: unitPrice * quantity,
-      timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
-    };
-    set(ref(rtdb, `rooms/${currentRoom.id}/orderItems/${itemId}`), newItem);
-    setNewItemDesc("");
-    setNewItemPrice("");
-    setNewItemQty("1");
-  };
-
-  const handleRemoveOrderItem = (itemId) => {
-    if (!currentRoom) return;
-    remove(ref(rtdb, `rooms/${currentRoom.id}/orderItems/${itemId}`));
-  };
-
-  const handleInitiateSettleOrder = (room) => {
-    setSelectedRoomId(room.id);
-    setActiveTab("frontdesk");
-    setSettleOrderRoom(room);
-    setCashTendered("");
-  };
-
-  const handleDeleteActiveBill = (room) => {
-    if (window.confirm(`Void active bill for Room #${room.number}?`)) {
-      update(ref(rtdb, `rooms/${room.id}`), {
-        status: "available",
-        orderId: null,
-        openedAt: null,
-        guestName: "",
-        guestPhone: "",
-        guestPhoto: null,
-        checkIn: "",
-        checkOut: "",
-        orderItems: null,
-      });
+  // PIN Login & Camera Handlers
+  const handlePinDigit = (digit) => {
+    if (pinInput.length < 6) {
+      const nextPin = pinInput + digit;
+      setPinInput(nextPin);
+      if (nextPin.length >= 4) {
+        const matched = staff.find((s) => String(s.pin) === String(nextPin));
+        if (matched) {
+          setCurrentUser(matched);
+          setPinInput("");
+          setPinError("");
+        } else {
+          setPinError("Invalid PIN");
+        }
+      }
     }
   };
 
-  const handleCreateRoom = (e) => {
-    e.preventDefault();
-    if (!newRoomForm.number) return;
-    const roomId = String(newRoomForm.number).trim();
-    const newRoomData = {
-      id: roomId,
-      number: roomId,
-      type: newRoomForm.type,
-      rate: Number(newRoomForm.rate) || 100,
-      status: newRoomForm.status,
-    };
-    set(ref(rtdb, `rooms/${roomId}`), newRoomData);
-    setShowAddRoomModal(false);
-    setNewRoomForm({ number: "", type: "Ocean Breeze King", rate: 180, status: "available" });
-  };
-
-  const handleSaveRoomRate = (roomId) => {
-    const rateVal = parseFloat(editRoomRate);
-    if (!isNaN(rateVal) && rateVal > 0) {
-      update(ref(rtdb, `rooms/${roomId}`), { rate: rateVal });
-    }
-    setEditingRoomId(null);
-  };
-
-  const handleDeleteRoom = (roomId, roomNumber) => {
-    if (window.confirm(`Delete Room #${roomNumber}?`)) {
-      remove(ref(rtdb, `rooms/${roomId}`));
+  const startCamera = async () => {
+    try {
+      setIsCameraActive(true);
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      mediaStreamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
+      }
+    } catch (err) {
+      alert("Camera permission denied or camera unavailable.");
+      setIsCameraActive(false);
     }
   };
 
-  const filteredInventory = inventory.filter((item) => {
-    const matchesCategory = inventoryCategoryFilter === "all" || item.category === inventoryCategoryFilter;
-    const matchesSearch = (item.name || "").toLowerCase().includes(inventorySearchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
+  const stopCamera = () => {
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+    }
+    setIsCameraActive(false);
+  };
 
-  const filteredStaff = staff.filter((s) => {
-    const q = staffSearchQuery.toLowerCase();
-    return s.name.toLowerCase().includes(q) || s.role.toLowerCase().includes(q);
-  });
-
-  const totalPayrollGross = staff.reduce((acc, s) => acc + calculateStaffGross(s), 0);
-  const totalServiceCharges = staff.reduce((acc, s) => acc + (Number(s.serviceCharge) || 0), 0);
-  const onDutyCount = staff.filter((s) => s.isOnDuty).length;
-
-  const parsedTendered = parseFloat(cashTendered) || 0;
-  const changeDue = Math.max(0, parsedTendered - printTargetTotal);
+  const takeSnapshot = () => {
+    if (videoRef.current && canvasRef.current) {
+      const canvas = canvasRef.current;
+      canvas.width = 640;
+      canvas.height = 480;
+      canvas.getContext("2d").drawImage(videoRef.current, 0, 0, 640, 480);
+      setGuestPhoto(canvas.toDataURL("image/jpeg", 0.7));
+      stopCamera();
+    }
+  };
 
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-[#FAF9F5]">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-4 border-[#14B8A6] border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-[#091D26] font-semibold text-sm">Loading Thalassa Resort Cloud...</p>
-        </div>
+        <div className="w-10 h-10 border-4 border-[#14B8A6] border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
   }
 
-  // =========================================================
-  // SCREEN: PIN-PAD TERMINAL LOCK SCREEN
-  // =========================================================
+  // PIN LOCK SCREEN
   if (!currentUser) {
     return (
       <div className="flex min-h-screen bg-gradient-to-br from-[#06151E] via-[#091D26] to-[#0F2D3C] text-white items-center justify-center p-4">
-        <div className="w-full max-w-sm bg-white/5 backdrop-blur-md border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col items-center">
+        <div className="w-full max-w-sm bg-white/5 backdrop-blur-md border border-white/10 rounded-3xl p-8 shadow-2xl flex flex-col items-center">
           <div className="w-14 h-14 rounded-2xl bg-[#14B8A6] flex items-center justify-center text-white mb-4 shadow-lg shadow-[#14B8A6]/30">
             <Waves className="w-8 h-8" />
           </div>
-          <h1 className="text-xl font-bold tracking-tight text-white">{settings.hotelName}</h1>
-          <p className="text-xs text-[#2DD4BF] font-medium mt-0.5">Staff POS & PMS Terminal Lock</p>
+          <h1 className="text-xl font-bold tracking-tight">{settings.hotelName}</h1>
+          <p className="text-xs text-[#2DD4BF] font-medium mt-0.5">{settings.tagline}</p>
 
-          <div className="my-6 flex flex-col items-center w-full">
+          <div className="my-6 flex flex-col items-center">
             <div className="flex items-center gap-3 h-10">
               {[0, 1, 2, 3].map((idx) => (
                 <div
                   key={idx}
-                  className={`w-3.5 h-3.5 rounded-full transition-all duration-200 ${
-                    pinInput.length > idx
-                      ? "bg-[#14B8A6] scale-125 shadow-md shadow-[#14B8A6]/50"
-                      : "border-2 border-white/20"
+                  className={`w-3.5 h-3.5 rounded-full transition-all ${
+                    pinInput.length > idx ? "bg-[#14B8A6] scale-125" : "border-2 border-white/20"
                   }`}
                 />
               ))}
             </div>
-
-            {pinError ? (
-              <span className="text-xs font-semibold text-[#F43F5E] mt-2 animate-shake">
-                {pinError}
-              </span>
-            ) : (
-              <span className="text-[11px] text-slate-400 mt-2">Enter 4-Digit Staff PIN</span>
-            )}
+            {pinError && <span className="text-xs font-semibold text-[#F43F5E] mt-2">{pinError}</span>}
           </div>
 
           <div className="grid grid-cols-3 gap-3 w-full max-w-[280px]">
-            {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((digit) => (
+            {["1", "2", "3", "4", "5", "6", "7", "8", "9", "Clear", "0", "Del"].map((key) => (
               <button
-                key={digit}
+                key={key}
                 type="button"
-                onClick={() => handlePinDigit(digit)}
-                className="h-14 rounded-2xl bg-white/5 hover:bg-white/15 active:scale-95 text-lg font-bold transition-all border border-white/5 flex items-center justify-center shadow-sm"
+                onClick={() => {
+                  if (key === "Clear") setPinInput("");
+                  else if (key === "Del") setPinInput((prev) => prev.slice(0, -1));
+                  else handlePinDigit(key);
+                }}
+                className="h-14 rounded-2xl bg-white/5 hover:bg-white/15 text-lg font-bold transition-all border border-white/5 flex items-center justify-center"
               >
-                {digit}
+                {key}
               </button>
             ))}
-            <button
-              type="button"
-              onClick={handlePinClear}
-              className="h-14 rounded-2xl bg-white/5 hover:bg-white/10 active:scale-95 text-xs font-bold transition-all border border-white/5 text-slate-400 flex items-center justify-center uppercase tracking-wider"
-            >
-              Clear
-            </button>
-            <button
-              type="button"
-              onClick={() => handlePinDigit("0")}
-              className="h-14 rounded-2xl bg-white/5 hover:bg-white/15 active:scale-95 text-lg font-bold transition-all border border-white/5 flex items-center justify-center shadow-sm"
-            >
-              0
-            </button>
-            <button
-              type="button"
-              onClick={handlePinDelete}
-              className="h-14 rounded-2xl bg-white/5 hover:bg-white/10 active:scale-95 text-base font-bold transition-all border border-white/5 text-slate-400 flex items-center justify-center"
-            >
-              <Delete className="w-5 h-5" />
-            </button>
-          </div>
-
-          <div className="mt-6 pt-4 border-t border-white/10 w-full text-center">
-            <p className="text-[10px] text-slate-400 uppercase font-semibold">Demo Staff PIN Codes:</p>
-            <div className="flex flex-wrap justify-center gap-1.5 mt-2">
-              {staff.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => verifyPin(s.pin)}
-                  className="px-2 py-0.5 bg-white/5 hover:bg-white/15 rounded text-[10px] font-mono text-[#2DD4BF] border border-white/5"
-                >
-                  {s.name.split(" ")[0]} ({s.pin})
-                </button>
-              ))}
-            </div>
           </div>
         </div>
       </div>
     );
   }
 
-  // =========================================================
-  // MAIN WORKSPACE
-  // =========================================================
   return (
     <div className="flex h-screen overflow-hidden bg-[#FAF9F5] text-[#091D26]">
-      {/* DESKTOP SIDEBAR */}
+      {/* SIDEBAR */}
       <aside className="no-print hidden md:flex flex-col w-64 bg-[#091D26] border-r border-[#0F2D3C] text-white shrink-0">
         <div className="p-6 border-b border-[#0F2D3C] flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-[#14B8A6] flex items-center justify-center text-white font-bold shadow-md shadow-[#14B8A6]/20">
+          <div className="w-9 h-9 rounded-lg bg-[#14B8A6] flex items-center justify-center text-white font-bold">
             <Building2 className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-base font-bold tracking-tight leading-tight">Thalassa</h1>
-            <p className="text-[11px] text-[#2DD4BF] font-medium">Hotel OS & POS</p>
+            <h1 className="text-base font-bold leading-tight truncate">{settings.hotelName}</h1>
+            <p className="text-[11px] text-[#2DD4BF] font-medium">{settings.tagline}</p>
           </div>
         </div>
 
-        {/* Current Authenticated Staff Card */}
         <div className="p-4 border-b border-[#0F2D3C] bg-white/5 flex items-center justify-between">
           <div className="truncate">
             <span className="text-[10px] uppercase font-bold text-[#2DD4BF] flex items-center gap-1">
@@ -1250,8 +707,8 @@ export default function App() {
           </div>
           <button
             type="button"
-            onClick={handleLogout}
-            className="p-1.5 rounded-lg bg-white/10 hover:bg-[#F43F5E] text-slate-300 hover:text-white transition-colors"
+            onClick={() => setCurrentUser(null)}
+            className="p-1.5 rounded-lg bg-white/10 hover:bg-[#F43F5E] text-slate-300 hover:text-white"
             title="Lock Terminal"
           >
             <Lock className="w-4 h-4" />
@@ -1268,7 +725,6 @@ export default function App() {
             { id: "settings", label: "Hotel Settings", icon: Settings },
           ].map(({ id, label, icon: Icon }) => {
             if (!canAccessTab(id)) return null;
-
             return (
               <button
                 key={id}
@@ -1283,208 +739,133 @@ export default function App() {
             );
           })}
         </nav>
-
-        <div className="p-4 border-t border-[#0F2D3C] bg-[#06151E]/40 flex justify-between items-center text-xs">
-          <span className="text-slate-400 font-mono text-[10px]">Session Active</span>
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="text-[11px] text-[#F43F5E] hover:underline font-semibold"
-          >
-            Lock Screen
-          </button>
-        </div>
       </aside>
 
-      {/* MAIN VIEWPORT */}
+      {/* VIEWPORT */}
       <div className="flex-1 flex flex-col h-full overflow-hidden w-full">
-        {/* Mobile Header Bar */}
+        {/* MOBILE TOPBAR */}
         <header className="no-print md:hidden flex items-center justify-between p-4 bg-[#091D26] text-white border-b border-[#0F2D3C]">
           <div className="flex items-center gap-2">
             <Building2 className="w-5 h-5 text-[#2DD4BF]" />
-            <span className="font-bold text-sm">Thalassa POS</span>
+            <span className="font-bold text-sm truncate">{settings.hotelName}</span>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="p-1 rounded bg-white/10 text-slate-300"
-              title="Lock Terminal"
-            >
-              <Lock className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-1 rounded text-slate-300"
-            >
-              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-            </button>
-          </div>
+          <button type="button" onClick={() => setCurrentUser(null)} className="p-1 rounded bg-white/10 text-slate-300">
+            <Lock className="w-4 h-4" />
+          </button>
         </header>
-
-        {/* Mobile Drawer */}
-        {mobileMenuOpen && (
-          <div className="no-print md:hidden bg-[#091D26] border-b border-[#0F2D3C] p-4 space-y-2 z-50 text-white shadow-xl">
-            <div className="text-xs pb-2 border-b border-white/10 text-[#2DD4BF] font-semibold">
-              Logged in: {currentUser.name} ({currentUser.role})
-            </div>
-            {[
-              { id: "frontdesk", label: "Front Desk" },
-              { id: "active-orders", label: "Active Bills & Tabs" },
-              { id: "inventory", label: "Stock & Minibar" },
-              { id: "room-admin", label: "Room Management" },
-              { id: "staff", label: "Staff & Attendance" },
-              { id: "settings", label: "Hotel Settings" },
-            ].map((item) => {
-              if (!canAccessTab(item.id)) return null;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => {
-                    setActiveTab(item.id);
-                    setMobileMenuOpen(false);
-                  }}
-                  className={`w-full text-left py-2 px-3 rounded text-sm ${activeTab === item.id ? "bg-[#0D9488]" : ""}`}
-                >
-                  {item.label}
-                </button>
-              );
-            })}
-          </div>
-        )}
 
         <main className="no-print flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           {/* TAB 1: FRONT DESK */}
           {activeTab === "frontdesk" && (
             <div className="max-w-7xl mx-auto space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex justify-between items-center">
                 <div>
-                  <h2 className="text-2xl font-bold text-[#091D26] tracking-tight">Front Desk Operations</h2>
-                  <p className="text-sm text-slate-500">Live guest room status, photo IDs, check-ins, and turnover</p>
-                </div>
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="bg-white border border-[#E6DFD3] px-3 py-1.5 rounded-lg shadow-sm">
-                    Total Rooms: <b>{rooms.length}</b>
-                  </span>
-                  <span className="bg-[#F0FDF4] border border-[#CCFBF1] text-[#0F766E] px-3 py-1.5 rounded-lg">
-                    Active Bills: <b>{rooms.filter((r) => r.status === "occupied").length}</b>
-                  </span>
+                  <h2 className="text-2xl font-bold text-[#091D26]">Front Desk Operations</h2>
+                  <p className="text-sm text-slate-500">Live guest room status, photo IDs, and check-in</p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {rooms.map((room) => {
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {rooms.map((room) => (
+                  <div key={room.id} className="bg-white border border-[#E6DFD3] rounded-xl p-5 shadow-sm flex flex-col justify-between">
+                    <div>
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="text-2xl font-black">#{room.number}</span>
+                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize ${
+                          room.status === "available" ? "bg-[#CCFBF1] text-[#0F766E]" : "bg-[#0F2D3C] text-white"
+                        }`}>{room.status}</span>
+                      </div>
+                      <p className="text-xs font-semibold text-[#0F766E] uppercase">{room.type}</p>
+                      <p className="text-xs text-slate-500 mb-4">{settings.currency}{room.rate} / night</p>
+
+                      {room.status === "occupied" && (
+                        <div className="bg-[#FAF9F5] p-3 rounded-lg border border-[#E6DFD3] mb-4 text-xs space-y-2">
+                          <div className="flex items-center gap-3">
+                            {room.guestPhoto ? (
+                              <img src={room.guestPhoto} alt="Guest" className="w-10 h-10 rounded-full object-cover border border-[#14B8A6]" />
+                            ) : (
+                              <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-400">
+                                <ImageIcon className="w-4 h-4" />
+                              </div>
+                            )}
+                            <div className="truncate">
+                              <span className="font-bold block truncate">{room.guestName}</span>
+                              <span className="text-[10px] text-slate-500">{room.guestPhone}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="pt-2 border-t border-[#F3EFE6] flex gap-2">
+                      {room.status === "available" ? (
+                        <button
+                          type="button"
+                          onClick={() => { setCheckInModalRoom(room); setGuestPhoto(null); }}
+                          className="w-full bg-[#14B8A6] hover:bg-[#0D9488] text-white py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5"
+                        >
+                          <Camera className="w-3.5 h-3.5" /> Check In & Photo
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => { setSelectedRoomId(room.id); setActiveTab("active-orders"); }}
+                          className="w-full bg-[#F3EFE6] hover:bg-[#E6DFD3] text-[#091D26] py-2 rounded-lg text-xs font-semibold"
+                        >
+                          View Folio
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: ACTIVE BILLS */}
+          {activeTab === "active-orders" && (
+            <div className="max-w-7xl mx-auto space-y-6">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h2 className="text-2xl font-bold">Active Bills & Guest Tabs</h2>
+                  <p className="text-sm text-slate-500">Print temporary pro-forma check or settle official tax invoices</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                {rooms.filter((r) => r.status === "occupied").map((room) => {
                   const billTotal = calculateTotal(room);
                   return (
-                    <div
-                      key={room.id}
-                      className="bg-white border border-[#E6DFD3] rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between"
-                    >
-                      <div>
-                        <div className="flex justify-between items-start mb-2">
-                          <span className="text-2xl font-black text-[#091D26]">#{room.number}</span>
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize ${
-                              room.status === "available"
-                                ? "bg-[#CCFBF1] text-[#0F766E]"
-                                : room.status === "occupied"
-                                ? "bg-[#0F2D3C] text-white"
-                                : room.status === "cleaning"
-                                ? "bg-amber-100 text-amber-800"
-                                : "bg-[#FFE4E6] text-[#F43F5E]"
-                            }`}
-                          >
-                            {room.status}
-                          </span>
+                    <div key={room.id} className="bg-white rounded-xl border border-[#E6DFD3] p-5 shadow-sm space-y-4">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <span className="text-xs uppercase font-bold text-[#0F766E]">{room.orderId}</span>
+                          <h3 className="text-xl font-black">Room #{room.number}</h3>
                         </div>
-                        <p className="text-xs font-semibold text-[#0F766E] uppercase">{room.type}</p>
-                        <p className="text-xs text-slate-500 mb-4">{settings.currency}{room.rate} / night</p>
-
-                        {room.status === "occupied" && (
-                          <div className="bg-[#FAF9F5] p-3 rounded-lg border border-[#E6DFD3] mb-4 text-xs space-y-2">
-                            <div className="flex items-center gap-3">
-                              {/* Guest Image Thumbnail if captured */}
-                              {room.guestPhoto ? (
-                                <img
-                                  src={room.guestPhoto}
-                                  alt="Guest ID"
-                                  className="w-10 h-10 rounded-full object-cover border border-[#14B8A6] shrink-0"
-                                />
-                              ) : (
-                                <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-400 shrink-0">
-                                  <ImageIcon className="w-4 h-4" />
-                                </div>
-                              )}
-                              <div className="truncate">
-                                <span className="font-bold text-[#091D26] block truncate">{room.guestName}</span>
-                                <span className="text-[10px] text-slate-500">{room.guestPhone || "No contact"}</span>
-                              </div>
-                            </div>
-                            <div className="flex justify-between items-center pt-1 border-t border-slate-200/60">
-                              <span className="text-[11px] text-[#0F766E] font-mono">{room.orderId}</span>
-                              <span className="font-black text-[#0D9488]">{settings.currency}{billTotal.toFixed(2)}</span>
-                            </div>
-                            <p className="text-[10px] text-slate-400">Checkout: {room.checkOut}</p>
-                          </div>
-                        )}
+                        <span className="text-xl font-black text-[#0D9488]">{settings.currency}{billTotal.toFixed(2)}</span>
                       </div>
-
-                      <div className="pt-2 border-t border-[#F3EFE6] flex gap-2">
-                        {room.status === "available" && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setCheckInModalRoom(room);
-                              setGuestPhoto(null);
-                            }}
-                            className="w-full bg-[#14B8A6] hover:bg-[#0D9488] text-white py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5"
-                          >
-                            <Camera className="w-3.5 h-3.5" /> Check In & Photo
-                          </button>
-                        )}
-                        {room.status === "occupied" && (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedRoomId(room.id);
-                                setActiveTab("active-orders");
-                              }}
-                              className="flex-1 bg-[#F3EFE6] hover:bg-[#E6DFD3] text-[#091D26] py-2 rounded-lg text-xs font-semibold"
-                            >
-                              Tab / Items
-                            </button>
-                            {(isManager || isFrontDesk) && (
-                              <button
-                                type="button"
-                                onClick={() => handleInitiateSettleOrder(room)}
-                                className="flex-1 bg-[#F43F5E] hover:bg-[#E11D48] text-white py-2 rounded-lg text-xs font-bold"
-                              >
-                                Settle Order
-                              </button>
-                            )}
-                          </>
-                        )}
-                        {room.status === "cleaning" && (
-                          <button
-                            type="button"
-                            onClick={() => updateRoomStatus(room.id, "available")}
-                            className="w-full bg-[#CCFBF1]/40 hover:bg-[#CCFBF1] text-[#0F766E] border border-[#2DD4BF] py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5"
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5" /> Mark Ready
-                          </button>
-                        )}
-                        {room.status === "maintenance" && isManager && (
-                          <button
-                            type="button"
-                            onClick={() => updateRoomStatus(room.id, "available")}
-                            className="w-full bg-[#E6DFD3] hover:bg-[#D3C8B7] text-[#091D26] py-2 rounded-lg text-xs font-medium"
-                          >
-                            Clear Maintenance
-                          </button>
-                        )}
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const html = buildThermalHtml({ settings, room, isTemporary: true, settlementMethod: "Pending", total: billTotal });
+                            printIsolatedDocument(html, "thermal");
+                          }}
+                          className="flex-1 bg-[#0F2D3C] text-white py-2 rounded-lg text-xs font-semibold"
+                        >
+                          Print Temp
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const html = buildA4Html({ settings, room, isTemporary: false, settlementMethod: "Paid", total: billTotal });
+                            printIsolatedDocument(html, "a4");
+                            update(ref(rtdb, `rooms/${room.id}`), { status: "available", orderId: null, guestName: "", guestPhoto: null, orderItems: null });
+                          }}
+                          className="flex-1 bg-[#0D9488] text-white py-2 rounded-lg text-xs font-bold"
+                        >
+                          Settle & Print
+                        </button>
                       </div>
                     </div>
                   );
@@ -1493,354 +874,137 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 2: ACTIVE BILLS */}
-          {activeTab === "active-orders" && canAccessTab("active-orders") && (
-            <div className="max-w-7xl mx-auto space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-2xl font-bold text-[#091D26]">Active Bills & Guest Tabs</h2>
-                  <p className="text-sm text-slate-500">
-                    Print temporary guest check bills, add minibar items, settle invoices, or void orders.
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 bg-white border border-[#E6DFD3] p-1.5 rounded-lg text-xs">
-                  <span className="font-semibold text-slate-500 pl-1 text-[11px] uppercase">Print Mode:</span>
-                  <button
-                    type="button"
-                    onClick={() => setPrintFormat("thermal")}
-                    className={`px-3 py-1 rounded font-bold transition-all ${
-                      printFormat === "thermal" ? "bg-[#0F2D3C] text-white" : "text-slate-600 hover:bg-slate-100"
-                    }`}
-                  >
-                    80mm Thermal
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPrintFormat("a4")}
-                    className={`px-3 py-1 rounded font-bold transition-all ${
-                      printFormat === "a4" ? "bg-[#0F2D3C] text-white" : "text-slate-600 hover:bg-slate-100"
-                    }`}
-                  >
-                    Official A4
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {rooms
-                  .filter((r) => r.status === "occupied")
-                  .map((room) => {
-                    const billTotal = calculateTotal(room);
-                    const isSelected = selectedRoomId === room.id;
-
-                    return (
-                      <div
-                        key={room.id}
-                        className={`bg-white rounded-xl border p-5 shadow-sm transition-all flex flex-col justify-between ${
-                          isSelected ? "border-[#14B8A6] ring-2 ring-[#14B8A6]/20" : "border-[#E6DFD3] hover:border-slate-300"
-                        }`}
-                      >
-                        <div>
-                          <div className="flex justify-between items-start mb-3 pb-2 border-b border-[#F3EFE6]">
-                            <div>
-                              <div className="flex items-center gap-1.5 text-xs text-[#0F766E] font-bold">
-                                <ShoppingBag className="w-3.5 h-3.5" />
-                                <span>{room.orderId || `ORD-${room.number}`}</span>
-                              </div>
-                              <h3 className="text-xl font-black text-[#091D26] mt-0.5">Room #{room.number}</h3>
-                            </div>
-                            <div className="text-right">
-                              <span className="text-[10px] uppercase font-semibold text-slate-400 block">Total Due</span>
-                              <span className="text-xl font-black text-[#0D9488]">
-                                {settings.currency}{billTotal.toFixed(2)}
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-3 mb-4">
-                            {room.guestPhoto ? (
-                              <img
-                                src={room.guestPhoto}
-                                alt="Guest"
-                                className="w-12 h-12 rounded-xl object-cover border border-[#14B8A6] shadow-sm"
-                              />
-                            ) : (
-                              <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400">
-                                <ImageIcon className="w-5 h-5" />
-                              </div>
-                            )}
-                            <div className="text-xs">
-                              <p className="font-bold text-[#091D26]">{room.guestName}</p>
-                              <p className="text-slate-500">{room.guestPhone}</p>
-                              <p className="text-[10px] text-slate-400">{room.checkIn} → {room.checkOut}</p>
-                            </div>
-                          </div>
-
-                          <div className="bg-[#FAF9F5] p-3 rounded-lg border border-[#E6DFD3] mb-4">
-                            <span className="text-[11px] font-bold uppercase text-slate-500 block mb-1.5">
-                              Items on Bill ({room.orderItems?.length || 0})
-                            </span>
-                            <div className="max-h-28 overflow-y-auto space-y-1.5 text-xs">
-                              {room.orderItems?.map((item) => (
-                                <div key={item.id} className="flex justify-between items-center text-slate-600">
-                                  <div className="truncate pr-2">
-                                    <span className="font-bold text-[#091D26] mr-1">{item.quantity}x</span>
-                                    <span>{item.description}</span>
-                                  </div>
-                                  <span className="font-semibold text-[#091D26] shrink-0">
-                                    {settings.currency}{Number(item.total).toFixed(2)}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="space-y-2 pt-2 border-t border-[#F3EFE6]">
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => handlePrintTemporaryBill(room)}
-                              className="flex-1 bg-[#0F2D3C] hover:bg-[#091D26] text-white py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 transition-colors"
-                            >
-                              <Printer className="w-3.5 h-3.5 text-[#2DD4BF]" /> Print Temp Bill
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setSelectedRoomId(room.id)}
-                              className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors ${
-                                isSelected ? "bg-[#14B8A6] text-white" : "bg-[#F3EFE6] hover:bg-[#E6DFD3] text-[#091D26]"
-                              }`}
-                            >
-                              {isSelected ? "Posting Items" : "Add Items"}
-                            </button>
-                          </div>
-
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => handleInitiateSettleOrder(room)}
-                              className="flex-3 bg-[#0D9488] hover:bg-[#0F766E] text-white py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1 shadow-sm"
-                            >
-                              Settle Bill <ArrowRight className="w-3.5 h-3.5" />
-                            </button>
-                            {isManager && (
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteActiveBill(room)}
-                                className="p-2 border border-coral-200 text-coral-600 hover:bg-coral-50 rounded-lg text-xs transition-colors"
-                                title="Delete / Void this active bill"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-              </div>
-
-              {/* POST CHARGES CONSOLE */}
-              {currentRoom && currentRoom.status === "occupied" && (
-                <div className="mt-8 pt-8 border-t border-[#E6DFD3]">
-                  <div className="flex justify-between items-center mb-4">
-                    <div>
-                      <h3 className="text-lg font-bold text-[#091D26]">
-                        Posting Charges to Room #{currentRoom.number} ({currentRoom.guestName})
-                      </h3>
-                      <p className="text-xs text-slate-500">Post extra amenities, food orders, or minibar consumables</p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div className="lg:col-span-2 bg-white rounded-xl border border-[#E6DFD3] shadow-sm p-6">
-                      <form onSubmit={handleAddItemToOrder} className="grid grid-cols-1 sm:grid-cols-4 gap-2 mb-6">
-                        <input
-                          type="text"
-                          placeholder="Item or service name..."
-                          value={newItemDesc}
-                          onChange={(e) => setNewItemDesc(e.target.value)}
-                          className="sm:col-span-2 border border-[#D3C8B7] rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
-                        />
-                        <input
-                          type="number"
-                          step="0.01"
-                          placeholder="Unit Price"
-                          value={newItemPrice}
-                          onChange={(e) => setNewItemPrice(e.target.value)}
-                          className="border border-[#D3C8B7] rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
-                        />
-                        <div className="flex gap-2">
-                          <input
-                            type="number"
-                            min="1"
-                            value={newItemQty}
-                            onChange={(e) => setNewItemQty(e.target.value)}
-                            className="w-14 border border-[#D3C8B7] rounded-lg px-2 py-2 text-xs text-center focus:outline-none"
-                          />
-                          <button
-                            type="submit"
-                            className="flex-1 bg-[#0F2D3C] text-white rounded-lg px-3 py-2 text-xs font-semibold flex items-center justify-center gap-1 hover:bg-[#091D26]"
-                          >
-                            <Plus className="w-3.5 h-3.5" /> Post
-                          </button>
-                        </div>
-                      </form>
-
-                      <table className="w-full text-left text-xs">
-                        <thead>
-                          <tr className="border-b border-[#E6DFD3] text-slate-400 uppercase tracking-wider font-semibold">
-                            <th className="py-2.5">Item</th>
-                            <th className="py-2.5 text-center">Qty</th>
-                            <th className="py-2.5 text-right">Unit Rate</th>
-                            <th className="py-2.5 text-right">Total</th>
-                            <th className="py-2.5 text-center">Del</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-[#F3EFE6]">
-                          {currentRoom.orderItems?.map((item) => (
-                            <tr key={item.id}>
-                              <td className="py-3 font-medium text-[#091D26]">
-                                <div>{item.description}</div>
-                                {item.timestamp && <span className="text-[10px] text-slate-400">{item.timestamp}</span>}
-                              </td>
-                              <td className="py-3 text-center">{item.quantity}</td>
-                              <td className="py-3 text-right">{settings.currency}{Number(item.unitPrice).toFixed(2)}</td>
-                              <td className="py-3 text-right font-semibold">{settings.currency}{Number(item.total).toFixed(2)}</td>
-                              <td className="py-3 text-center">
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveOrderItem(item.id)}
-                                  className="text-[#F43F5E] hover:text-[#E11D48]"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    <div className="bg-white rounded-xl border border-[#E6DFD3] shadow-sm p-6 space-y-3">
-                      <h4 className="font-bold text-sm text-[#091D26] uppercase">Instant Minibar Dispatch</h4>
-                      <div className="space-y-2">
-                        {inventory.filter((i) => i.price > 0).map((item) => (
-                          <button
-                            key={item.id}
-                            type="button"
-                            onClick={() => handleQuickAddMinibar(item)}
-                            className="w-full flex items-center justify-between p-2.5 rounded-lg border border-[#E6DFD3] hover:border-[#14B8A6] bg-[#FAF9F5] text-xs transition-colors"
-                          >
-                            <div className="text-left">
-                              <span className="font-medium text-[#091D26] block truncate">{item.name}</span>
-                              <span className="text-[10px] text-slate-400">Stock: {item.stock}</span>
-                            </div>
-                            <span className="font-bold text-[#0F766E]">{settings.currency}{Number(item.price).toFixed(2)}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
           {/* TAB 3: INVENTORY */}
-          {activeTab === "inventory" && canAccessTab("inventory") && (
+          {activeTab === "inventory" && (
             <div className="max-w-7xl mx-auto space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-2xl font-bold text-[#091D26]">Inventory & Minibar Management</h2>
-                  <p className="text-sm text-slate-500">Realtime Database synchronization for room minibar consumables and amenities.</p>
-                </div>
-                {isManager && (
-                  <button
-                    type="button"
-                    onClick={() => setShowAddInventoryModal(true)}
-                    className="inline-flex items-center gap-2 bg-[#14B8A6] hover:bg-[#0D9488] text-white px-4 py-2.5 rounded-lg text-xs font-bold shadow-sm transition-all"
-                  >
-                    <PackagePlus className="w-4 h-4" /> Add Inventory Item
-                  </button>
-                )}
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold">Inventory & Minibar Stock</h2>
+                <button
+                  type="button"
+                  onClick={() => setShowAddInventoryModal(true)}
+                  className="bg-[#14B8A6] text-white px-4 py-2 rounded-lg text-xs font-bold"
+                >
+                  + Add Stock Item
+                </button>
               </div>
 
-              {/* Table */}
-              <div className="bg-white rounded-xl border border-[#E6DFD3] shadow-sm overflow-hidden">
+              <div className="bg-white rounded-xl border border-[#E6DFD3] overflow-hidden">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-[#F3EFE6] border-b border-[#E6DFD3] uppercase font-semibold text-slate-500">
+                  <thead className="bg-[#F3EFE6] uppercase font-semibold text-slate-500">
                     <tr>
-                      <th className="p-3.5">Product Name</th>
+                      <th className="p-3.5">Product</th>
                       <th className="p-3.5">Category</th>
-                      <th className="p-3.5 text-right">Billable Price</th>
-                      <th className="p-3.5 text-center">Stock Level</th>
-                      <th className="p-3.5 text-center">Quick Adjust</th>
-                      {isManager && <th className="p-3.5 text-center">Actions</th>}
+                      <th className="p-3.5 text-right">Price</th>
+                      <th className="p-3.5 text-center">Stock</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#F3EFE6]">
-                    {filteredInventory.map((item) => {
-                      const isEditing = editingInventoryId === item.id;
+                    {inventory.map((item) => (
+                      <tr key={item.id}>
+                        <td className="p-3.5 font-bold">{item.name}</td>
+                        <td className="p-3.5">{item.category}</td>
+                        <td className="p-3.5 text-right">{settings.currency}{Number(item.price).toFixed(2)}</td>
+                        <td className="p-3.5 text-center font-bold">{item.stock}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: ROOM ADMIN */}
+          {activeTab === "room-admin" && isManager && (
+            <div className="max-w-7xl mx-auto space-y-6">
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold">Room Inventory Setup</h2>
+                <button
+                  type="button"
+                  onClick={() => setShowAddRoomModal(true)}
+                  className="bg-[#14B8A6] text-white px-4 py-2 rounded-lg text-xs font-bold"
+                >
+                  + Add Room
+                </button>
+              </div>
+              <div className="bg-white rounded-xl border border-[#E6DFD3] p-4">
+                {rooms.map((r) => (
+                  <div key={r.id} className="flex justify-between items-center py-2 border-b last:border-none text-xs">
+                    <span className="font-bold">Room #{r.number} - {r.type}</span>
+                    <span>{settings.currency}{r.rate} / night</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 5: STAFF & ATTENDANCE WITH DAILY PERSISTENCE */}
+          {activeTab === "staff" && (
+            <div className="max-w-7xl mx-auto space-y-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                  <h2 className="text-2xl font-bold">Daily Staff Attendance & Shift Log</h2>
+                  <p className="text-sm text-slate-500">Attendance history is archived daily into cloud storage</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-500">Pick Date:</span>
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="border border-[#D3C8B7] rounded-lg px-2.5 py-1 text-xs bg-white font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl border border-[#E6DFD3] overflow-hidden">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#F3EFE6] uppercase font-semibold text-slate-500">
+                    <tr>
+                      <th className="p-3.5">Employee Name</th>
+                      <th className="p-3.5">Role</th>
+                      <th className="p-3.5 text-center">In Time</th>
+                      <th className="p-3.5 text-center">Out Time</th>
+                      <th className="p-3.5 text-center">Duty Status</th>
+                      <th className="p-3.5 text-center">Shift Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#F3EFE6]">
+                    {staff.map((m) => {
+                      const record = dailyAttendance[m.id] || {};
+                      const isClockedIn = record.isOnDuty;
+
                       return (
-                        <tr key={item.id} className="hover:bg-[#FAF9F5] transition-colors">
-                          <td className="p-3.5 font-bold text-[#091D26]">
-                            {isEditing ? (
-                              <input
-                                type="text"
-                                className="w-full border border-[#14B8A6] rounded px-2 py-1 text-xs focus:outline-none bg-white"
-                                value={editInventoryForm.name}
-                                onChange={(e) => setEditInventoryForm({ ...editInventoryForm, name: e.target.value })}
-                              />
+                        <tr key={m.id} className="hover:bg-[#FAF9F5]">
+                          <td className="p-3.5 font-bold">{m.name}</td>
+                          <td className="p-3.5">{m.role}</td>
+                          <td className="p-3.5 text-center font-mono font-bold text-slate-800">{record.clockIn || "--:--"}</td>
+                          <td className="p-3.5 text-center font-mono font-bold text-slate-800">{record.clockOut || "--:--"}</td>
+                          <td className="p-3.5 text-center">
+                            <span className={`px-2.5 py-0.5 rounded-full font-bold uppercase text-[10px] ${
+                              isClockedIn ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"
+                            }`}>
+                              {isClockedIn ? "On Duty" : record.clockOut ? "Completed" : "Off Duty"}
+                            </span>
+                          </td>
+                          <td className="p-3.5 text-center">
+                            {!isClockedIn ? (
+                              <button
+                                type="button"
+                                onClick={() => handleClockIn(m)}
+                                className="px-3 py-1 bg-[#0D9488] text-white rounded text-xs font-bold"
+                              >
+                                Clock In
+                              </button>
                             ) : (
-                              item.name
+                              <button
+                                type="button"
+                                onClick={() => handleClockOut(m)}
+                                className="px-3 py-1 bg-coral-500 text-white rounded text-xs font-bold"
+                              >
+                                Clock Out
+                              </button>
                             )}
                           </td>
-                          <td className="p-3.5">{item.category}</td>
-                          <td className="p-3.5 text-right font-medium">
-                            {item.price > 0 ? `${settings.currency}${Number(item.price).toFixed(2)}` : "Free"}
-                          </td>
-                          <td className="p-3.5 text-center font-bold">{item.stock}</td>
-                          <td className="p-3.5 text-center">
-                            <div className="inline-flex items-center gap-1">
-                              <button
-                                type="button"
-                                onClick={() => handleUpdateStockLevel(item.id, -1)}
-                                className="px-2 py-0.5 border border-[#D3C8B7] rounded hover:bg-[#F3EFE6] text-xs font-bold"
-                              >
-                                -
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleUpdateStockLevel(item.id, 1)}
-                                className="px-2 py-0.5 border border-[#D3C8B7] rounded hover:bg-[#F3EFE6] text-xs font-bold"
-                              >
-                                +
-                              </button>
-                            </div>
-                          </td>
-                          {isManager && (
-                            <td className="p-3.5 text-center">
-                              {isEditing ? (
-                                <button
-                                  type="button"
-                                  onClick={() => handleSaveInventoryEdit(item.id)}
-                                  className="p-1 bg-[#14B8A6] text-white rounded"
-                                >
-                                  <Check className="w-3.5 h-3.5" />
-                                </button>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => handleStartEditInventory(item)}
-                                  className="text-slate-400 hover:text-[#0D9488] p-1"
-                                >
-                                  <Edit2 className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                            </td>
-                          )}
                         </tr>
                       );
                     })}
@@ -1850,559 +1014,632 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 4: ROOM MANAGEMENT (MANAGER ONLY) */}
-          {activeTab === "room-admin" && isManager && (
-            <div className="max-w-7xl mx-auto space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          {/* TAB 6: COMPLETE SETTINGS MODULE (MATCHING YOUR SCREENSHOT) */}
+          {activeTab === "settings" && isManager && (
+            <div className="max-w-6xl mx-auto space-y-8 pb-16">
+              {/* Header Action Bar */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-[#E6DFD3] pb-4">
                 <div>
-                  <h2 className="text-2xl font-bold text-[#091D26] tracking-tight">Room Catalog & Configuration</h2>
-                  <p className="text-sm text-slate-500">Add, re-price, change status, and decommission rooms</p>
+                  <h2 className="text-2xl font-bold flex items-center gap-2">
+                    <Settings className="w-6 h-6 text-[#14B8A6]" /> System, Business & Peripheral Settings
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    Manage company identity, thermal printing options, automated cash drawer solenoid, and database backup files.
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleDownloadBackup}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[#D3C8B7] bg-white hover:bg-slate-50 text-xs font-bold shadow-sm"
+                  >
+                    <Download className="w-4 h-4 text-slate-500" /> Download Backup
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveAllSettings}
+                    className="flex items-center gap-1.5 px-5 py-2 rounded-lg bg-[#0D9488] hover:bg-[#0F766E] text-white text-xs font-bold shadow-md transition-all"
+                  >
+                    <Save className="w-4 h-4" /> Save Changes
+                  </button>
+                </div>
+              </div>
+
+              {saveSuccessMsg && (
+                <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-3 rounded-xl text-xs font-bold flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" /> {saveSuccessMsg}
+                </div>
+              )}
+
+              {/* CARD 1: COMPANY & BUSINESS INFORMATION */}
+              <div className="bg-white rounded-2xl border border-[#E6DFD3] p-6 shadow-sm space-y-4">
+                <div className="border-b border-slate-100 pb-2">
+                  <h3 className="font-bold text-sm text-[#091D26] uppercase tracking-wide flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-[#14B8A6]" /> Company & Business Information[cite: 3]
+                  </h3>
+                  <p className="text-[11px] text-slate-400">Printed on official receipts, tax invoices, and IT reports[cite: 3]</p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Trading / Brand Name[cite: 3]</label>
+                    <input
+                      type="text"
+                      value={settingsForm.hotelName}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, hotelName: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Brand Tagline / Slogan[cite: 3]</label>
+                    <input
+                      type="text"
+                      value={settingsForm.tagline}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, tagline: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Registered Legal Entity Name[cite: 3]</label>
+                    <input
+                      type="text"
+                      value={settingsForm.legalEntity}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, legalEntity: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Business Registration No. (BRN / Company ID)[cite: 3]</label>
+                    <input
+                      type="text"
+                      value={settingsForm.companyRegNo}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, companyRegNo: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Tax Identification / VAT / GST No.[cite: 3]</label>
+                    <input
+                      type="text"
+                      value={settingsForm.taxNumber}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, taxNumber: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Terminal Hardware Identifier[cite: 3]</label>
+                    <input
+                      type="text"
+                      value={settingsForm.terminalId}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, terminalId: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Contact Phone Number[cite: 3]</label>
+                    <input
+                      type="text"
+                      value={settingsForm.phone}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, phone: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Business Email Address[cite: 3]</label>
+                    <input
+                      type="email"
+                      value={settingsForm.email}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, email: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block font-semibold mb-1 text-slate-700">Official Website or Social Link[cite: 3]</label>
+                    <input
+                      type="text"
+                      value={settingsForm.website}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, website: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block font-semibold mb-1 text-slate-700">Full Physical Street Address[cite: 3]</label>
+                    <input
+                      type="text"
+                      value={settingsForm.address}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, address: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* CARD 2: AUTOMATED DAILY 11:30 PM EMAIL DISPATCH */}
+              <div className="bg-white rounded-2xl border border-[#E6DFD3] p-6 shadow-sm space-y-4">
+                <div className="border-b border-slate-100 pb-2">
+                  <h3 className="font-bold text-sm text-[#091D26] uppercase tracking-wide flex items-center gap-2">
+                    <Send className="w-4 h-4 text-[#14B8A6]" /> Automated Daily 11:30 PM Email Dispatch[cite: 3]
+                  </h3>
+                  <p className="text-[11px] text-slate-400">Auto-dispatches complete end-of-day sales, collections, balances, and shift worksheets[cite: 3]</p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Target Recipient Email[cite: 3]</label>
+                    <input
+                      type="email"
+                      value={settingsForm.emailRecipient}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, emailRecipient: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Scheduled Time (24h)[cite: 3]</label>
+                    <input
+                      type="text"
+                      value={settingsForm.emailScheduleTime}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, emailScheduleTime: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Automation Status[cite: 3]</label>
+                    <select
+                      value={settingsForm.emailStatus}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, emailStatus: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white"
+                    >
+                      <option value="Disabled (Manual trigger only)">Disabled (Manual trigger only)[cite: 3]</option>
+                      <option value="Enabled (Daily Auto Send)">Enabled (Daily Auto Send)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="bg-[#FAF9F5] p-3.5 rounded-xl border border-[#E6DFD3] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                  <div className="text-[11px] text-slate-500">
+                    <b>What data is transmitted in the 11:30 PM package?</b><br />
+                    Gross revenue, net sales, taxes, service pool, room occupancy, minibar orders, cashier balance, and shift audits[cite: 3].
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => alert(`Email report package dispatched to ${settingsForm.emailRecipient}`)}
+                    className="px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-lg text-xs font-bold shrink-0 shadow-sm"
+                  >
+                    Send Daily Report Now[cite: 3]
+                  </button>
+                </div>
+              </div>
+
+              {/* CARD 3: THERMAL AUTO-PRINTER CONFIGURATION */}
+              <div className="bg-white rounded-2xl border border-[#E6DFD3] p-6 shadow-sm space-y-4">
+                <div className="border-b border-slate-100 pb-2">
+                  <h3 className="font-bold text-sm text-[#091D26] uppercase tracking-wide flex items-center gap-2">
+                    <Printer className="w-4 h-4 text-[#14B8A6]" /> Thermal Auto-Printer Configuration[cite: 3]
+                  </h3>
+                  <p className="text-[11px] text-slate-400">Hardwired direct slip generation for USB, LAN, or Bluetooth portable printers[cite: 3]</p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Paper Roll Width[cite: 3]</label>
+                    <select
+                      value={settingsForm.paperRollWidth}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, paperRollWidth: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white"
+                    >
+                      <option value="80mm">80mm Thermal Paper (Standard POS)[cite: 3]</option>
+                      <option value="58mm">58mm Thermal Paper (Compact / Mobile)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Receipt Font Size[cite: 3]</label>
+                    <select
+                      value={settingsForm.receiptFontSize}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, receiptFontSize: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white"
+                    >
+                      <option value="14px - Extra Bold & Large">14px - Extra Bold & Large[cite: 3]</option>
+                      <option value="12px - Standard POS">12px - Standard POS</option>
+                      <option value="10px - Compact Condense">10px - Compact Condense</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Receipt Font Type[cite: 3]</label>
+                    <select
+                      value={settingsForm.receiptFontType}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, receiptFontType: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white"
+                    >
+                      <option value="Monospace (Classic ESC/POS)">Monospace (Classic ESC/POS Receipt)[cite: 3]</option>
+                      <option value="Sans-Serif">Modern Sans-Serif</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Thermal Slip Margins[cite: 3]</label>
+                    <select
+                      value={settingsForm.slipMargins}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, slipMargins: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white"
+                    >
+                      <option value="2mm - Standard Thermal Margin">2mm - Standard Thermal Margin[cite: 3]</option>
+                      <option value="0mm - Full Bleed Edge">0mm - Full Bleed Edge</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Auto-Print on Saved Order[cite: 3]</label>
+                    <select
+                      value={settingsForm.autoPrintKOT}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, autoPrintKOT: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white"
+                    >
+                      <option value="Yes - Print KOT & BOT Slips">Yes - Print KOT & BOT Slips[cite: 3]</option>
+                      <option value="No - Manual Only">No - Manual Only</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Auto-Print on Settlement[cite: 3]</label>
+                    <select
+                      value={settingsForm.autoPrintSettlement}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, autoPrintSettlement: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white"
+                    >
+                      <option value="Yes - Print Final Tax Invoice">Yes - Print Final Tax Invoice[cite: 3]</option>
+                      <option value="No - Screen Only">No - Screen Only</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 justify-end pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const dummyRoom = { number: "TEST", orderId: "TEST-01", orderItems: [{ description: "Thermal Test Print", quantity: 1, total: 0 }] };
+                      const html = buildThermalHtml({ settings: settingsForm, room: dummyRoom, isTemporary: true, settlementMethod: "TEST", total: 0 });
+                      printIsolatedDocument(html, "thermal");
+                    }}
+                    className="px-4 py-2 border border-[#D3C8B7] rounded-lg text-xs font-bold hover:bg-slate-50 flex items-center gap-1.5"
+                  >
+                    <Printer className="w-3.5 h-3.5" /> Test Slip[cite: 3]
+                  </button>
+                </div>
+              </div>
+
+              {/* CARD 4: AUTOMATED CASH DRAWER SOLENOID */}
+              <div className="bg-white rounded-2xl border border-[#E6DFD3] p-6 shadow-sm space-y-4">
+                <div className="border-b border-slate-100 pb-2">
+                  <h3 className="font-bold text-sm text-[#091D26] uppercase tracking-wide flex items-center gap-2">
+                    <Banknote className="w-4 h-4 text-[#14B8A6]" /> Automated Cash Drawer Solenoid[cite: 3]
+                  </h3>
+                  <p className="text-[11px] text-slate-400">Triggers electrical RJ11/RJ12 drawer pulse via printer kick ports[cite: 3]</p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Auto Drawer Kick[cite: 3]</label>
+                    <select
+                      value={settingsForm.autoDrawerKick}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, autoDrawerKick: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white"
+                    >
+                      <option value="Enabled (Auto-Pop on Payment)">Enabled (Auto-Pop on Payment)[cite: 3]</option>
+                      <option value="Disabled">Disabled</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Drawer Kick Trigger[cite: 3]</label>
+                    <select
+                      value={settingsForm.drawerKickTrigger}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, drawerKickTrigger: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white"
+                    >
+                      <option value="Cash Payments Only">Cash Payments Only[cite: 3]</option>
+                      <option value="All Settlement Tenders">All Settlement Tenders</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">RJ11 / RJ12 Pinout[cite: 3]</label>
+                    <select
+                      value={settingsForm.drawerPinout}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, drawerPinout: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white"
+                    >
+                      <option value="Pin 2 / ESC p 0 (Epson, Rongta, Xprint)">Pin 2 / ESC p 0 (Epson, Rongta, Xprint)[cite: 3]</option>
+                      <option value="Pin 5 / ESC p 1 (Star Micronics)">Pin 5 / ESC p 1 (Star Micronics)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setSettingsForm({ ...settingsForm, drawerChime: !settingsForm.drawerChime })}
+                    className="flex items-center gap-2 text-xs font-semibold text-slate-700"
+                  >
+                    {settingsForm.drawerChime ? <Volume2 className="w-4 h-4 text-[#14B8A6]" /> : <VolumeX className="w-4 h-4 text-slate-400" />}
+                    Register Chime Sound: <b>{settingsForm.drawerChime ? "Chime ON" : "Muted"}</b>[cite: 3]
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => alert("Solenoid pulse sent! Cash drawer kicked open.")}
+                    className="px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-lg text-xs font-bold shadow-sm"
+                  >
+                    Pop Drawer[cite: 3]
+                  </button>
+                </div>
+              </div>
+
+              {/* CARD 5: CURRENCY, TAXES & SURCHARGE RATES */}
+              <div className="bg-white rounded-2xl border border-[#E6DFD3] p-6 shadow-sm space-y-4">
+                <div className="border-b border-slate-100 pb-2">
+                  <h3 className="font-bold text-sm text-[#091D26] uppercase tracking-wide flex items-center gap-2">
+                    <DollarSign className="w-4 h-4 text-[#14B8A6]" /> Currency, Taxes & Surcharge Rates[cite: 3]
+                  </h3>
+                  <p className="text-[11px] text-slate-400">Default rates applied across folios and receipts[cite: 3]</p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Currency Symbol / Code[cite: 3]</label>
+                    <input
+                      type="text"
+                      value={settingsForm.currency}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, currency: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Default Service Charge (%)[cite: 3]</label>
+                    <input
+                      type="number"
+                      value={settingsForm.serviceChargeRate}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, serviceChargeRate: parseFloat(e.target.value) || 0 })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Sales Tax / VAT Rate (%)[cite: 3]</label>
+                    <input
+                      type="number"
+                      value={settingsForm.vatRate}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, vatRate: parseFloat(e.target.value) || 0 })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
+                    />
+                  </div>
+                  <div className="sm:col-span-3">
+                    <label className="block font-semibold mb-1 text-slate-700">Thermal Receipt Header Notes[cite: 3]</label>
+                    <textarea
+                      rows={2}
+                      value={settingsForm.headerNote}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, headerNote: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
+                    />
+                  </div>
+                  <div className="sm:col-span-3">
+                    <label className="block font-semibold mb-1 text-slate-700">Thermal Receipt Footer Message[cite: 3]</label>
+                    <textarea
+                      rows={2}
+                      value={settingsForm.footerNote}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, footerNote: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* CARD 6: DATABASE BACKUP & DISASTER RECOVERY */}
+              <div className="bg-white rounded-2xl border border-[#E6DFD3] p-6 shadow-sm space-y-4">
+                <div className="border-b border-slate-100 pb-2">
+                  <h3 className="font-bold text-sm text-[#091D26] uppercase tracking-wide flex items-center gap-2">
+                    <Download className="w-4 h-4 text-[#14B8A6]" /> System Database Backup & Disaster Recovery[cite: 3]
+                  </h3>
+                  <p className="text-[11px] text-slate-400">Export or restore full state database (folios, staff, inventory, and shift logs)[cite: 3]</p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                  <div className="p-4 bg-[#FAF9F5] border border-[#E6DFD3] rounded-xl flex flex-col justify-between space-y-3">
+                    <div>
+                      <span className="font-bold block mb-1">Export JSON Database Backup[cite: 3]</span>
+                      <p className="text-slate-500">Download a complete snapshot of all active folios, staff records, and setup data[cite: 3].</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleDownloadBackup}
+                      className="w-full py-2.5 bg-[#091D26] text-white rounded-lg font-bold flex items-center justify-center gap-2"
+                    >
+                      <Download className="w-4 h-4" /> Download System Backup (json)[cite: 3]
+                    </button>
+                  </div>
+
+                  <div className="p-4 bg-[#FAF9F5] border border-[#E6DFD3] rounded-xl flex flex-col justify-between space-y-3">
+                    <div>
+                      <span className="font-bold block mb-1">Restore System from Backup File[cite: 3]</span>
+                      <p className="text-slate-500">Upload a previously exported .json file to restore system settings and history[cite: 3].</p>
+                    </div>
+                    <label className="w-full py-2.5 border border-[#D3C8B7] bg-white hover:bg-slate-50 rounded-lg font-bold flex items-center justify-center gap-2 cursor-pointer">
+                      <Upload className="w-4 h-4 text-slate-500" /> Select Backup File (json)[cite: 3]
+                      <input type="file" accept=".json" onChange={handleRestoreBackup} className="hidden" />
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* CARD 7: ADMINISTRATOR PURGE */}
+              <div className="bg-red-50/50 rounded-2xl border border-red-200 p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                  <h4 className="font-bold text-xs text-red-900 uppercase flex items-center gap-1.5">
+                    <AlertTriangle className="w-4 h-4 text-red-600" /> Administrator Data Purge (Reset Test Data)[cite: 3]
+                  </h4>
+                  <p className="text-[11px] text-red-700 mt-0.5">
+                    Clear test transactions, reset all rooms to VACANT, and reset shift balance ledgers[cite: 3].
+                  </p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setShowAddRoomModal(true)}
-                  className="inline-flex items-center gap-2 bg-[#14B8A6] hover:bg-[#0D9488] text-white px-4 py-2.5 rounded-lg text-xs font-bold shadow-sm"
+                  onClick={handlePurgeTestData}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold shrink-0 shadow-sm"
                 >
-                  <Plus className="w-4 h-4" /> Add New Room
+                  Purge Test Records[cite: 3]
                 </button>
-              </div>
-
-              <div className="bg-white rounded-xl border border-[#E6DFD3] shadow-sm overflow-hidden">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-[#F3EFE6] border-b border-[#E6DFD3] uppercase font-semibold text-slate-500">
-                    <tr>
-                      <th className="p-3.5">Room #</th>
-                      <th className="p-3.5">Room Type</th>
-                      <th className="p-3.5">Rate / Night</th>
-                      <th className="p-3.5">Current Status</th>
-                      <th className="p-3.5 text-center">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#F3EFE6]">
-                    {rooms.map((room) => (
-                      <tr key={room.id} className="hover:bg-[#FAF9F5] transition-colors">
-                        <td className="p-3.5 font-black text-base text-[#091D26]">#{room.number}</td>
-                        <td className="p-3.5 font-medium text-slate-700">{room.type}</td>
-                        <td className="p-3.5 font-bold text-slate-900">{settings.currency}{room.rate}</td>
-                        <td className="p-3.5">
-                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold capitalize bg-[#CCFBF1] text-[#0F766E]">
-                            {room.status}
-                          </span>
-                        </td>
-                        <td className="p-3.5 text-center">
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteRoom(room.id, room.number)}
-                            className="p-1.5 rounded text-[#F43F5E] hover:bg-[#FFE4E6]"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 5: STAFF & ATTENDANCE */}
-          {activeTab === "staff" && canAccessTab("staff") && (
-            <div className="max-w-7xl mx-auto space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-2xl font-bold text-[#091D26] tracking-tight">Staff, Attendance & Remuneration</h2>
-                  <p className="text-sm text-slate-500">
-                    Track daily in/out shift attendance, base monthly salaries, service charge share, and bonuses.
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={handlePrintDailyAttendance}
-                    className="inline-flex items-center gap-2 bg-[#0F2D3C] hover:bg-[#091D26] text-white px-4 py-2.5 rounded-lg text-xs font-bold shadow-sm transition-all"
-                  >
-                    <FileSpreadsheet className="w-4 h-4 text-[#2DD4BF]" /> Print Attendance
-                  </button>
-                  {isManager && (
-                    <button
-                      type="button"
-                      onClick={() => setShowAddStaffModal(true)}
-                      className="inline-flex items-center gap-2 bg-[#14B8A6] hover:bg-[#0D9488] text-white px-4 py-2.5 rounded-lg text-xs font-bold shadow-sm transition-all"
-                    >
-                      <UserPlus className="w-4 h-4" /> Add Team Member
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* View Switcher */}
-              <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
-                <div className="flex bg-[#F3EFE6] p-1 rounded-lg border border-[#E6DFD3]">
-                  <button
-                    type="button"
-                    onClick={() => setStaffViewSubTab("attendance")}
-                    className={`px-4 py-1.5 rounded-md text-xs font-bold flex items-center gap-1.5 transition-all ${
-                      staffViewSubTab === "attendance" ? "bg-[#0F2D3C] text-white shadow-sm" : "text-slate-600 hover:text-black"
-                    }`}
-                  >
-                    <Clock className="w-3.5 h-3.5 text-[#2DD4BF]" /> Daily In/Out Attendance
-                  </button>
-                  {isManager && (
-                    <button
-                      type="button"
-                      onClick={() => setStaffViewSubTab("roster")}
-                      className={`px-4 py-1.5 rounded-md text-xs font-bold flex items-center gap-1.5 transition-all ${
-                        staffViewSubTab === "roster" ? "bg-[#0F2D3C] text-white shadow-sm" : "text-slate-600 hover:text-black"
-                      }`}
-                    >
-                      <Coins className="w-3.5 h-3.5 text-[#2DD4BF]" /> Payroll & Remuneration
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* ATTENDANCE SHEET */}
-              {staffViewSubTab === "attendance" && (
-                <div className="bg-white rounded-xl border border-[#E6DFD3] shadow-sm overflow-hidden">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-[#F3EFE6] border-b border-[#E6DFD3] uppercase font-semibold text-slate-500">
-                      <tr>
-                        <th className="p-3.5">Employee</th>
-                        <th className="p-3.5">Role</th>
-                        <th className="p-3.5 text-center">Clock-In</th>
-                        <th className="p-3.5 text-center">Clock-Out</th>
-                        <th className="p-3.5 text-center">Duty Status</th>
-                        <th className="p-3.5 text-center">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#F3EFE6]">
-                      {filteredStaff.map((member) => (
-                        <tr key={member.id} className="hover:bg-[#FAF9F5] transition-colors">
-                          <td className="p-3.5 font-bold text-[#091D26]">{member.name}</td>
-                          <td className="p-3.5">{member.role}</td>
-                          <td className="p-3.5 text-center font-mono font-bold text-slate-800">{member.clockIn || "--:--"}</td>
-                          <td className="p-3.5 text-center font-mono font-bold text-slate-800">{member.clockOut || "--:--"}</td>
-                          <td className="p-3.5 text-center">
-                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
-                              member.isOnDuty ? "bg-[#CCFBF1] text-[#0F766E]" : "bg-slate-100 text-slate-600"
-                            }`}>
-                              {member.isOnDuty ? "On Duty" : "Off Duty"}
-                            </span>
-                          </td>
-                          <td className="p-3.5 text-center">
-                            {!member.isOnDuty ? (
-                              <button
-                                type="button"
-                                onClick={() => handleClockIn(member.id)}
-                                className="px-3 py-1.5 bg-[#0D9488] hover:bg-[#0F766E] text-white rounded-lg text-xs font-bold"
-                              >
-                                Clock In
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => handleClockOut(member.id)}
-                                className="px-3 py-1.5 bg-[#F43F5E] hover:bg-[#E11D48] text-white rounded-lg text-xs font-bold"
-                              >
-                                Clock Out
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {/* PAYROLL VIEW (MANAGER ONLY) */}
-              {staffViewSubTab === "roster" && isManager && (
-                <div className="bg-white rounded-xl border border-[#E6DFD3] shadow-sm overflow-hidden">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-[#F3EFE6] border-b border-[#E6DFD3] uppercase font-semibold text-slate-500">
-                      <tr>
-                        <th className="p-3.5">Staff & Role</th>
-                        <th className="p-3.5 text-right">Base</th>
-                        <th className="p-3.5 text-right">Allowances</th>
-                        <th className="p-3.5 text-right">Service Charge</th>
-                        <th className="p-3.5 text-right">Bonus</th>
-                        <th className="p-3.5 text-right">Total Gross</th>
-                        <th className="p-3.5 text-center">Status</th>
-                        <th className="p-3.5 text-center">Slip</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#F3EFE6]">
-                      {filteredStaff.map((member) => (
-                        <tr key={member.id}>
-                          <td className="p-3.5 font-bold text-[#091D26]">
-                            {member.name}
-                            <div className="text-[10px] text-slate-400 font-mono">{member.role}</div>
-                          </td>
-                          <td className="p-3.5 text-right">{settings.currency}{Number(member.baseSalary).toFixed(2)}</td>
-                          <td className="p-3.5 text-right">{settings.currency}{Number(member.allowances).toFixed(2)}</td>
-                          <td className="p-3.5 text-right">{settings.currency}{Number(member.serviceCharge).toFixed(2)}</td>
-                          <td className="p-3.5 text-right">{settings.currency}{Number(member.bonus).toFixed(2)}</td>
-                          <td className="p-3.5 text-right font-black text-[#0D9488]">{settings.currency}{calculateStaffGross(member).toFixed(2)}</td>
-                          <td className="p-3.5 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handleToggleStaffPayout(member.id, member.paid)}
-                              className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                                member.paid ? "bg-[#CCFBF1] text-[#0F766E]" : "bg-[#FFE4E6] text-[#F43F5E]"
-                              }`}
-                            >
-                              {member.paid ? "Paid" : "Pending"}
-                            </button>
-                          </td>
-                          <td className="p-3.5 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handlePrintPayslip(member)}
-                              className="p-1 bg-[#0F2D3C] text-white rounded text-xs"
-                            >
-                              Slip
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* TAB 6: SETTINGS (MANAGER ONLY) */}
-          {activeTab === "settings" && isManager && (
-            <div className="max-w-3xl mx-auto bg-white border border-[#E6DFD3] rounded-xl p-6 shadow-sm space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold text-[#091D26]">Hotel Details & Letterhead Configuration</h2>
-                <p className="text-sm text-slate-500">Legal details printed directly on receipts, invoices, and letterheads</p>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                <div>
-                  <label className="block font-semibold mb-1">Hotel / Resort Name</label>
-                  <input
-                    type="text"
-                    value={settings.hotelName}
-                    onChange={(e) => handleSaveSettings({ ...settings, hotelName: e.target.value })}
-                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1">Tax / VAT ID</label>
-                  <input
-                    type="text"
-                    value={settings.taxNumber}
-                    onChange={(e) => handleSaveSettings({ ...settings, taxNumber: e.target.value })}
-                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1">Phone</label>
-                  <input
-                    type="text"
-                    value={settings.phone}
-                    onChange={(e) => handleSaveSettings({ ...settings, phone: e.target.value })}
-                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1">Currency Symbol</label>
-                  <input
-                    type="text"
-                    value={settings.currency}
-                    onChange={(e) => handleSaveSettings({ ...settings, currency: e.target.value })}
-                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="block font-semibold mb-1">Property Address</label>
-                  <input
-                    type="text"
-                    value={settings.address}
-                    onChange={(e) => handleSaveSettings({ ...settings, address: e.target.value })}
-                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="block font-semibold mb-1">Thermal Receipt Footer Note</label>
-                  <input
-                    type="text"
-                    value={settings.footerNote}
-                    onChange={(e) => handleSaveSettings({ ...settings, footerNote: e.target.value })}
-                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
-                  />
-                </div>
               </div>
             </div>
           )}
         </main>
       </div>
 
-      {/* =========================================================
-          CHECK-IN MODAL WITH INTEGRATED CAMERA & FILE UPLOAD
-          ========================================================= */}
+      {/* MODAL 1: CHECK-IN WITH CAMERA */}
       {checkInModalRoom && (
         <div className="fixed inset-0 bg-[#06151E]/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl border border-[#E6DFD3] my-8">
-            <div className="flex justify-between items-center mb-4 pb-2 border-b border-[#E6DFD3]">
-              <div>
-                <span className="text-xs uppercase font-bold text-[#0F766E]">Guest Registration & ID</span>
-                <h3 className="font-bold text-lg text-[#091D26]">Check In - Room #{checkInModalRoom.number}</h3>
-              </div>
-              <button type="button" onClick={handleCloseCheckInModal} className="text-slate-400 hover:text-black">
-                <X className="w-5 h-5" />
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-[#E6DFD3] my-8">
+            <div className="flex justify-between items-center mb-4 pb-2 border-b">
+              <h3 className="font-bold text-lg">Check In - Room #{checkInModalRoom.number}</h3>
+              <button type="button" onClick={() => { stopCamera(); setCheckInModalRoom(null); }}>
+                <X className="w-5 h-5 text-slate-400" />
               </button>
             </div>
-
-            {/* Hidden Canvas used for taking high-res snapshot */}
             <canvas ref={canvasRef} className="hidden" />
 
-            <form onSubmit={handleOpenOrderAndCheckIn} className="space-y-4 text-xs">
-              {/* CAMERA / IMAGE CAPTURE INTERFACE */}
-              <div className="bg-[#FAF9F5] p-3.5 rounded-2xl border border-[#E6DFD3] space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="font-bold text-[11px] text-[#091D26] uppercase flex items-center gap-1.5">
-                    <Camera className="w-3.5 h-3.5 text-[#0F766E]" /> Guest Photo / Passport ID
-                  </span>
-                  {guestPhoto && (
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              stopCamera();
+              const orderId = `ORD-${checkInModalRoom.number}-${Date.now().toString().slice(-4)}`;
+              const itemId = `itm_${Date.now()}`;
+              const roomPayload = {
+                status: "occupied",
+                orderId,
+                guestName: guestForm.name,
+                guestPhone: guestForm.phone,
+                guestPhoto: guestPhoto || null,
+                checkIn: new Date().toISOString().split("T")[0],
+                checkOut: new Date(Date.now() + (guestForm.nights || 1) * 86400000).toISOString().split("T")[0],
+                orderItems: {
+                  [itemId]: {
+                    id: itemId,
+                    description: `Room Stay (${guestForm.nights} Nights)`,
+                    quantity: guestForm.nights,
+                    unitPrice: checkInModalRoom.rate,
+                    total: checkInModalRoom.rate * guestForm.nights,
+                  }
+                }
+              };
+              update(ref(rtdb, `rooms/${checkInModalRoom.id}`), roomPayload);
+              setCheckInModalRoom(null);
+            }} className="space-y-4 text-xs">
+              {/* Photo Box */}
+              <div className="bg-[#FAF9F5] p-3 rounded-xl border space-y-2">
+                <span className="font-bold text-[11px] block">Guest Photo / Passport</span>
+                {isCameraActive ? (
+                  <div className="relative rounded overflow-hidden aspect-video bg-black flex items-center justify-center">
+                    <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
                     <button
                       type="button"
-                      onClick={() => setGuestPhoto(null)}
-                      className="text-[10px] text-coral-600 font-bold hover:underline"
+                      onClick={takeSnapshot}
+                      className="absolute bottom-2 px-4 py-1 bg-[#14B8A6] text-white rounded-full font-bold shadow"
                     >
-                      Remove Photo
+                      Snap Photo
                     </button>
-                  )}
-                </div>
-
-                {/* 1. Live Camera Stream Viewport */}
-                {isCameraActive ? (
-                  <div className="relative rounded-xl overflow-hidden bg-black aspect-video flex items-center justify-center border-2 border-[#14B8A6]">
-                    <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
-                    <div className="absolute bottom-2 inset-x-0 flex justify-center gap-2">
-                      <button
-                        type="button"
-                        onClick={takeSnapshot}
-                        className="px-4 py-1.5 bg-[#14B8A6] hover:bg-[#0D9488] text-white rounded-full font-bold shadow-lg flex items-center gap-1.5"
-                      >
-                        <Camera className="w-4 h-4" /> Snap Photo
-                      </button>
-                      <button
-                        type="button"
-                        onClick={stopCamera}
-                        className="px-3 py-1.5 bg-black/60 hover:bg-black text-white rounded-full font-semibold text-[10px]"
-                      >
-                        Cancel
-                      </button>
-                    </div>
                   </div>
                 ) : guestPhoto ? (
-                  /* 2. Photo Preview Once Taken / Uploaded */
-                  <div className="relative rounded-xl overflow-hidden bg-slate-100 aspect-video flex items-center justify-center border border-[#14B8A6]">
-                    <img src={guestPhoto} alt="Captured Guest ID" className="w-full h-full object-cover" />
-                    <div className="absolute top-2 right-2 bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow">
-                      Photo Attached ✓
-                    </div>
-                  </div>
+                  <img src={guestPhoto} alt="ID" className="w-full aspect-video object-cover rounded" />
                 ) : (
-                  /* 3. Action Buttons to Open Camera or Pick File */
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="flex gap-2">
                     <button
                       type="button"
                       onClick={startCamera}
-                      className="p-3 rounded-xl border border-dashed border-[#14B8A6] bg-[#CCFBF1]/30 hover:bg-[#CCFBF1]/60 text-[#0F766E] font-bold flex flex-col items-center justify-center gap-1.5 transition-all"
+                      className="flex-1 p-3 border border-dashed rounded-lg bg-teal-50 text-teal-800 font-bold flex flex-col items-center gap-1"
                     >
-                      <Camera className="w-5 h-5 text-[#0D9488]" />
-                      <span>Take Photo (Camera)</span>
+                      <Camera className="w-4 h-4" /> Open Camera
                     </button>
-
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="p-3 rounded-xl border border-dashed border-[#D3C8B7] bg-white hover:bg-slate-50 text-slate-600 font-bold flex flex-col items-center justify-center gap-1.5 transition-all"
-                    >
-                      <Upload className="w-5 h-5 text-slate-400" />
-                      <span>Upload ID / File</span>
-                    </button>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleFileUpload}
-                      className="hidden"
-                    />
+                    <label className="flex-1 p-3 border border-dashed rounded-lg bg-white text-slate-700 font-bold flex flex-col items-center gap-1 cursor-pointer">
+                      <Upload className="w-4 h-4" /> Pick File
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onload = (ev) => setGuestPhoto(ev.target.result);
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                        className="hidden"
+                      />
+                    </label>
                   </div>
                 )}
               </div>
 
-              {/* Guest Details Form Fields */}
               <div>
                 <label className="block font-semibold mb-1">Guest Full Name</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Marina Sterling"
                   value={guestForm.name}
                   onChange={(e) => setGuestForm({ ...guestForm, name: e.target.value })}
-                  className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
+                  className="w-full border rounded-lg p-2"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold mb-1">Phone Number</label>
-                  <input
-                    type="tel"
-                    placeholder="+1 (555) 000-0000"
-                    value={guestForm.phone}
-                    onChange={(e) => setGuestForm({ ...guestForm, phone: e.target.value })}
-                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1">Nights Duration</label>
-                  <input
-                    type="number"
-                    min="1"
-                    required
-                    value={guestForm.nights}
-                    onChange={(e) => setGuestForm({ ...guestForm, nights: parseInt(e.target.value, 10) || 1 })}
-                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
-                  />
-                </div>
+              <div>
+                <label className="block font-semibold mb-1">Contact Phone</label>
+                <input
+                  type="tel"
+                  value={guestForm.phone}
+                  onChange={(e) => setGuestForm({ ...guestForm, phone: e.target.value })}
+                  className="w-full border rounded-lg p-2"
+                />
               </div>
 
-              <div className="bg-[#FAF9F5] p-3 rounded-lg border border-[#E6DFD3] flex justify-between items-center">
-                <span className="text-slate-500">Initial Billable Order Value:</span>
-                <span className="font-black text-sm text-[#0D9488]">
-                  {settings.currency}{(checkInModalRoom.rate * (guestForm.nights || 1)).toFixed(2)}
-                </span>
-              </div>
-
-              <button
-                type="submit"
-                className="w-full bg-[#14B8A6] hover:bg-[#0D9488] text-white font-bold py-3 rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5"
-              >
-                <Check className="w-4 h-4" /> Complete Registration & Check In
+              <button type="submit" className="w-full bg-[#14B8A6] text-white font-bold py-3 rounded-xl shadow">
+                Complete Check In
               </button>
             </form>
           </div>
         </div>
       )}
 
-      {/* SETTLEMENT MODAL */}
-      {settleOrderRoom && (
-        <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-[#E6DFD3]">
-            <div className="flex justify-between items-start mb-4 pb-3 border-b border-[#E6DFD3]">
-              <div>
-                <span className="text-xs uppercase font-bold text-[#0F766E]">Order Settlement</span>
-                <h3 className="font-black text-xl text-[#091D26]">Room #{settleOrderRoom.number}</h3>
-              </div>
-              <button type="button" onClick={() => setSettleOrderRoom(null)} className="text-slate-400">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="text-xs mb-4">Total Settling: <b>{settings.currency}{calculateTotal(settleOrderRoom).toFixed(2)}</b></div>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={handleConfirmOrderSettlement}
-                className="w-full bg-[#0D9488] hover:bg-[#0F766E] text-white py-3 rounded-lg text-xs font-bold"
-              >
-                Confirm Payment & Settle
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ADD ROOM MODAL */}
-      {showAddRoomModal && isManager && (
-        <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-[#E6DFD3]">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-lg text-[#091D26]">Add Hotel Room</h3>
-              <button type="button" onClick={() => setShowAddRoomModal(false)} className="text-slate-400">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <form onSubmit={handleCreateRoom} className="space-y-4 text-xs">
-              <div>
-                <label className="block font-semibold mb-1">Room Number</label>
-                <input
-                  type="text"
-                  required
-                  value={newRoomForm.number}
-                  onChange={(e) => setNewRoomForm({ ...newRoomForm, number: e.target.value })}
-                  className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
-                />
-              </div>
-              <div>
-                <label className="block font-semibold mb-1">Nightly Rate</label>
-                <input
-                  type="number"
-                  required
-                  value={newRoomForm.rate}
-                  onChange={(e) => setNewRoomForm({ ...newRoomForm, rate: e.target.value })}
-                  className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
-                />
-              </div>
-              <button type="submit" className="w-full bg-[#14B8A6] text-white font-bold py-3 rounded-lg">
-                Register Room
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ADD INVENTORY MODAL */}
+      {/* MODAL 2: ADD INVENTORY */}
       {showAddInventoryModal && isManager && (
         <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-[#E6DFD3]">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-lg text-[#091D26]">Add Inventory Item</h3>
-              <button type="button" onClick={() => setShowAddInventoryModal(false)} className="text-slate-400">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <form onSubmit={handleCreateInventoryItem} className="space-y-4 text-xs">
-              <div>
-                <label className="block font-semibold mb-1">Product Name</label>
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 border shadow-2xl">
+            <h3 className="font-bold text-lg mb-4">Add Inventory Item</h3>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const itemId = `inv_${Date.now()}`;
+              set(ref(rtdb, `inventory/${itemId}`), {
+                id: itemId,
+                name: newInventoryForm.name,
+                category: newInventoryForm.category,
+                price: parseFloat(newInventoryForm.price) || 0,
+                stock: parseInt(newInventoryForm.stock, 10) || 0,
+              });
+              setShowAddInventoryModal(false);
+            }} className="space-y-4 text-xs">
+              <input
+                type="text"
+                placeholder="Product Name"
+                required
+                value={newInventoryForm.name}
+                onChange={(e) => setNewInventoryForm({ ...newInventoryForm, name: e.target.value })}
+                className="w-full border rounded p-2"
+              />
+              <div className="grid grid-cols-2 gap-2">
                 <input
-                  type="text"
-                  required
-                  value={newInventoryForm.name}
-                  onChange={(e) => setNewInventoryForm({ ...newInventoryForm, name: e.target.value })}
-                  className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
+                  type="number"
+                  placeholder="Price"
+                  value={newInventoryForm.price}
+                  onChange={(e) => setNewInventoryForm({ ...newInventoryForm, price: e.target.value })}
+                  className="w-full border rounded p-2"
+                />
+                <input
+                  type="number"
+                  placeholder="Stock"
+                  value={newInventoryForm.stock}
+                  onChange={(e) => setNewInventoryForm({ ...newInventoryForm, stock: e.target.value })}
+                  className="w-full border rounded p-2"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold mb-1">Price</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={newInventoryForm.price}
-                    onChange={(e) => setNewInventoryForm({ ...newInventoryForm, price: e.target.value })}
-                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1">Stock</label>
-                  <input
-                    type="number"
-                    value={newInventoryForm.stock}
-                    onChange={(e) => setNewInventoryForm({ ...newInventoryForm, stock: e.target.value })}
-                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
-                  />
-                </div>
-              </div>
-              <button type="submit" className="w-full bg-[#14B8A6] text-white font-bold py-3 rounded-lg">
+              <button type="submit" className="w-full bg-[#14B8A6] text-white py-2.5 rounded font-bold">
                 Save Product
               </button>
             </form>
@@ -2410,75 +1647,41 @@ export default function App() {
         </div>
       )}
 
-      {/* ADD STAFF MODAL */}
-      {showAddStaffModal && isManager && (
+      {/* MODAL 3: ADD ROOM */}
+      {showAddRoomModal && isManager && (
         <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-[#E6DFD3]">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-lg text-[#091D26]">Add Team Member</h3>
-              <button type="button" onClick={() => setShowAddStaffModal(false)} className="text-slate-400">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <form onSubmit={handleCreateStaff} className="space-y-4 text-xs">
-              <div>
-                <label className="block font-semibold mb-1">Full Name</label>
-                <input
-                  type="text"
-                  required
-                  value={newStaffForm.name}
-                  onChange={(e) => setNewStaffForm({ ...newStaffForm, name: e.target.value })}
-                  className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold mb-1">Role</label>
-                  <select
-                    value={newStaffForm.role}
-                    onChange={(e) => setNewStaffForm({ ...newStaffForm, role: e.target.value })}
-                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white"
-                  >
-                    <option value="General Manager">General Manager</option>
-                    <option value="Front Desk">Front Desk</option>
-                    <option value="Housekeeping">Housekeeping</option>
-                    <option value="Maintenance">Maintenance</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1">PIN (4-digits)</label>
-                  <input
-                    type="text"
-                    maxLength={6}
-                    required
-                    value={newStaffForm.pin}
-                    onChange={(e) => setNewStaffForm({ ...newStaffForm, pin: e.target.value })}
-                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold mb-1">Base Monthly Salary ({settings.currency})</label>
-                  <input
-                    type="number"
-                    value={newStaffForm.baseSalary}
-                    onChange={(e) => setNewStaffForm({ ...newStaffForm, baseSalary: e.target.value })}
-                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1">Allowances ({settings.currency})</label>
-                  <input
-                    type="number"
-                    value={newStaffForm.allowances}
-                    onChange={(e) => setNewStaffForm({ ...newStaffForm, allowances: e.target.value })}
-                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
-                  />
-                </div>
-              </div>
-              <button type="submit" className="w-full bg-[#14B8A6] text-white font-bold py-3 rounded-lg">
-                Register Employee
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 border shadow-2xl">
+            <h3 className="font-bold text-lg mb-4">Add Hotel Room</h3>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const roomId = String(newRoomForm.number).trim();
+              set(ref(rtdb, `rooms/${roomId}`), {
+                id: roomId,
+                number: roomId,
+                type: newRoomForm.type,
+                rate: Number(newRoomForm.rate) || 10000,
+                status: newRoomForm.status,
+              });
+              setShowAddRoomModal(false);
+            }} className="space-y-4 text-xs">
+              <input
+                type="text"
+                placeholder="Room Number"
+                required
+                value={newRoomForm.number}
+                onChange={(e) => setNewRoomForm({ ...newRoomForm, number: e.target.value })}
+                className="w-full border rounded p-2"
+              />
+              <input
+                type="number"
+                placeholder="Rate per night"
+                required
+                value={newRoomForm.rate}
+                onChange={(e) => setNewRoomForm({ ...newRoomForm, rate: e.target.value })}
+                className="w-full border rounded p-2"
+              />
+              <button type="submit" className="w-full bg-[#14B8A6] text-white py-2.5 rounded font-bold">
+                Save Room
               </button>
             </form>
           </div>
