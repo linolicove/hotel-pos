@@ -1,19 +1,35 @@
-import React, { useState, useEffect, useMemo } from 'react';
+// src/App.jsx
+import React, { useState, useEffect } from "react";
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
-import { 
-  getFirestore, 
-  collection, 
-  addDoc, 
-  onSnapshot, 
-  query, 
-  orderBy, 
-  limit, 
-  serverTimestamp 
+import {
+  getFirestore,
+  collection,
+  doc,
+  onSnapshot,
+  setDoc,
+  updateDoc,
+  deleteDoc
 } from "firebase/firestore";
-import { getAuth, signInAnonymously } from "firebase/auth";
+import {
+  Bed,
+  Receipt,
+  Boxes,
+  Users,
+  Settings,
+  Printer,
+  Plus,
+  Trash2,
+  CheckCircle2,
+  Menu,
+  X,
+  Building2,
+  SlidersHorizontal,
+  Edit2,
+  Check,
+  AlertTriangle
+} from "lucide-react";
 
-// --- FIREBASE CONFIGURATION ---
+// --- 1. FIREBASE CONFIGURATION ---
 const firebaseConfig = {
   apiKey: "AIzaSyCU84gJirHE9c1s7Bqh90pzyOtjdaR5uus",
   authDomain: "hotel-pos-app.firebaseapp.com",
@@ -25,995 +41,1190 @@ const firebaseConfig = {
   measurementId: "G-KWG9FMP5Q7"
 };
 
-// Initialize Firebase safely
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-let analytics = null;
-if (typeof window !== "undefined") {
-  try {
-    analytics = getAnalytics(app);
-  } catch (e) {
-    console.warn("Analytics not initialized in this environment:", e);
-  }
-}
 const db = getFirestore(app);
-const auth = getAuth(app);
 
-// Initial Rooms Data
-const INITIAL_ROOMS = [
-  { id: '101', number: 'Villa 101', type: 'Beachfront Surf Villa', tier: 'VILLA', rate: 48000, capacity: '2-4 Guests', status: 'Clean', guest: 'Jack Higgins', nights: 4, checkIn: '2026-09-26', checkOut: '2026-09-30', folioBalance: 192000, occupied: true },
-  { id: '102', number: 'Villa 102', type: 'Beachfront Surf Villa', tier: 'VILLA', rate: 48000, capacity: '2-4 Guests', status: 'Clean', guest: null, nights: 0, checkIn: '', checkOut: '', folioBalance: 0, occupied: false },
-  { id: '201', number: 'Suite 201', type: 'Ocean Panorama Suite', tier: 'SUITE', rate: 36000, capacity: '2 Guests', status: 'Dirty', guest: null, nights: 0, checkIn: '', checkOut: '', folioBalance: 0, occupied: false },
-  { id: '204', number: 'Suite 204', type: 'Ocean Panorama Suite', tier: 'SUITE', rate: 36000, capacity: '2 Guests', status: 'Clean', guest: 'Elena Rostova', nights: 3, checkIn: '2026-09-28', checkOut: '2026-10-01', folioBalance: 108000, occupied: true },
-  { id: '301', number: 'Cabana 301', type: 'Garden Palm Cabana', tier: 'CABANA', rate: 24000, capacity: '2 Guests', status: 'Clean', guest: 'Marcus & Zoe Sterling', nights: 5, checkIn: '2026-09-25', checkOut: '2026-09-30', folioBalance: 120000, occupied: true },
-  { id: '302', number: 'Cabana 302', type: 'Garden Palm Cabana', tier: 'CABANA', rate: 24000, capacity: '2 Guests', status: 'Inspect', guest: null, nights: 0, checkIn: '', checkOut: '', folioBalance: 0, occupied: false },
-  { id: '401', number: 'Room 401', type: 'Deluxe Surf King', tier: 'DELUXE', rate: 18500, capacity: '2 Guests', status: 'Clean', guest: 'Liam Vance', nights: 2, checkIn: '2026-09-28', checkOut: '2026-09-30', folioBalance: 37000, occupied: true },
-  { id: '402', number: 'Room 402', type: 'Deluxe Surf King', tier: 'DELUXE', rate: 18500, capacity: '2 Guests', status: 'Dirty', guest: null, nights: 0, checkIn: '', checkOut: '', folioBalance: 0, occupied: false }
-];
+// Defaults
+const DEFAULT_SETTINGS = {
+  hotelName: "Azure Cove Boutique Resort",
+  taxNumber: "TX-998234-CY",
+  phone: "+1 (808) 555-0199",
+  email: "concierge@azurecove.com",
+  address: "104 Ocean Drive, Kailua-Kona, HI",
+  currency: "$",
+  footerNote: "Mahalo for staying with us at Azure Cove. Safe travels!",
+};
 
-// Room Amenities & Extra Hotel Charges (No Food)
-const HOTEL_AMENITIES = [
-  { id: 'AM-01', code: 'TRF-VAN', name: 'Airport Private Van Transfer', category: 'TRANSFER', price: 14500, desc: 'Colombo BIA to Midigama Direct' },
-  { id: 'AM-02', code: 'TRF-TUK', name: 'Galle Fort Excursion Driver', category: 'TRANSFER', price: 6500, desc: 'Full Day Dedicated Tuk-Tuk' },
-  { id: 'AM-03', code: 'SRF-BRD', name: 'Custom Surfboard Daily Rental', category: 'ACTIVITIES', price: 4000, desc: 'Torq / Firewire Pro Quiver' },
-  { id: 'AM-04', code: 'SRF-GUD', name: 'Private Surf Guide (Lazy Left)', category: 'ACTIVITIES', price: 9500, desc: '2h Spot Guide & Ocean Coaching' },
-  { id: 'AM-05', code: 'LND-KGS', name: 'Express Laundry Wash & Fold', category: 'SERVICE', price: 3200, desc: 'Up to 5kg Same-Day Service' },
-  { id: 'AM-06', code: 'LATE-CO', name: 'Late Checkout Guaranteed (4 PM)', category: 'SERVICE', price: 12000, desc: 'Subject to Next Check-in Slot' },
-  { id: 'AM-07', code: 'EXT-BED', name: 'Rollaway Extra Luxury Bed', category: 'ROOM_ADDON', price: 8500, desc: 'Includes Luxury Egyptian Linens' },
-  { id: 'AM-08', code: 'YGA-PSS', name: 'Rooftop Yoga Sunset Pass', category: 'ACTIVITIES', price: 3000, desc: '90m Vinyasa Flow with Master' }
-];
+export default function App() {
+  // Tabs: "frontdesk" | "room-admin" | "billing" | "inventory" | "staff" | "settings"
+  const [activeTab, setActiveTab] = useState("frontdesk");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-export default function HotelRoomPMS() {
-  const [activeTab, setActiveTab] = useState('pos'); // 'pos', 'rooms', 'housekeeping', 'reports', 'staff', 'settings'
-  const [rooms, setRooms] = useState(INITIAL_ROOMS);
-  const [selectedRoomId, setSelectedRoomId] = useState('102');
-  const [categoryFilter, setCategoryFilter] = useState('ALL');
-  const [searchQuery, setSearchQuery] = useState('');
-  
-  // Front Desk Booking Cart
-  const [cart, setCart] = useState([]);
-  const [discountPercent, setDiscountPercent] = useState(0);
-  const [guestName, setGuestName] = useState('');
-  const [stayNights, setStayNights] = useState(1);
-  const [paymentMethod, setPaymentMethod] = useState('CARD');
-  const [cashTendered, setCashTendered] = useState('');
+  // Firestore Synchronized State
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [rooms, setRooms] = useState([]);
+  const [inventory, setInventory] = useState([]);
+  const [staff, setStaff] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Sync & Cloud State
-  const [firebaseConnected, setFirebaseConnected] = useState(false);
-  const [syncStatus, setSyncStatus] = useState('Connecting to Firebase...');
-  const [recentTransactions, setRecentTransactions] = useState([]);
-  const [printReceiptModal, setPrintReceiptModal] = useState(null);
+  // Folio & Print State
+  const [selectedRoomId, setSelectedRoomId] = useState("");
+  const [printFormat, setPrintFormat] = useState("a4");
 
-  // Staff State
-  const [staffList, setStaffList] = useState([
-    { id: 'ST-01', name: 'Kamal Perera', role: 'Front Office Manager', pin: '1092', onDuty: true, shift: 'Morning 07:00 - 15:30' },
-    { id: 'ST-02', name: 'Dilani Silva', role: 'Front Desk Cashier', pin: '4481', onDuty: true, shift: 'Morning 07:00 - 15:30' },
-    { id: 'ST-03', name: 'Chaminda Dias', role: 'Chief Concierge', pin: '8832', onDuty: false, shift: 'Evening 15:00 - 23:30' },
-    { id: 'ST-04', name: 'Nayana Kumari', role: 'Head Housekeeper', pin: '2019', onDuty: true, shift: 'Day 08:00 - 16:30' }
-  ]);
-  const [newStaffName, setNewStaffName] = useState('');
-  const [newStaffRole, setNewStaffRole] = useState('Front Desk Cashier');
-  const [newStaffPin, setNewStaffPin] = useState('');
+  // Front Desk Check-in Modal
+  const [checkInModalRoom, setCheckInModalRoom] = useState(null);
+  const [guestForm, setGuestForm] = useState({ name: "", phone: "", nights: 1 });
+  const [newItemDesc, setNewItemDesc] = useState("");
+  const [newItemPrice, setNewItemPrice] = useState("");
+  const [newItemQty, setNewItemQty] = useState("1");
 
-  // Connect & listen to Firestore
-  useEffect(() => {
-    let unsubscribe = () => {};
-    async function initFb() {
-      try {
-        await signInAnonymously(auth);
-        setFirebaseConnected(true);
-        setSyncStatus('Firebase Real-Time Online');
-
-        const q = query(
-          collection(db, "hotel_room_transactions"),
-          orderBy("timestamp", "desc"),
-          limit(20)
-        );
-
-        unsubscribe = onSnapshot(q, (snapshot) => {
-          const list = [];
-          snapshot.forEach((doc) => {
-            list.push({ id: doc.id, ...doc.data() });
-          });
-          if (list.length > 0) {
-            setRecentTransactions(list);
-          }
-        }, (err) => {
-          console.warn("Firestore listener restricted or offline fallback:", err.message);
-          setSyncStatus('Local Memory Mode (Firebase Ready)');
-        });
-      } catch (err) {
-        console.warn("Firebase Anonymous Auth fallback:", err.message);
-        setSyncStatus('Local Memory Mode');
-      }
-    }
-    initFb();
-    return () => unsubscribe();
-  }, []);
-
-  const selectedRoom = useMemo(() => {
-    return rooms.find(r => r.id === selectedRoomId) || rooms[0];
-  }, [rooms, selectedRoomId]);
-
-  // Pricing calculations
-  const calculateCartSubtotal = () => {
-    return cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  };
-
-  const roomChargeTotal = (selectedRoom.occupied ? 0 : selectedRoom.rate * stayNights);
-  const amenitiesSubtotal = calculateCartSubtotal();
-  const rawTotal = roomChargeTotal + amenitiesSubtotal;
-  const discountAmount = (rawTotal * discountPercent) / 100;
-  const netBeforeTax = rawTotal - discountAmount;
-  const serviceCharge = netBeforeTax * 0.10; // 10% Hotel Service Charge
-  const totalDue = netBeforeTax + serviceCharge;
-
-  const addItemToCart = (amenity) => {
-    setCart(prev => {
-      const existing = prev.find(i => i.id === amenity.id);
-      if (existing) {
-        return prev.map(i => i.id === amenity.id ? { ...i, quantity: i.quantity + 1 } : i);
-      }
-      return [...prev, { ...amenity, quantity: 1 }];
-    });
-  };
-
-  const updateItemQty = (id, delta) => {
-    setCart(prev => {
-      return prev.map(item => {
-        if (item.id === id) {
-          const newQ = item.quantity + delta;
-          return newQ > 0 ? { ...item, quantity: newQ } : null;
-        }
-        return item;
-      }).filter(Boolean);
-    });
-  };
-
-  const handleProcessFolio = async () => {
-    if (!guestName && !selectedRoom.guest) {
-      alert("Please enter the Guest's Name for room assignment.");
-      return;
-    }
-
-    const currentGuest = selectedRoom.guest || guestName;
-    const invoiceNo = `INV-LC-${Math.floor(100000 + Math.random() * 900000)}`;
-    const newTx = {
-      invoiceNo,
-      roomNumber: selectedRoom.number,
-      guestName: currentGuest,
-      roomType: selectedRoom.type,
-      nights: selectedRoom.occupied ? selectedRoom.nights : stayNights,
-      amenities: cart,
-      subtotal: rawTotal,
-      discount: discountAmount,
-      serviceCharge: serviceCharge,
-      totalDue: totalDue,
-      paymentMethod,
-      timestamp: new Date().toISOString(),
-      dateStr: new Date().toLocaleDateString('en-GB')
-    };
-
-    // Update Room State
-    setRooms(prev => prev.map(r => {
-      if (r.id === selectedRoom.id) {
-        return {
-          ...r,
-          occupied: true,
-          guest: currentGuest,
-          nights: selectedRoom.occupied ? selectedRoom.nights : stayNights,
-          status: 'Dirty',
-          folioBalance: selectedRoom.folioBalance + totalDue
-        };
-      }
-      return r;
-    }));
-
-    // Firestore Sync
-    try {
-      if (firebaseConnected) {
-        await addDoc(collection(db, "hotel_room_transactions"), {
-          ...newTx,
-          serverCreated: serverTimestamp()
-        });
-      }
-    } catch (e) {
-      console.warn("Recorded transaction locally:", e.message);
-    }
-
-    setRecentTransactions(prev => [newTx, ...prev]);
-    setPrintReceiptModal(newTx);
-    setCart([]);
-    setGuestName('');
-  };
-
-  const handleCheckoutRoom = (roomId) => {
-    const room = rooms.find(r => r.id === roomId);
-    if (!room || !room.occupied) return;
-
-    if (confirm(`Check-out guest ${room.guest} from ${room.number}?\nTotal Folio Settled: Rs.${room.folioBalance.toLocaleString()}`)) {
-      setRooms(prev => prev.map(r => {
-        if (r.id === roomId) {
-          return {
-            ...r,
-            occupied: false,
-            guest: null,
-            nights: 0,
-            folioBalance: 0,
-            status: 'Dirty'
-          };
-        }
-        return r;
-      }));
-    }
-  };
-
-  const handleHousekeepingToggle = (roomId) => {
-    setRooms(prev => prev.map(r => {
-      if (r.id === roomId) {
-        const nextStatus = r.status === 'Clean' ? 'Dirty' : r.status === 'Dirty' ? 'Inspect' : 'Clean';
-        return { ...r, status: nextStatus };
-      }
-      return r;
-    }));
-  };
-
-  const handleAddStaff = (e) => {
-    e.preventDefault();
-    if (!newStaffName || !newStaffPin) return;
-    const newMember = {
-      id: `ST-0${staffList.length + 1}`,
-      name: newStaffName,
-      role: newStaffRole,
-      pin: newStaffPin,
-      onDuty: true,
-      shift: 'Day Shift'
-    };
-    setStaffList([...staffList, newMember]);
-    setNewStaffName('');
-    setNewStaffPin('');
-  };
-
-  // Filter amenities
-  const filteredAmenities = HOTEL_AMENITIES.filter(item => {
-    const matchCat = categoryFilter === 'ALL' || item.category === categoryFilter;
-    const matchSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) || item.code.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchCat && matchSearch;
+  // Room Management / Admin State
+  const [showAddRoomModal, setShowAddRoomModal] = useState(false);
+  const [newRoomForm, setNewRoomForm] = useState({
+    number: "",
+    type: "Ocean Breeze King",
+    rate: 180,
+    status: "available",
   });
+  const [editingRoomId, setEditingRoomId] = useState(null);
+  const [editRoomRate, setEditRoomRate] = useState("");
 
-  // Calculate Metrics for Reports
-  const occupancyRate = Math.round((rooms.filter(r => r.occupied).length / rooms.length) * 100);
-  const totalFolioRevenue = recentTransactions.reduce((acc, curr) => acc + (curr.totalDue || 0), 0);
-  const adr = rooms.filter(r => r.occupied).length > 0 
-    ? Math.round(totalFolioRevenue / rooms.filter(r => r.occupied).length) 
-    : 32000;
+  // --- 2. REAL-TIME FIRESTORE HOOKS ---
+  useEffect(() => {
+    // Hotel Profile Sync
+    const settingsRef = doc(db, "hotel_config", "profile");
+    const unsubSettings = onSnapshot(settingsRef, async (snap) => {
+      if (snap.exists()) {
+        setSettings(snap.data());
+      } else {
+        await setDoc(settingsRef, DEFAULT_SETTINGS);
+      }
+    });
+
+    // Rooms Real-time Sync
+    const roomsCol = collection(db, "rooms");
+    const unsubRooms = onSnapshot(roomsCol, async (snap) => {
+      if (snap.empty) {
+        const seedRooms = [
+          {
+            id: "101",
+            number: "101",
+            type: "Ocean Breeze King",
+            rate: 220,
+            status: "occupied",
+            guestName: "Marina Sterling",
+            guestPhone: "+1 555-0143",
+            checkIn: "2026-09-28",
+            checkOut: "2026-10-02",
+            folio: [
+              { id: "f1", description: "Room Charge (2 Nights)", quantity: 2, unitPrice: 220, total: 440 },
+              { id: "f2", description: "Minibar: Artisanal Sparkling Water", quantity: 2, unitPrice: 6, total: 12 },
+            ],
+          },
+          { id: "102", number: "102", type: "Lagoon View Double", rate: 180, status: "available", folio: [] },
+          { id: "201", number: "201", type: "Coral Penthouse Suite", rate: 450, status: "cleaning", folio: [] },
+          { id: "202", number: "202", type: "Ocean Breeze King", rate: 220, status: "maintenance", folio: [] },
+        ];
+        for (const r of seedRooms) {
+          await setDoc(doc(db, "rooms", r.id), r);
+        }
+      } else {
+        const loaded = [];
+        snap.forEach((d) => loaded.push(d.data()));
+        setRooms(loaded.sort((a, b) => a.number.localeCompare(b.number)));
+        if (!selectedRoomId && loaded.length > 0) {
+          setSelectedRoomId(loaded[0].id);
+        }
+      }
+    });
+
+    // Inventory Real-time Sync
+    const invCol = collection(db, "inventory");
+    const unsubInv = onSnapshot(invCol, async (snap) => {
+      if (snap.empty) {
+        const seedInv = [
+          { id: "inv1", name: "Artisanal Sparkling Water", category: "minibar", price: 6, stock: 48 },
+          { id: "inv2", name: "Organic Coconut Chips", category: "minibar", price: 5, stock: 32 },
+          { id: "inv3", name: "Sea Salt Scrub Pack", category: "amenity", price: 12, stock: 15 },
+          { id: "inv4", name: "Egyptian Cotton Bath Towel", category: "linen", price: 0, stock: 75 },
+        ];
+        for (const item of seedInv) {
+          await setDoc(doc(db, "inventory", item.id), item);
+        }
+      } else {
+        const loaded = [];
+        snap.forEach((d) => loaded.push(d.data()));
+        setInventory(loaded);
+      }
+    });
+
+    // Staff Real-time Sync
+    const staffCol = collection(db, "staff");
+    const unsubStaff = onSnapshot(staffCol, async (snap) => {
+      if (snap.empty) {
+        const seedStaff = [
+          { id: "s1", name: "Kailani Silva", role: "Manager", pin: "1001", active: true },
+          { id: "s2", name: "Noah Jensen", role: "Front Desk", pin: "2044", active: true },
+          { id: "s3", name: "Leilani Kea", role: "Housekeeping", pin: "3055", active: true },
+        ];
+        for (const member of seedStaff) {
+          await setDoc(doc(db, "staff", member.id), member);
+        }
+      } else {
+        const loaded = [];
+        snap.forEach((d) => loaded.push(d.data()));
+        setStaff(loaded);
+      }
+      setLoading(false);
+    });
+
+    return () => {
+      unsubSettings();
+      unsubRooms();
+      unsubInv();
+      unsubStaff();
+    };
+  }, [selectedRoomId]);
+
+  const currentRoom = rooms.find((r) => r.id === selectedRoomId) || rooms[0];
+
+  // --- 3. FIRESTORE ACTIONS ---
+  const handleSaveSettings = async (updated) => {
+    setSettings(updated);
+    await setDoc(doc(db, "hotel_config", "profile"), updated);
+  };
+
+  const updateRoomStatus = async (roomId, status) => {
+    await updateDoc(doc(db, "rooms", roomId), { status });
+  };
+
+  // Create a new room in Firestore
+  const handleCreateRoom = async (e) => {
+    e.preventDefault();
+    if (!newRoomForm.number) return;
+
+    const roomId = newRoomForm.number.trim();
+    const newRoomData = {
+      id: roomId,
+      number: newRoomForm.number.trim(),
+      type: newRoomForm.type,
+      rate: Number(newRoomForm.rate) || 100,
+      status: newRoomForm.status,
+      folio: [],
+    };
+
+    await setDoc(doc(db, "rooms", roomId), newRoomData);
+    setShowAddRoomModal(false);
+    setNewRoomForm({
+      number: "",
+      type: "Ocean Breeze King",
+      rate: 180,
+      status: "available",
+    });
+  };
+
+  // Update room rate
+  const handleSaveRoomRate = async (roomId) => {
+    const rateVal = parseFloat(editRoomRate);
+    if (!isNaN(rateVal) && rateVal > 0) {
+      await updateDoc(doc(db, "rooms", roomId), { rate: rateVal });
+    }
+    setEditingRoomId(null);
+  };
+
+  // Delete Room
+  const handleDeleteRoom = async (roomId, roomNumber) => {
+    if (window.confirm(`Permanently remove Room #${roomNumber} from database?`)) {
+      await deleteDoc(doc(db, "rooms", roomId));
+    }
+  };
+
+  const handleCompleteCheckIn = async (e) => {
+    e.preventDefault();
+    if (!checkInModalRoom || !guestForm.name) return;
+
+    const nights = guestForm.nights || 1;
+    const initialFolio = [
+      {
+        id: Date.now().toString(),
+        description: `Room Charge (${nights} Night${nights > 1 ? "s" : ""})`,
+        quantity: nights,
+        unitPrice: checkInModalRoom.rate,
+        total: checkInModalRoom.rate * nights,
+      },
+    ];
+
+    await updateDoc(doc(db, "rooms", checkInModalRoom.id), {
+      status: "occupied",
+      guestName: guestForm.name,
+      guestPhone: guestForm.phone,
+      checkIn: new Date().toISOString().split("T")[0],
+      checkOut: new Date(Date.now() + nights * 86400000).toISOString().split("T")[0],
+      folio: initialFolio,
+    });
+
+    setCheckInModalRoom(null);
+    setGuestForm({ name: "", phone: "", nights: 1 });
+  };
+
+  const handleCheckOut = async (roomId) => {
+    if (window.confirm("Settle balance and release room to Housekeeping?")) {
+      await updateDoc(doc(db, "rooms", roomId), {
+        status: "cleaning",
+        guestName: "",
+        guestPhone: "",
+        checkIn: "",
+        checkOut: "",
+        folio: [],
+      });
+    }
+  };
+
+  const handleAddFolioItem = async (e) => {
+    e.preventDefault();
+    if (!newItemDesc || !newItemPrice || !currentRoom) return;
+
+    const unitPrice = parseFloat(newItemPrice);
+    const quantity = parseInt(newItemQty, 10) || 1;
+    const newItem = {
+      id: Date.now().toString(),
+      description: newItemDesc,
+      quantity,
+      unitPrice,
+      total: unitPrice * quantity,
+    };
+
+    const updatedFolio = [...(currentRoom.folio || []), newItem];
+    await updateDoc(doc(db, "rooms", currentRoom.id), { folio: updatedFolio });
+
+    setNewItemDesc("");
+    setNewItemPrice("");
+    setNewItemQty("1");
+  };
+
+  const handleQuickAddMinibar = async (item) => {
+    if (!currentRoom) return;
+
+    const newItem = {
+      id: Date.now().toString(),
+      description: item.name,
+      quantity: 1,
+      unitPrice: item.price,
+      total: item.price,
+    };
+
+    const updatedFolio = [...(currentRoom.folio || []), newItem];
+    await updateDoc(doc(db, "rooms", currentRoom.id), { folio: updatedFolio });
+
+    if (item.stock > 0) {
+      await updateDoc(doc(db, "inventory", item.id), { stock: item.stock - 1 });
+    }
+  };
+
+  const handleRemoveFolioItem = async (itemId) => {
+    if (!currentRoom) return;
+    const updatedFolio = currentRoom.folio.filter((item) => item.id !== itemId);
+    await updateDoc(doc(db, "rooms", currentRoom.id), { folio: updatedFolio });
+  };
+
+  const handlePrint = (format) => {
+    setPrintFormat(format);
+    setTimeout(() => {
+      window.print();
+    }, 150);
+  };
+
+  const totalFolioAmount = currentRoom?.folio?.reduce((acc, item) => acc + item.total, 0) || 0;
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-[#FAF9F5]">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-4 border-[#14B8A6] border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-[#091D26] font-semibold text-sm">Connecting to Hotel POS Real-Time Cloud...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#0D1117] text-[#E6EDF3] font-sans">
-      
-      {/* SIDEBAR NAVIGATION */}
-      <aside className="w-64 bg-[#11141E] border-r border-[#1F2430] flex flex-col justify-between shrink-0">
-        <div>
-          {/* Brand Header */}
-          <div className="p-4 border-b border-[#1F2430] flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-[#FF5B22] flex items-center justify-center font-bold text-white shadow-lg shadow-[#FF5B22]/20 text-lg">
-                LC
-              </div>
-              <div>
-                <h1 className="font-bold text-sm tracking-wide text-white leading-tight">Linoli Cove</h1>
-                <p className="text-[10px] text-[#FF5B22] font-semibold tracking-wider uppercase">Midigama Surf Resort</p>
-              </div>
-            </div>
+    <div className="flex h-screen overflow-hidden bg-[#FAF9F5] text-[#091D26]">
+      {/* DESKTOP SIDEBAR */}
+      <aside className="no-print hidden md:flex flex-col w-64 bg-[#091D26] border-r border-[#0F2D3C] text-white">
+        <div className="p-6 border-b border-[#0F2D3C] flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-[#14B8A6] flex items-center justify-center text-white font-bold shadow-md shadow-[#14B8A6]/20">
+            <Building2 className="w-5 h-5" />
           </div>
-
-          {/* Navigation Links */}
-          <nav className="p-3 space-y-1">
-            <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider px-3 py-2">Front Desk & Operations</div>
-            
-            <button 
-              onClick={() => setActiveTab('pos')}
-              className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-xs font-medium transition ${activeTab === 'pos' ? 'bg-[#FF5B22] text-white shadow-md' : 'text-gray-400 hover:bg-[#181D2A] hover:text-white'}`}
-            >
-              <span>🏨</span>
-              <span className="font-semibold">Room Check-In & Folio</span>
-            </button>
-
-            <button 
-              onClick={() => setActiveTab('rooms')}
-              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium transition ${activeTab === 'rooms' ? 'bg-[#FF5B22] text-white shadow-md' : 'text-gray-400 hover:bg-[#181D2A] hover:text-white'}`}
-            >
-              <div className="flex items-center space-x-3">
-                <span>🔑</span>
-                <span className="font-semibold">Rooms Directory</span>
-              </div>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#1C2333] text-[#FF5B22] font-bold">
-                {rooms.filter(r => r.occupied).length}/{rooms.length}
-              </span>
-            </button>
-
-            <button 
-              onClick={() => setActiveTab('housekeeping')}
-              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium transition ${activeTab === 'housekeeping' ? 'bg-[#FF5B22] text-white shadow-md' : 'text-gray-400 hover:bg-[#181D2A] hover:text-white'}`}
-            >
-              <div className="flex items-center space-x-3">
-                <span>🧹</span>
-                <span className="font-semibold">Housekeeping Board</span>
-              </div>
-              {rooms.some(r => r.status === 'Dirty') && (
-                <span className="w-2 h-2 rounded-full bg-[#FF5B22] animate-pulse"></span>
-              )}
-            </button>
-
-            <button 
-              onClick={() => setActiveTab('reports')}
-              className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-xs font-medium transition ${activeTab === 'reports' ? 'bg-[#FF5B22] text-white shadow-md' : 'text-gray-400 hover:bg-[#181D2A] hover:text-white'}`}
-            >
-              <span>📊</span>
-              <span className="font-semibold">RevPAR & Sales Reports</span>
-            </button>
-
-            <div className="pt-4 text-[10px] font-bold text-gray-500 uppercase tracking-wider px-3 py-2">Management</div>
-
-            <button 
-              onClick={() => setActiveTab('staff')}
-              className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-xs font-medium transition ${activeTab === 'staff' ? 'bg-[#FF5B22] text-white shadow-md' : 'text-gray-400 hover:bg-[#181D2A] hover:text-white'}`}
-            >
-              <span>👥</span>
-              <span className="font-semibold">Staff & Rosters</span>
-            </button>
-
-            <button 
-              onClick={() => setActiveTab('settings')}
-              className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-xs font-medium transition ${activeTab === 'settings' ? 'bg-[#FF5B22] text-white shadow-md' : 'text-gray-400 hover:bg-[#181D2A] hover:text-white'}`}
-            >
-              <span>⚙️</span>
-              <span className="font-semibold">Resort Settings</span>
-            </button>
-          </nav>
+          <div>
+            <h1 className="text-base font-bold tracking-tight leading-tight">Thalassa</h1>
+            <p className="text-[11px] text-[#2DD4BF] font-medium">Hotel OS & POS</p>
+          </div>
         </div>
 
-        {/* Current Operator Profile */}
-        <div className="p-3 border-t border-[#1F2430] bg-[#0E1118]">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2.5">
-              <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-xs flex items-center justify-center border border-emerald-500/40">
-                FD
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-white leading-tight">Front Desk System</p>
-                <div className="flex items-center space-x-1.5 mt-0.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                  <span className="text-[10px] text-gray-400">{syncStatus}</span>
-                </div>
-              </div>
-            </div>
-          </div>
+        <nav className="flex-1 px-3 py-6 space-y-1.5 overflow-y-auto">
+          {[
+            { id: "frontdesk", label: "Front Desk & Status", icon: Bed },
+            { id: "room-admin", label: "Room Management", icon: SlidersHorizontal },
+            { id: "billing", label: "Billing & Print", icon: Receipt },
+            { id: "inventory", label: "Stock & Minibar", icon: Boxes },
+            { id: "staff", label: "Staff & Access", icon: Users },
+            { id: "settings", label: "Hotel Settings", icon: Settings },
+          ].map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => setActiveTab(id)}
+              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                activeTab === id ? "bg-[#0D9488] text-white shadow-sm" : "text-slate-300 hover:bg-[#0F2D3C] hover:text-white"
+              }`}
+            >
+              <Icon className="w-4 h-4" /> {label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="p-4 border-t border-[#0F2D3C] bg-[#06151E]/40">
+          <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Connected Project</p>
+          <p className="text-xs text-[#2DD4BF] font-mono truncate mt-0.5">hotel-pos-app</p>
         </div>
       </aside>
 
-      {/* MAIN VIEW AREA */}
-      <main className="flex-1 flex flex-col overflow-hidden bg-[#0D1117]">
-        
-        {/* Top Operational Bar */}
-        <header className="h-14 border-b border-[#1F2430] bg-[#11141E] px-6 flex items-center justify-between shrink-0">
-          <div className="flex items-center space-x-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-gray-400">Selected Room:</span>
-            <div className="flex items-center space-x-2">
-              <select 
-                value={selectedRoomId}
-                onChange={(e) => setSelectedRoomId(e.target.value)}
-                className="bg-[#181D2A] border border-[#272E3F] text-xs font-bold text-white rounded-lg px-3 py-1.5 focus:border-[#FF5B22] focus:outline-none"
-              >
-                {rooms.map(room => (
-                  <option key={room.id} value={room.id}>
-                    {room.number} - {room.type} ({room.occupied ? `Booked: ${room.guest}` : 'Available'})
-                  </option>
-                ))}
-              </select>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${selectedRoom.occupied ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'}`}>
-                {selectedRoom.occupied ? 'OCCUPIED' : 'VACANT'}
-              </span>
-            </div>
+      {/* MAIN VIEWPORT */}
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
+        {/* Mobile Header Bar */}
+        <header className="no-print md:hidden flex items-center justify-between p-4 bg-[#091D26] text-white border-b border-[#0F2D3C]">
+          <div className="flex items-center gap-2">
+            <Building2 className="w-5 h-5 text-[#2DD4BF]" />
+            <span className="font-bold text-sm">Thalassa POS</span>
           </div>
-
-          <div className="flex items-center space-x-4">
-            <div className="text-xs text-gray-400">
-              Resort Occupancy: <span className="font-bold text-white">{occupancyRate}%</span>
-            </div>
-            <div className="h-4 w-[1px] bg-gray-700"></div>
-            <div className="text-xs text-gray-400">
-              ADR: <span className="font-bold text-[#FF5B22]">Rs. {adr.toLocaleString()}</span>
-            </div>
-          </div>
+          <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-1 rounded text-slate-300">
+            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
         </header>
 
-        {/* Dynamic Tab Body */}
-        {activeTab === 'pos' && (
-          <div className="flex-1 flex overflow-hidden">
-            
-            {/* Catalog & Room Charge Center */}
-            <section className="flex-1 flex flex-col p-5 overflow-y-auto">
-              
-              {/* Selected Room Banner */}
-              <div className="bg-gradient-to-r from-[#181E2C] to-[#121622] border border-[#22293C] rounded-2xl p-4 mb-5 flex items-center justify-between">
+        {/* Mobile Drawer */}
+        {mobileMenuOpen && (
+          <div className="no-print md:hidden bg-[#091D26] border-b border-[#0F2D3C] p-4 space-y-2 z-50 text-white">
+            {[
+              { id: "frontdesk", label: "Front Desk" },
+              { id: "room-admin", label: "Room Management" },
+              { id: "billing", label: "Billing & Print" },
+              { id: "inventory", label: "Stock & Minibar" },
+              { id: "staff", label: "Staff & Access" },
+              { id: "settings", label: "Hotel Settings" },
+            ].map((item) => (
+              <button
+                key={item.id}
+                onClick={() => { setActiveTab(item.id); setMobileMenuOpen(false); }}
+                className={`w-full text-left py-2 px-3 rounded text-sm ${activeTab === item.id ? "bg-[#0D9488]" : ""}`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <main className="no-print flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+          {/* TAB 1: FRONT DESK (CHECK-IN / GUEST ASSIGNMENT) */}
+          {activeTab === "frontdesk" && (
+            <div className="max-w-7xl mx-auto space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <div className="flex items-center space-x-2">
-                    <h2 className="text-lg font-bold text-white">{selectedRoom.number}</h2>
-                    <span className="text-xs text-gray-400">• {selectedRoom.type}</span>
+                  <h2 className="text-2xl font-bold text-[#091D26] tracking-tight">Front Desk Board</h2>
+                  <p className="text-sm text-slate-500">Live guest assignments, check-ins, and turnover</p>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="bg-white border border-[#E6DFD3] px-3 py-1.5 rounded-lg shadow-sm">
+                    Total: <b>{rooms.length}</b>
+                  </span>
+                  <span className="bg-[#F0FDF4] border border-[#CCFBF1] text-[#0F766E] px-3 py-1.5 rounded-lg">
+                    Occupied: <b>{rooms.filter((r) => r.status === "occupied").length}</b>
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {rooms.map((room) => (
+                  <div
+                    key={room.id}
+                    className="bg-white border border-[#E6DFD3] rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="text-2xl font-black text-[#091D26]">#{room.number}</span>
+                        <span
+                          className={`px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize ${
+                            room.status === "available"
+                              ? "bg-[#CCFBF1] text-[#0F766E]"
+                              : room.status === "occupied"
+                              ? "bg-[#0F2D3C] text-white"
+                              : room.status === "cleaning"
+                              ? "bg-amber-100 text-amber-800"
+                              : "bg-[#FFE4E6] text-[#F43F5E]"
+                          }`}
+                        >
+                          {room.status}
+                        </span>
+                      </div>
+                      <p className="text-xs font-semibold text-[#0F766E] uppercase">{room.type}</p>
+                      <p className="text-xs text-slate-500 mb-4">{settings.currency}{room.rate} / night</p>
+
+                      {room.status === "occupied" && (
+                        <div className="bg-[#FAF9F5] p-3 rounded-lg border border-[#E6DFD3] mb-4 text-xs space-y-1">
+                          <p className="font-semibold text-[#091D26]">{room.guestName}</p>
+                          <p className="text-slate-500">{room.guestPhone}</p>
+                          <p className="text-[11px] text-slate-400">Out: {room.checkOut}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="pt-2 border-t border-[#F3EFE6] flex gap-2">
+                      {room.status === "available" && (
+                        <button
+                          onClick={() => setCheckInModalRoom(room)}
+                          className="w-full bg-[#14B8A6] hover:bg-[#0D9488] text-white py-2 rounded-lg text-xs font-medium"
+                        >
+                          Check In Guest
+                        </button>
+                      )}
+                      {room.status === "occupied" && (
+                        <>
+                          <button
+                            onClick={() => { setSelectedRoomId(room.id); setActiveTab("billing"); }}
+                            className="flex-1 bg-[#F3EFE6] hover:bg-[#E6DFD3] text-[#091D26] py-2 rounded-lg text-xs font-medium"
+                          >
+                            Folio
+                          </button>
+                          <button
+                            onClick={() => handleCheckOut(room.id)}
+                            className="flex-1 bg-[#F43F5E] hover:bg-[#E11D48] text-white py-2 rounded-lg text-xs font-medium"
+                          >
+                            Check Out
+                          </button>
+                        </>
+                      )}
+                      {room.status === "cleaning" && (
+                        <button
+                          onClick={() => updateRoomStatus(room.id, "available")}
+                          className="w-full bg-[#CCFBF1]/40 hover:bg-[#CCFBF1] text-[#0F766E] border border-[#2DD4BF] py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Ready
+                        </button>
+                      )}
+                      {room.status === "maintenance" && (
+                        <button
+                          onClick={() => updateRoomStatus(room.id, "available")}
+                          className="w-full bg-[#E6DFD3] hover:bg-[#D3C8B7] text-[#091D26] py-2 rounded-lg text-xs font-medium"
+                        >
+                          Clear Maintenance
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Standard Nightly Rate: <span className="text-white font-semibold">Rs. {selectedRoom.rate.toLocaleString()}</span> + 10% Service Surcharge
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: ROOM MANAGEMENT (ADMIN & CONFIGURATION) */}
+          {activeTab === "room-admin" && (
+            <div className="max-w-7xl mx-auto space-y-6">
+              {/* Header with Add Room Button */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-bold text-[#091D26] tracking-tight">Room Inventory & Configuration</h2>
+                  <p className="text-sm text-slate-500">Add, re-price, change status, and decommission rooms</p>
+                </div>
+                <button
+                  onClick={() => setShowAddRoomModal(true)}
+                  className="inline-flex items-center gap-2 bg-[#14B8A6] hover:bg-[#0D9488] text-white px-4 py-2.5 rounded-lg text-xs font-bold shadow-sm transition-all"
+                >
+                  <Plus className="w-4 h-4" /> Add New Room
+                </button>
+              </div>
+
+              {/* Status Overview Metric Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="bg-white border border-[#E6DFD3] rounded-xl p-4 shadow-sm">
+                  <p className="text-xs font-semibold uppercase text-slate-400">Total Rooms</p>
+                  <p className="text-2xl font-black text-[#091D26] mt-1">{rooms.length}</p>
+                </div>
+                <div className="bg-white border border-[#E6DFD3] rounded-xl p-4 shadow-sm">
+                  <p className="text-xs font-semibold uppercase text-[#0F766E]">Available</p>
+                  <p className="text-2xl font-black text-[#0F766E] mt-1">
+                    {rooms.filter((r) => r.status === "available").length}
                   </p>
                 </div>
-
-                {!selectedRoom.occupied ? (
-                  <div className="flex items-center space-x-3">
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-400 uppercase">Guest Name</label>
-                      <input 
-                        type="text" 
-                        placeholder="e.g. Jack Higgins"
-                        value={guestName}
-                        onChange={(e) => setGuestName(e.target.value)}
-                        className="bg-[#0D1117] border border-[#2B344A] rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-[#FF5B22]"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-400 uppercase">Nights</label>
-                      <input 
-                        type="number" 
-                        min="1"
-                        max="30"
-                        value={stayNights}
-                        onChange={(e) => setStayNights(Math.max(1, parseInt(e.target.value) || 1))}
-                        className="w-16 bg-[#0D1117] border border-[#2B344A] rounded-lg px-2 py-1 text-xs text-white text-center focus:outline-none focus:border-[#FF5B22]"
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-right">
-                    <p className="text-xs font-bold text-emerald-400">Current In-House Guest</p>
-                    <p className="text-sm font-semibold text-white">{selectedRoom.guest}</p>
-                    <p className="text-[10px] text-gray-400">{selectedRoom.nights} Nights Registered • Balance: Rs. {selectedRoom.folioBalance.toLocaleString()}</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Amenity / Add-on Category Filters */}
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center space-x-2">
-                  {['ALL', 'TRANSFER', 'ACTIVITIES', 'SERVICE', 'ROOM_ADDON'].map((cat) => (
-                    <button
-                      key={cat}
-                      onClick={() => setCategoryFilter(cat)}
-                      className={`text-xs px-3 py-1.5 rounded-lg font-medium transition ${categoryFilter === cat ? 'bg-[#FF5B22] text-white shadow-sm' : 'bg-[#151A26] text-gray-400 hover:text-white'}`}
-                    >
-                      {cat.replace('_', ' ')}
-                    </button>
-                  ))}
+                <div className="bg-white border border-[#E6DFD3] rounded-xl p-4 shadow-sm">
+                  <p className="text-xs font-semibold uppercase text-amber-700">Cleaning</p>
+                  <p className="text-2xl font-black text-amber-700 mt-1">
+                    {rooms.filter((r) => r.status === "cleaning").length}
+                  </p>
                 </div>
-
-                <input 
-                  type="text"
-                  placeholder="Search amenities or extras..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="bg-[#151A26] border border-[#22293C] rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#FF5B22] w-56"
-                />
+                <div className="bg-white border border-[#E6DFD3] rounded-xl p-4 shadow-sm">
+                  <p className="text-xs font-semibold uppercase text-[#F43F5E]">Maintenance</p>
+                  <p className="text-2xl font-black text-[#F43F5E] mt-1">
+                    {rooms.filter((r) => r.status === "maintenance").length}
+                  </p>
+                </div>
               </div>
 
-              {/* Amenities Grid (No Food) */}
-              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3.5">
-                {filteredAmenities.map((item) => (
-                  <div 
-                    key={item.id} 
-                    onClick={() => addItemToCart(item)}
-                    className="group bg-[#131722] border border-[#1E2536] hover:border-[#FF5B22] rounded-xl p-3.5 cursor-pointer transition transform active:scale-95 flex flex-col justify-between"
+              {/* Room Table */}
+              <div className="bg-white rounded-xl border border-[#E6DFD3] shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#F3EFE6] border-b border-[#E6DFD3] uppercase font-semibold text-slate-500">
+                      <tr>
+                        <th className="p-3.5">Room #</th>
+                        <th className="p-3.5">Room Type</th>
+                        <th className="p-3.5">Rate / Night</th>
+                        <th className="p-3.5">Current Status</th>
+                        <th className="p-3.5 text-center">Change Status</th>
+                        <th className="p-3.5 text-center">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#F3EFE6]">
+                      {rooms.map((room) => (
+                        <tr key={room.id} className="hover:bg-[#FAF9F5] transition-colors">
+                          <td className="p-3.5 font-black text-base text-[#091D26]">#{room.number}</td>
+                          <td className="p-3.5 font-medium text-slate-700">{room.type}</td>
+                          <td className="p-3.5">
+                            {editingRoomId === room.id ? (
+                              <div className="flex items-center gap-1.5">
+                                <input
+                                  type="number"
+                                  className="w-20 border border-[#14B8A6] rounded px-2 py-1 text-xs focus:outline-none"
+                                  value={editRoomRate}
+                                  onChange={(e) => setEditRoomRate(e.target.value)}
+                                  autoFocus
+                                />
+                                <button
+                                  onClick={() => handleSaveRoomRate(room.id)}
+                                  className="p-1 bg-[#14B8A6] text-white rounded hover:bg-[#0D9488]"
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => setEditingRoomId(null)}
+                                  className="p-1 bg-slate-200 text-slate-600 rounded hover:bg-slate-300"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-slate-900">{settings.currency}{room.rate}</span>
+                                <button
+                                  onClick={() => {
+                                    setEditingRoomId(room.id);
+                                    setEditRoomRate(room.rate);
+                                  }}
+                                  className="text-slate-400 hover:text-[#0D9488]"
+                                  title="Edit price"
+                                >
+                                  <Edit2 className="w-3 h-3" />
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                          <td className="p-3.5">
+                            <span
+                              className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold capitalize ${
+                                room.status === "available"
+                                  ? "bg-[#CCFBF1] text-[#0F766E]"
+                                  : room.status === "occupied"
+                                  ? "bg-[#0F2D3C] text-white"
+                                  : room.status === "cleaning"
+                                  ? "bg-amber-100 text-amber-800"
+                                  : "bg-[#FFE4E6] text-[#F43F5E]"
+                              }`}
+                            >
+                              {room.status}
+                            </span>
+                          </td>
+                          <td className="p-3.5 text-center">
+                            <div className="inline-flex rounded-lg border border-[#E6DFD3] p-0.5 bg-[#FAF9F5] gap-1">
+                              <button
+                                onClick={() => updateRoomStatus(room.id, "available")}
+                                className={`px-2 py-1 rounded text-[10px] font-semibold ${
+                                  room.status === "available" ? "bg-[#14B8A6] text-white" : "text-slate-600 hover:bg-white"
+                                }`}
+                              >
+                                Ready
+                              </button>
+                              <button
+                                onClick={() => updateRoomStatus(room.id, "cleaning")}
+                                className={`px-2 py-1 rounded text-[10px] font-semibold ${
+                                  room.status === "cleaning" ? "bg-amber-500 text-white" : "text-slate-600 hover:bg-white"
+                                }`}
+                              >
+                                Clean
+                              </button>
+                              <button
+                                onClick={() => updateRoomStatus(room.id, "maintenance")}
+                                className={`px-2 py-1 rounded text-[10px] font-semibold ${
+                                  room.status === "maintenance" ? "bg-[#F43F5E] text-white" : "text-slate-600 hover:bg-white"
+                                }`}
+                              >
+                                Out of Order
+                              </button>
+                            </div>
+                          </td>
+                          <td className="p-3.5 text-center">
+                            <button
+                              onClick={() => handleDeleteRoom(room.id, room.number)}
+                              disabled={room.status === "occupied"}
+                              className={`p-1.5 rounded transition-colors ${
+                                room.status === "occupied"
+                                  ? "text-slate-300 cursor-not-allowed"
+                                  : "text-[#F43F5E] hover:bg-[#FFE4E6]"
+                              }`}
+                              title={room.status === "occupied" ? "Cannot delete occupied room" : "Delete Room"}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 3: BILLING */}
+          {activeTab === "billing" && currentRoom && (
+            <div className="max-w-6xl mx-auto space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-bold text-[#091D26]">Guest Folio & Billing</h2>
+                  <p className="text-sm text-slate-500">Add minibar items or charges, print receipts</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handlePrint("thermal")}
+                    className="flex items-center gap-2 bg-[#0F2D3C] hover:bg-[#091D26] text-white px-4 py-2 rounded-lg text-xs font-semibold shadow-sm"
                   >
-                    <div>
-                      <div className="flex justify-between items-start">
-                        <span className="text-[9px] font-bold bg-[#1C2333] text-gray-400 px-1.5 py-0.5 rounded">
-                          {item.code}
-                        </span>
-                        <span className="text-[9px] font-bold text-[#FF5B22] uppercase tracking-wider">
-                          {item.category}
-                        </span>
-                      </div>
-                      <h3 className="font-semibold text-xs text-white mt-2 group-hover:text-[#FF5B22] transition">
-                        {item.name}
-                      </h3>
-                      <p className="text-[11px] text-gray-400 mt-1 line-clamp-2">{item.desc}</p>
-                    </div>
-
-                    <div className="mt-4 pt-2 border-t border-[#1C2333] flex items-center justify-between">
-                      <span className="text-xs font-bold text-white">Rs. {item.price.toLocaleString()}</span>
-                      <span className="text-[10px] bg-[#FF5B22]/10 text-[#FF5B22] px-2 py-0.5 rounded font-bold group-hover:bg-[#FF5B22] group-hover:text-white transition">
-                        + Add to Folio
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            {/* Folio Checkout Terminal (Right Panel) */}
-            <aside className="w-80 bg-[#121623] border-l border-[#1F2430] flex flex-col justify-between shrink-0">
-              
-              <div className="p-4 border-b border-[#1F2430]">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-white">Folio Billing Summary</h3>
-                <p className="text-[11px] text-gray-400">{selectedRoom.number} • {selectedRoom.occupied ? `Guest: ${selectedRoom.guest}` : 'New Booking / Folio'}</p>
-              </div>
-
-              {/* Itemized charges list */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                {/* Room Night Charges if New Booking */}
-                {!selectedRoom.occupied && (
-                  <div className="bg-[#181E2C] rounded-lg p-2.5 border border-[#22293C]">
-                    <div className="flex justify-between text-xs font-semibold text-white">
-                      <span>Room Nights ({stayNights}x)</span>
-                      <span>Rs. {(selectedRoom.rate * stayNights).toLocaleString()}</span>
-                    </div>
-                    <span className="text-[10px] text-gray-400">@ Rs. {selectedRoom.rate.toLocaleString()} / night</span>
-                  </div>
-                )}
-
-                {/* Amenity items */}
-                {cart.length === 0 && selectedRoom.occupied && (
-                  <div className="text-center py-10 text-gray-500 text-xs">
-                    Select amenities or guest services from the left to add to room bill.
-                  </div>
-                )}
-
-                {cart.map((item) => (
-                  <div key={item.id} className="bg-[#161B28] rounded-lg p-2.5 border border-[#202636] flex items-center justify-between">
-                    <div>
-                      <h4 className="text-xs font-semibold text-white leading-tight">{item.name}</h4>
-                      <p className="text-[10px] text-gray-400">Rs. {item.price.toLocaleString()} each</p>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <button 
-                        onClick={() => updateItemQty(item.id, -1)}
-                        className="w-5 h-5 bg-[#212738] rounded text-gray-300 flex items-center justify-center hover:bg-gray-700 text-xs font-bold"
-                      >-</button>
-                      <span className="text-xs font-bold text-white w-4 text-center">{item.quantity}</span>
-                      <button 
-                        onClick={() => updateItemQty(item.id, 1)}
-                        className="w-5 h-5 bg-[#212738] rounded text-gray-300 flex items-center justify-center hover:bg-gray-700 text-xs font-bold"
-                      >+</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Settlement Totals */}
-              <div className="p-4 bg-[#0E121B] border-t border-[#1F2430] space-y-2.5">
-                <div className="flex justify-between text-xs text-gray-400">
-                  <span>Subtotal</span>
-                  <span className="font-semibold text-white">Rs. {rawTotal.toLocaleString()}</span>
-                </div>
-
-                <div className="flex items-center justify-between text-xs text-gray-400">
-                  <span>Discount</span>
-                  <div className="flex items-center space-x-1">
-                    {[0, 5, 10, 15].map((pct) => (
-                      <button 
-                        key={pct}
-                        onClick={() => setDiscountPercent(pct)}
-                        className={`text-[10px] px-1.5 py-0.5 rounded ${discountPercent === pct ? 'bg-[#FF5B22] text-white font-bold' : 'bg-[#1C2333] text-gray-400'}`}
-                      >
-                        {pct}%
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex justify-between text-xs text-gray-400">
-                  <span>Service Surcharge (10%)</span>
-                  <span className="font-semibold text-white">Rs. {Math.round(serviceCharge).toLocaleString()}</span>
-                </div>
-
-                <div className="pt-2 border-t border-[#1F2430] flex justify-between items-baseline">
-                  <span className="text-xs font-bold uppercase text-white">Total Due</span>
-                  <span className="text-lg font-black text-[#FF5B22]">Rs. {Math.round(totalDue).toLocaleString()}</span>
-                </div>
-
-                {/* Payment Selector */}
-                <div className="grid grid-cols-3 gap-1 pt-1">
-                  {['CARD', 'CASH', 'TRANSFER'].map((method) => (
-                    <button
-                      key={method}
-                      onClick={() => setPaymentMethod(method)}
-                      className={`text-[10px] py-1.5 rounded font-bold border transition ${paymentMethod === method ? 'bg-[#FF5B22] text-white border-[#FF5B22]' : 'bg-[#161B28] text-gray-400 border-[#22293C] hover:text-white'}`}
-                    >
-                      {method}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Submit Action */}
-                <button
-                  disabled={rawTotal === 0}
-                  onClick={handleProcessFolio}
-                  className="w-full mt-2 bg-[#FF5B22] hover:bg-[#e04f1d] disabled:opacity-40 disabled:pointer-events-none text-white font-bold py-2.5 rounded-xl shadow-lg shadow-[#FF5B22]/20 text-xs transition"
-                >
-                  Post Folio & Print Invoice
-                </button>
-              </div>
-
-            </aside>
-          </div>
-        )}
-
-        {/* ROOMS DIRECTORY TAB */}
-        {activeTab === 'rooms' && (
-          <div className="p-6 flex-1 overflow-y-auto">
-            <div className="flex justify-between items-center mb-6">
-              <div>
-                <h2 className="text-lg font-bold text-white">Resort Accommodations Directory</h2>
-                <p className="text-xs text-gray-400">Real-time status of surf villas, ocean suites, and garden cabanas.</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {rooms.map(room => (
-                <div key={room.id} className="bg-[#121622] border border-[#1E2536] rounded-xl p-4 flex flex-col justify-between">
-                  <div>
-                    <div className="flex justify-between items-start">
-                      <span className="text-sm font-bold text-white">{room.number}</span>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${room.occupied ? 'bg-amber-500/20 text-amber-300' : 'bg-emerald-500/20 text-emerald-300'}`}>
-                        {room.occupied ? 'OCCUPIED' : 'VACANT'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-[#FF5B22] font-semibold mt-1">{room.type}</p>
-                    <p className="text-[11px] text-gray-400 mt-2">Rate: Rs. {room.rate.toLocaleString()} / night</p>
-                    
-                    {room.occupied && (
-                      <div className="mt-3 p-2 bg-[#181E2C] rounded-lg border border-[#22293C]">
-                        <p className="text-[10px] text-gray-400 uppercase font-bold">Guest In-House</p>
-                        <p className="text-xs font-bold text-white">{room.guest}</p>
-                        <p className="text-[11px] text-amber-400 font-semibold mt-1">Balance: Rs. {room.folioBalance.toLocaleString()}</p>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="mt-4 pt-3 border-t border-[#1C2333] flex items-center justify-between">
-                    <button 
-                      onClick={() => handleHousekeepingToggle(room.id)}
-                      className={`text-[10px] font-bold px-2 py-1 rounded border ${room.status === 'Clean' ? 'border-emerald-500 text-emerald-400' : room.status === 'Dirty' ? 'border-rose-500 text-rose-400' : 'border-amber-500 text-amber-400'}`}
-                    >
-                      {room.status}
-                    </button>
-
-                    {room.occupied ? (
-                      <button 
-                        onClick={() => handleCheckoutRoom(room.id)}
-                        className="text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40 hover:bg-rose-500 hover:text-white px-2.5 py-1 rounded transition"
-                      >
-                        Settle & Check-Out
-                      </button>
-                    ) : (
-                      <button 
-                        onClick={() => { setSelectedRoomId(room.id); setActiveTab('pos'); }}
-                        className="text-[10px] font-bold bg-[#FF5B22] text-white px-2.5 py-1 rounded shadow hover:bg-[#e04f1d] transition"
-                      >
-                        Check-In Guest
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* HOUSEKEEPING TAB */}
-        {activeTab === 'housekeeping' && (
-          <div className="p-6 flex-1 overflow-y-auto">
-            <h2 className="text-lg font-bold text-white mb-1">Housekeeping Turnover Board</h2>
-            <p className="text-xs text-gray-400 mb-6">Manage room cleaning rotations and room readiness prior to guest check-ins.</p>
-
-            <div className="grid grid-cols-3 gap-6">
-              {['Clean', 'Dirty', 'Inspect'].map(statusType => (
-                <div key={statusType} className="bg-[#121622] rounded-xl border border-[#1E2536] p-4">
-                  <div className="flex justify-between items-center mb-3">
-                    <h3 className="font-bold text-sm text-white">{statusType} Rooms</h3>
-                    <span className="text-xs font-bold px-2 py-0.5 rounded bg-[#1C2333] text-gray-300">
-                      {rooms.filter(r => r.status === statusType).length}
-                    </span>
-                  </div>
-                  <div className="space-y-2">
-                    {rooms.filter(r => r.status === statusType).map(r => (
-                      <div key={r.id} className="bg-[#181E2C] p-3 rounded-lg border border-[#22293C] flex justify-between items-center">
-                        <div>
-                          <p className="text-xs font-bold text-white">{r.number}</p>
-                          <p className="text-[10px] text-gray-400">{r.type}</p>
-                        </div>
-                        <button 
-                          onClick={() => handleHousekeepingToggle(r.id)}
-                          className="text-[10px] font-bold px-2 py-1 rounded bg-[#202738] text-gray-300 hover:text-white border border-[#2A334A]"
-                        >
-                          Change Status
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* SALES & REVPAR REPORTS */}
-        {activeTab === 'reports' && (
-          <div className="p-6 flex-1 overflow-y-auto">
-            <h2 className="text-lg font-bold text-white mb-1">Hospitality Sales & RevPAR Reports</h2>
-            <p className="text-xs text-gray-400 mb-6">Audited folio accounts, room night sales, and amenity distributions.</p>
-
-            <div className="grid grid-cols-4 gap-4 mb-6">
-              <div className="bg-[#121622] border border-[#1E2536] rounded-xl p-4">
-                <span className="text-[10px] font-bold text-gray-400 uppercase">Gross Folio Sales</span>
-                <p className="text-lg font-bold text-white mt-1">Rs. {totalFolioRevenue.toLocaleString()}</p>
-              </div>
-              <div className="bg-[#121622] border border-[#1E2536] rounded-xl p-4">
-                <span className="text-[10px] font-bold text-gray-400 uppercase">Occupancy Rate</span>
-                <p className="text-lg font-bold text-emerald-400 mt-1">{occupancyRate}%</p>
-              </div>
-              <div className="bg-[#121622] border border-[#1E2536] rounded-xl p-4">
-                <span className="text-[10px] font-bold text-gray-400 uppercase">Average Daily Rate (ADR)</span>
-                <p className="text-lg font-bold text-[#FF5B22] mt-1">Rs. {adr.toLocaleString()}</p>
-              </div>
-              <div className="bg-[#121622] border border-[#1E2536] rounded-xl p-4">
-                <span className="text-[10px] font-bold text-gray-400 uppercase">RevPAR</span>
-                <p className="text-lg font-bold text-blue-400 mt-1">Rs. {Math.round(adr * (occupancyRate / 100)).toLocaleString()}</p>
-              </div>
-            </div>
-
-            {/* Transactions Ledger */}
-            <div className="bg-[#121622] border border-[#1E2536] rounded-xl overflow-hidden">
-              <div className="p-4 border-b border-[#1E2536] font-bold text-xs text-white uppercase tracking-wider">
-                Recent Folio Invoices
-              </div>
-              <table className="w-full text-left text-xs">
-                <thead className="bg-[#161B28] text-gray-400 uppercase text-[10px]">
-                  <tr>
-                    <th className="p-3">Invoice</th>
-                    <th className="p-3">Room</th>
-                    <th className="p-3">Guest Name</th>
-                    <th className="p-3">Payment</th>
-                    <th className="p-3 text-right">Total Settled</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#1C2333] text-gray-300">
-                  {recentTransactions.map((tx, idx) => (
-                    <tr key={idx} className="hover:bg-[#161C2A]">
-                      <td className="p-3 font-semibold text-white">{tx.invoiceNo}</td>
-                      <td className="p-3">{tx.roomNumber}</td>
-                      <td className="p-3">{tx.guestName}</td>
-                      <td className="p-3">{tx.paymentMethod}</td>
-                      <td className="p-3 text-right font-bold text-[#FF5B22]">Rs. {Math.round(tx.totalDue).toLocaleString()}</td>
-                    </tr>
-                  ))}
-                  {recentTransactions.length === 0 && (
-                    <tr>
-                      <td colSpan="5" className="p-6 text-center text-gray-500">No transactions recorded yet.</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* STAFF MANAGEMENT */}
-        {activeTab === 'staff' && (
-          <div className="p-6 flex-1 overflow-y-auto">
-            <h2 className="text-lg font-bold text-white mb-1">Staff Roster & Shift Authorization</h2>
-            <p className="text-xs text-gray-400 mb-6">Manage front desk receptionists, managers, and housekeeping staff.</p>
-
-            <div className="grid grid-cols-3 gap-6">
-              <div className="col-span-2 space-y-3">
-                {staffList.map((member) => (
-                  <div key={member.id} className="bg-[#121622] border border-[#1E2536] rounded-xl p-4 flex items-center justify-between">
-                    <div>
-                      <div className="flex items-center space-x-2">
-                        <h4 className="font-bold text-white text-xs">{member.name}</h4>
-                        <span className="text-[10px] bg-[#1C2333] text-gray-400 px-1.5 py-0.5 rounded font-mono">PIN: ****</span>
-                      </div>
-                      <p className="text-[11px] text-[#FF5B22] font-semibold mt-0.5">{member.role}</p>
-                      <p className="text-[10px] text-gray-500 mt-1">{member.shift}</p>
-                    </div>
-
-                    <button 
-                      onClick={() => setStaffList(prev => prev.map(s => s.id === member.id ? { ...s, onDuty: !s.onDuty } : s))}
-                      className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition ${member.onDuty ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' : 'bg-gray-800 text-gray-400 border-gray-700'}`}
-                    >
-                      {member.onDuty ? 'On Duty' : 'Off Duty'}
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              {/* Add New Staff */}
-              <div className="bg-[#121622] border border-[#1E2536] rounded-xl p-5 h-fit">
-                <h3 className="font-bold text-xs uppercase tracking-wider text-white mb-3">Add Team Member</h3>
-                <form onSubmit={handleAddStaff} className="space-y-3">
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase">Full Name</label>
-                    <input 
-                      type="text" 
-                      required
-                      placeholder="e.g. Kasun Fernando"
-                      value={newStaffName}
-                      onChange={(e) => setNewStaffName(e.target.value)}
-                      className="w-full bg-[#181D2A] border border-[#272E3F] rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-[#FF5B22] mt-1"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase">Role</label>
-                    <select 
-                      value={newStaffRole}
-                      onChange={(e) => setNewStaffRole(e.target.value)}
-                      className="w-full bg-[#181D2A] border border-[#272E3F] rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-[#FF5B22] mt-1"
-                    >
-                      <option value="Front Desk Cashier">Front Desk Cashier</option>
-                      <option value="Front Office Manager">Front Office Manager</option>
-                      <option value="Night Auditor">Night Auditor</option>
-                      <option value="Housekeeping Supervisor">Housekeeping Supervisor</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase">POS Security PIN</label>
-                    <input 
-                      type="password" 
-                      maxLength="4"
-                      required
-                      placeholder="4 Digits"
-                      value={newStaffPin}
-                      onChange={(e) => setNewStaffPin(e.target.value)}
-                      className="w-full bg-[#181D2A] border border-[#272E3F] rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-[#FF5B22] mt-1"
-                    />
-                  </div>
-
-                  <button 
-                    type="submit"
-                    className="w-full bg-[#FF5B22] hover:bg-[#e04f1d] text-white font-bold py-2 rounded-lg text-xs mt-2 transition"
-                  >
-                    Authorize Staff
+                    <Printer className="w-4 h-4 text-[#2DD4BF]" /> Print 80mm Thermal
                   </button>
-                </form>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* RESORT SETTINGS */}
-        {activeTab === 'settings' && (
-          <div className="p-6 flex-1 overflow-y-auto">
-            <h2 className="text-lg font-bold text-white mb-1">Resort System Configuration</h2>
-            <p className="text-xs text-gray-400 mb-6">Manage currency, resort surcharge, and Firebase cloud integrations.</p>
-
-            <div className="max-w-xl bg-[#121622] border border-[#1E2536] rounded-xl p-5 space-y-4">
-              <div>
-                <label className="text-xs font-bold text-gray-300">Property Legal Name</label>
-                <input 
-                  type="text" 
-                  defaultValue="Linoli Cove Midigama Surf Resort & Villas"
-                  className="w-full bg-[#181D2A] border border-[#272E3F] rounded-lg px-3 py-2 text-xs text-white mt-1"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-gray-300">Resort Service Surcharge (%)</label>
-                <input 
-                  type="number" 
-                  defaultValue="10"
-                  className="w-full bg-[#181D2A] border border-[#272E3F] rounded-lg px-3 py-2 text-xs text-white mt-1"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-gray-300">Currency Display</label>
-                <input 
-                  type="text" 
-                  defaultValue="LKR (Rs.)"
-                  className="w-full bg-[#181D2A] border border-[#272E3F] rounded-lg px-3 py-2 text-xs text-white mt-1"
-                />
-              </div>
-
-              <div className="pt-2">
-                <button className="bg-[#FF5B22] hover:bg-[#e04f1d] text-white font-bold px-4 py-2 rounded-lg text-xs transition">
-                  Save Changes
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-      </main>
-
-      {/* INVOICE / RECEIPT MODAL */}
-      {printReceiptModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-          <div className="bg-white text-gray-900 rounded-2xl w-full max-w-sm p-6 shadow-2xl font-mono text-xs">
-            <div className="text-center pb-4 border-b border-dashed border-gray-300">
-              <h3 className="font-black text-sm uppercase">Linoli Cove Midigama</h3>
-              <p className="text-[10px] text-gray-600">Surf Resort & Luxury Accommodations</p>
-              <p className="text-[9px] text-gray-500">Ahangama Road, Midigama, Sri Lanka</p>
-            </div>
-
-            <div className="py-3 border-b border-dashed border-gray-300 space-y-1">
-              <div className="flex justify-between">
-                <span>INVOICE:</span>
-                <span className="font-bold">{printReceiptModal.invoiceNo}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>ROOM:</span>
-                <span className="font-bold">{printReceiptModal.roomNumber}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>GUEST:</span>
-                <span className="font-bold">{printReceiptModal.guestName}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>DATE:</span>
-                <span>{printReceiptModal.dateStr}</span>
-              </div>
-            </div>
-
-            <div className="py-3 border-b border-dashed border-gray-300 space-y-1.5">
-              {printReceiptModal.nights > 0 && (
-                <div className="flex justify-between">
-                  <span>Room Charge ({printReceiptModal.nights} nights)</span>
-                  <span className="font-bold">Rs. {printReceiptModal.subtotal.toLocaleString()}</span>
+                  <button
+                    onClick={() => handlePrint("a4")}
+                    className="flex items-center gap-2 bg-[#14B8A6] hover:bg-[#0D9488] text-white px-4 py-2 rounded-lg text-xs font-semibold shadow-sm"
+                  >
+                    <Receipt className="w-4 h-4" /> Print A4 Invoice
+                  </button>
                 </div>
-              )}
-              {printReceiptModal.amenities.map((item, idx) => (
-                <div key={idx} className="flex justify-between text-[11px]">
-                  <span>{item.quantity}x {item.name}</span>
-                  <span>Rs. {(item.price * item.quantity).toLocaleString()}</span>
+              </div>
+
+              {/* Room Tabs */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-2">
+                {rooms
+                  .filter((r) => r.status === "occupied")
+                  .map((r) => (
+                    <button
+                      key={r.id}
+                      onClick={() => setSelectedRoomId(r.id)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        selectedRoomId === r.id
+                          ? "bg-[#0F2D3C] text-white shadow-sm"
+                          : "bg-white border border-[#E6DFD3] text-[#091D26] hover:bg-[#F3EFE6]"
+                      }`}
+                    >
+                      Room {r.number} ({r.guestName?.split(" ")[0]})
+                    </button>
+                  ))}
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 bg-white rounded-xl border border-[#E6DFD3] shadow-sm p-6">
+                  <div className="flex justify-between items-center pb-4 mb-4 border-b border-[#E6DFD3]">
+                    <div>
+                      <h3 className="font-bold text-lg text-[#091D26]">Room {currentRoom.number} - {currentRoom.guestName || "Walk-In"}</h3>
+                      <p className="text-xs text-slate-500">Period: {currentRoom.checkIn} to {currentRoom.checkOut}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs uppercase font-semibold text-slate-400">Total Due</p>
+                      <p className="text-2xl font-black text-[#0D9488]">
+                        {settings.currency}{totalFolioAmount.toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleAddFolioItem} className="grid grid-cols-1 sm:grid-cols-4 gap-2 mb-6">
+                    <input
+                      type="text"
+                      placeholder="Charge item description..."
+                      value={newItemDesc}
+                      onChange={(e) => setNewItemDesc(e.target.value)}
+                      className="sm:col-span-2 border border-[#D3C8B7] rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
+                    />
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder="Price"
+                      value={newItemPrice}
+                      onChange={(e) => setNewItemPrice(e.target.value)}
+                      className="border border-[#D3C8B7] rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
+                    />
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        min="1"
+                        value={newItemQty}
+                        onChange={(e) => setNewItemQty(e.target.value)}
+                        className="w-14 border border-[#D3C8B7] rounded-lg px-2 py-2 text-xs text-center focus:outline-none"
+                      />
+                      <button
+                        type="submit"
+                        className="flex-1 bg-[#0F2D3C] text-white rounded-lg px-3 py-2 text-xs font-semibold flex items-center justify-center gap-1 hover:bg-[#091D26]"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Add
+                      </button>
+                    </div>
+                  </form>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="border-b border-[#E6DFD3] text-slate-400 uppercase tracking-wider font-semibold">
+                          <th className="py-2.5">Item</th>
+                          <th className="py-2.5 text-center">Qty</th>
+                          <th className="py-2.5 text-right">Rate</th>
+                          <th className="py-2.5 text-right">Total</th>
+                          <th className="py-2.5 text-center">Del</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#F3EFE6]">
+                        {currentRoom.folio?.map((item) => (
+                          <tr key={item.id}>
+                            <td className="py-3 font-medium text-[#091D26]">{item.description}</td>
+                            <td className="py-3 text-center">{item.quantity}</td>
+                            <td className="py-3 text-right">{settings.currency}{item.unitPrice.toFixed(2)}</td>
+                            <td className="py-3 text-right font-semibold">{settings.currency}{item.total.toFixed(2)}</td>
+                            <td className="py-3 text-center">
+                              <button onClick={() => handleRemoveFolioItem(item.id)} className="text-[#F43F5E] hover:text-[#E11D48]">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              ))}
-            </div>
 
-            <div className="py-3 space-y-1">
-              <div className="flex justify-between">
-                <span>Service Surcharge (10%):</span>
-                <span>Rs. {Math.round(printReceiptModal.serviceCharge).toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between text-sm font-black pt-1 border-t border-gray-300">
-                <span>TOTAL SETTLED:</span>
-                <span>Rs. {Math.round(printReceiptModal.totalDue).toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between text-[10px] text-gray-600">
-                <span>Payment Method:</span>
-                <span>{printReceiptModal.paymentMethod}</span>
+                {/* Minibar Quick Bar */}
+                <div className="bg-white rounded-xl border border-[#E6DFD3] shadow-sm p-6 space-y-4">
+                  <h4 className="font-bold text-sm text-[#091D26] uppercase">Quick Dispatch Minibar</h4>
+                  <div className="space-y-2">
+                    {inventory
+                      .filter((i) => i.price > 0)
+                      .map((item) => (
+                        <button
+                          key={item.id}
+                          onClick={() => handleQuickAddMinibar(item)}
+                          className="w-full flex items-center justify-between p-2.5 rounded-lg border border-[#E6DFD3] hover:border-[#14B8A6] bg-[#FAF9F5] text-xs transition-colors"
+                        >
+                          <span className="font-medium text-[#091D26] truncate">{item.name}</span>
+                          <span className="font-bold text-[#0F766E]">{settings.currency}{item.price.toFixed(2)}</span>
+                        </button>
+                      ))}
+                  </div>
+                </div>
               </div>
             </div>
+          )}
 
-            <div className="text-center pt-3 text-[10px] text-gray-500 border-t border-dashed border-gray-300">
-              Thank you for staying at Linoli Cove!
+          {/* TAB 4: INVENTORY */}
+          {activeTab === "inventory" && (
+            <div className="max-w-5xl mx-auto space-y-6">
+              <div>
+                <h2 className="text-2xl font-bold text-[#091D26]">Inventory & Amenities</h2>
+                <p className="text-sm text-slate-500">Live storage stock synchronized across devices</p>
+              </div>
+
+              <div className="bg-white rounded-xl border border-[#E6DFD3] shadow-sm overflow-hidden">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#F3EFE6] border-b border-[#E6DFD3] uppercase font-semibold text-slate-500">
+                    <tr>
+                      <th className="p-3.5">Item Name</th>
+                      <th className="p-3.5">Category</th>
+                      <th className="p-3.5 text-right">Price</th>
+                      <th className="p-3.5 text-center">Stock</th>
+                      <th className="p-3.5 text-center">Quick Adjust</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#F3EFE6]">
+                    {inventory.map((item) => (
+                      <tr key={item.id}>
+                        <td className="p-3.5 font-bold text-[#091D26]">{item.name}</td>
+                        <td className="p-3.5 uppercase">{item.category}</td>
+                        <td className="p-3.5 text-right font-medium">{settings.currency}{item.price.toFixed(2)}</td>
+                        <td className="p-3.5 text-center font-bold text-[#091D26]">{item.stock}</td>
+                        <td className="p-3.5 text-center">
+                          <div className="inline-flex items-center gap-1">
+                            <button
+                              onClick={() => updateDoc(doc(db, "inventory", item.id), { stock: Math.max(0, item.stock - 1) })}
+                              className="px-2 py-0.5 border border-[#D3C8B7] rounded hover:bg-[#F3EFE6]"
+                            >
+                              -
+                            </button>
+                            <button
+                              onClick={() => updateDoc(doc(db, "inventory", item.id), { stock: item.stock + 1 })}
+                              className="px-2 py-0.5 border border-[#D3C8B7] rounded hover:bg-[#F3EFE6]"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
+          )}
 
-            <div className="mt-5 flex space-x-2">
-              <button 
-                onClick={() => window.print()}
-                className="flex-1 bg-gray-900 text-white py-2 rounded-lg font-sans font-bold hover:bg-black transition"
-              >
-                Print Receipt
+          {/* TAB 5: STAFF */}
+          {activeTab === "staff" && (
+            <div className="max-w-4xl mx-auto space-y-6">
+              <div>
+                <h2 className="text-2xl font-bold text-[#091D26]">Staff & Shifts</h2>
+                <p className="text-sm text-slate-500">Active hotel staff & PIN identification</p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {staff.map((member) => (
+                  <div key={member.id} className="bg-white border border-[#E6DFD3] rounded-xl p-5 shadow-sm">
+                    <div className="flex justify-between items-start">
+                      <div className="w-10 h-10 rounded-full bg-[#0F2D3C] text-[#2DD4BF] font-bold flex items-center justify-center text-sm">
+                        {member.name.slice(0, 2).toUpperCase()}
+                      </div>
+                      <span className="bg-[#CCFBF1] text-[#0F766E] text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">
+                        {member.role}
+                      </span>
+                    </div>
+                    <h3 className="font-bold text-base text-[#091D26] mt-3">{member.name}</h3>
+                    <p className="text-xs text-slate-400">PIN: ****{member.pin.slice(-2)}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 6: SETTINGS */}
+          {activeTab === "settings" && (
+            <div className="max-w-3xl mx-auto bg-white border border-[#E6DFD3] rounded-xl p-6 shadow-sm space-y-6">
+              <div>
+                <h2 className="text-2xl font-bold text-[#091D26]">Hotel Details & Print Configuration</h2>
+                <p className="text-sm text-slate-500">Legal details printed directly on receipts and invoices</p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                <div>
+                  <label className="block font-semibold mb-1">Hotel / Resort Name</label>
+                  <input
+                    type="text"
+                    value={settings.hotelName}
+                    onChange={(e) => handleSaveSettings({ ...settings, hotelName: e.target.value })}
+                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Tax / VAT ID</label>
+                  <input
+                    type="text"
+                    value={settings.taxNumber}
+                    onChange={(e) => handleSaveSettings({ ...settings, taxNumber: e.target.value })}
+                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Phone</label>
+                  <input
+                    type="text"
+                    value={settings.phone}
+                    onChange={(e) => handleSaveSettings({ ...settings, phone: e.target.value })}
+                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Currency Symbol</label>
+                  <input
+                    type="text"
+                    value={settings.currency}
+                    onChange={(e) => handleSaveSettings({ ...settings, currency: e.target.value })}
+                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block font-semibold mb-1">Property Address</label>
+                  <input
+                    type="text"
+                    value={settings.address}
+                    onChange={(e) => handleSaveSettings({ ...settings, address: e.target.value })}
+                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block font-semibold mb-1">Thermal Receipt Footer Note</label>
+                  <input
+                    type="text"
+                    value={settings.footerNote}
+                    onChange={(e) => handleSaveSettings({ ...settings, footerNote: e.target.value })}
+                    className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </main>
+      </div>
+
+      {/* ADD NEW ROOM MODAL */}
+      {showAddRoomModal && (
+        <div className="no-print fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-[#E6DFD3]">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-bold text-lg text-[#091D26]">Add New Hotel Room</h3>
+              <button onClick={() => setShowAddRoomModal(false)} className="text-slate-400">
+                <X className="w-5 h-5" />
               </button>
-              <button 
-                onClick={() => setPrintReceiptModal(null)}
-                className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg font-sans font-bold hover:bg-gray-300 transition"
-              >
-                Close
-              </button>
             </div>
+
+            <form onSubmit={handleCreateRoom} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold mb-1">Room Number</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. 301, 302, PH-A"
+                  value={newRoomForm.number}
+                  onChange={(e) => setNewRoomForm({ ...newRoomForm, number: e.target.value })}
+                  className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1">Room Category / Type</label>
+                <select
+                  value={newRoomForm.type}
+                  onChange={(e) => setNewRoomForm({ ...newRoomForm, type: e.target.value })}
+                  className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
+                >
+                  <option value="Ocean Breeze King">Ocean Breeze King</option>
+                  <option value="Lagoon View Double">Lagoon View Double</option>
+                  <option value="Coral Penthouse Suite">Coral Penthouse Suite</option>
+                  <option value="Family Beachside Villa">Family Beachside Villa</option>
+                  <option value="Standard Coastal Queen">Standard Coastal Queen</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1">Base Nightly Rate ({settings.currency})</label>
+                <input
+                  type="number"
+                  required
+                  min="0"
+                  step="0.01"
+                  value={newRoomForm.rate}
+                  onChange={(e) => setNewRoomForm({ ...newRoomForm, rate: e.target.value })}
+                  className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1">Initial Status</label>
+                <select
+                  value={newRoomForm.status}
+                  onChange={(e) => setNewRoomForm({ ...newRoomForm, status: e.target.value })}
+                  className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
+                >
+                  <option value="available">Available</option>
+                  <option value="cleaning">Needs Cleaning</option>
+                  <option value="maintenance">Under Maintenance</option>
+                </select>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-[#14B8A6] hover:bg-[#0D9488] text-white font-bold py-3 rounded-lg transition-colors mt-2"
+              >
+                Register Room to Cloud
+              </button>
+            </form>
           </div>
         </div>
       )}
 
+      {/* CHECK-IN MODAL */}
+      {checkInModalRoom && (
+        <div className="no-print fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-[#E6DFD3]">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-bold text-lg text-[#091D26]">Check In - Room #{checkInModalRoom.number}</h3>
+              <button onClick={() => setCheckInModalRoom(null)} className="text-slate-400">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCompleteCheckIn} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold mb-1">Guest Full Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Marina Sterling"
+                  value={guestForm.name}
+                  onChange={(e) => setGuestForm({ ...guestForm, name: e.target.value })}
+                  className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1">Phone Number</label>
+                <input
+                  type="tel"
+                  placeholder="+1 (555) 000-0000"
+                  value={guestForm.phone}
+                  onChange={(e) => setGuestForm({ ...guestForm, phone: e.target.value })}
+                  className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1">Nights</label>
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  value={guestForm.nights}
+                  onChange={(e) => setGuestForm({ ...guestForm, nights: parseInt(e.target.value, 10) || 1 })}
+                  className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
+                />
+              </div>
+
+              <button type="submit" className="w-full bg-[#14B8A6] hover:bg-[#0D9488] text-white font-bold py-3 rounded-lg">
+                Confirm & Open Folio
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* PRINT ENGINE CONTAINER */}
+      <div className="printable-area hidden">
+        {printFormat === "thermal" ? (
+          <div className="thermal-mode">
+            <div style={{ textAlign: "center", marginBottom: "8px", borderBottom: "1px dashed #000", paddingBottom: "8px" }}>
+              <div style={{ fontWeight: "bold", fontSize: "14px", textTransform: "uppercase" }}>{settings.hotelName}</div>
+              <div>{settings.address}</div>
+              <div>Tel: {settings.phone}</div>
+              <div>Tax ID: {settings.taxNumber}</div>
+            </div>
+
+            <div style={{ borderBottom: "1px dashed #000", paddingBottom: "6px", marginBottom: "6px" }}>
+              <div>ROOM: #{currentRoom?.number}</div>
+              <div>GUEST: {currentRoom?.guestName || "Walk-In"}</div>
+              <div>OUT: {currentRoom?.checkOut || "N/A"}</div>
+              <div>DATE: {new Date().toLocaleDateString()}</div>
+            </div>
+
+            <table style={{ width: "100%", textAlign: "left", marginBottom: "8px", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid #000" }}>
+                  <th>ITEM</th>
+                  <th style={{ textAlign: "center" }}>QTY</th>
+                  <th style={{ textAlign: "right" }}>AMT</th>
+                </tr>
+              </thead>
+              <tbody>
+                {currentRoom?.folio?.map((item) => (
+                  <tr key={item.id}>
+                    <td style={{ maxWidth: "38mm", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {item.description}
+                    </td>
+                    <td style={{ textAlign: "center" }}>{item.quantity}</td>
+                    <td style={{ textAlign: "right" }}>{settings.currency}{item.total.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <div style={{ borderTop: "1px dashed #000", paddingTop: "6px", fontWeight: "bold" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px" }}>
+                <span>TOTAL:</span>
+                <span>{settings.currency}{totalFolioAmount.toFixed(2)}</span>
+              </div>
+            </div>
+
+            <div style={{ textAlign: "center", marginTop: "12px", fontSize: "10px" }}>
+              <div>{settings.footerNote}</div>
+            </div>
+          </div>
+        ) : (
+          <div className="a4-mode">
+            <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "2px solid #0D9488", paddingBottom: "18px" }}>
+              <div>
+                <h1 style={{ fontSize: "24px", fontWeight: "bold", color: "#0F2D3C", margin: 0 }}>{settings.hotelName}</h1>
+                <p style={{ margin: "4px 0", color: "#64748B" }}>{settings.address}</p>
+                <p style={{ margin: 0, color: "#64748B" }}>Tax Reg: {settings.taxNumber} | Tel: {settings.phone}</p>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <span style={{ background: "#CCFBF1", color: "#0F766E", padding: "4px 8px", borderRadius: "4px", fontWeight: "bold", fontSize: "12px" }}>
+                  OFFICIAL TAX FOLIO
+                </span>
+                <p style={{ fontWeight: "bold", margin: "8px 0 0 0" }}>Room #{currentRoom?.number}</p>
+                <p style={{ margin: 0, color: "#64748B" }}>Date: {new Date().toLocaleDateString()}</p>
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", margin: "24px 0", padding: "12px", background: "#FAF9F5", borderRadius: "8px" }}>
+              <div>
+                <p style={{ margin: 0, fontSize: "11px", color: "#94A3B8", textTransform: "uppercase" }}>Guest Information</p>
+                <p style={{ margin: "2px 0 0 0", fontWeight: "bold", fontSize: "14px" }}>{currentRoom?.guestName || "Unregistered"}</p>
+                <p style={{ margin: 0, color: "#64748B" }}>{currentRoom?.guestPhone}</p>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <p style={{ margin: 0, fontSize: "11px", color: "#94A3B8", textTransform: "uppercase" }}>Stay Duration</p>
+                <p style={{ margin: "2px 0 0 0", fontWeight: "bold" }}>{currentRoom?.checkIn} to {currentRoom?.checkOut}</p>
+              </div>
+            </div>
+
+            <table style={{ width: "100%", borderCollapse: "collapse", margin: "20px 0" }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid #0F2D3C", textAlign: "left", color: "#0F2D3C" }}>
+                  <th style={{ padding: "8px 0" }}>Description</th>
+                  <th style={{ padding: "8px 0", textAlign: "center" }}>Qty</th>
+                  <th style={{ padding: "8px 0", textAlign: "right" }}>Unit Rate</th>
+                  <th style={{ padding: "8px 0", textAlign: "right" }}>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {currentRoom?.folio?.map((item) => (
+                  <tr key={item.id} style={{ borderBottom: "1px solid #E2E8F0" }}>
+                    <td style={{ padding: "10px 0" }}>{item.description}</td>
+                    <td style={{ padding: "10px 0", textAlign: "center" }}>{item.quantity}</td>
+                    <td style={{ padding: "10px 0", textAlign: "right" }}>{settings.currency}{item.unitPrice.toFixed(2)}</td>
+                    <td style={{ padding: "10px 0", textAlign: "right", fontWeight: "bold" }}>{settings.currency}{item.total.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <div style={{ borderTop: "2px solid #0F2D3C", paddingTop: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: "16px", fontWeight: "bold" }}>Total Amount Due / Settled:</span>
+              <span style={{ fontSize: "20px", fontWeight: "bold", color: "#0D9488" }}>
+                {settings.currency}{totalFolioAmount.toFixed(2)}
+              </span>
+            </div>
+
+            <div style={{ marginTop: "40px", textAlign: "center", color: "#94A3B8", fontSize: "11px" }}>
+              <p>{settings.footerNote}</p>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
