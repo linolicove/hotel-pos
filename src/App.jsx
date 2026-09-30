@@ -348,88 +348,6 @@ function buildThermalHtml({ settings, room, isTemporary, settlementMethod, total
   `;
 }
 
-function buildA4Html({ settings, room, isTemporary, settlementMethod, total, cashTendered = 0, changeDue = 0 }) {
-  const items = room?.orderItems || [];
-  const isCash = settlementMethod === "Cash" && !isTemporary;
-
-  return `
-    <div class="a4-container">
-      <div style="border-bottom: 3px double #091D26; padding-bottom: 16px; display: flex; justify-content: space-between;">
-        <div>
-          <h1 style="font-size: 24px; font-weight: 900; text-transform: uppercase; margin: 0; color: #091D26;">${settings.hotelName}</h1>
-          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; text-transform: uppercase; color: #555;">${settings.tagline}</p>
-          <p style="margin: 4px 0 0 0; font-size: 11px; color: #333;">${settings.address} | Tel: ${settings.phone}</p>
-          <p style="margin: 2px 0 0 0; font-size: 11px; color: #333;">Tax Reg: ${settings.taxNumber} | BRN: ${settings.companyRegNo}</p>
-        </div>
-        <div style="text-align: right;">
-          <div style="display: inline-block; border: 2px solid #091D26; padding: 6px 14px; font-weight: bold; font-size: 12px;">
-            ${isTemporary ? "GUEST STATEMENT" : "OFFICIAL TAX INVOICE"}
-          </div>
-          <p style="margin: 8px 0 0 0; font-size: 12px;"><b>Date:</b> ${new Date().toLocaleDateString()}</p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;"><b>Folio No:</b> ${room?.orderId || `ORD-${room?.number}`}</p>
-        </div>
-      </div>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 20px 0; padding: 12px 16px; border: 1px solid #091D26; border-radius: 4px;">
-        <div>
-          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Guest Information</p>
-          <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold;">${room?.guestName || "Unregistered Guest"}</p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;">Contact: ${room?.guestPhone || "No contact recorded"}</p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;">Settlement: <b>${isTemporary ? "Pending" : settlementMethod}</b></p>
-        </div>
-        <div style="text-align: right;">
-          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Stay Details</p>
-          <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold;">Room #${room?.number} (${room?.type})</p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;">Duration: ${room?.checkIn} to ${room?.checkOut}</p>
-        </div>
-      </div>
-      <table style="margin: 20px 0; font-size: 12px;">
-        <thead>
-          <tr style="border-bottom: 2px solid #091D26; text-align: left;">
-            <th style="padding: 10px 4px;">Description</th>
-            <th style="padding: 10px 4px; text-align: center;">Qty</th>
-            <th style="padding: 10px 4px; text-align: right;">Rate</th>
-            <th style="padding: 10px 4px; text-align: right;">Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${items.map(item => `
-            <tr style="border-bottom: 1px solid #ddd;">
-              <td style="padding: 10px 4px;">${item.description}</td>
-              <td style="padding: 10px 4px; text-align: center;">${item.quantity}</td>
-              <td style="padding: 10px 4px; text-align: right;">${settings.currency}${Number(item.unitPrice).toFixed(2)}</td>
-              <td style="padding: 10px 4px; text-align: right; font-weight: bold;">${settings.currency}${Number(item.total).toFixed(2)}</td>
-            </tr>
-          `).join("")}
-        </tbody>
-      </table>
-      <div style="border-top: 2px solid #091D26; border-bottom: 2px solid #091D26; padding: 12px 4px; margin: 24px 0;">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <span style="font-size: 14px; font-weight: bold;">Total Bill Amount:</span>
-          <span style="font-size: 20px; font-weight: 900;">${settings.currency}${Number(total).toFixed(2)}</span>
-        </div>
-        ${isCash ? `
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 13px; color: #444;">
-            <span>Amount Given (Cash Tendered):</span>
-            <span style="font-weight: bold;">${settings.currency}${Number(cashTendered).toFixed(2)}</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: 14px; font-weight: bold; border-top: 1px dotted #ccc; padding-top: 6px; color: #0D9488;">
-            <span>Balance Returned (Change Due):</span>
-            <span style="font-size: 18px; font-weight: 900;">${settings.currency}${Number(changeDue).toFixed(2)}</span>
-          </div>
-        ` : `
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: 12px; color: #666;">
-            <span>Payment Method:</span>
-            <span style="font-weight: bold;">${settlementMethod}</span>
-          </div>
-        `}
-      </div>
-      <div style="margin-top: 50px; text-align: center; font-size: 11px; border-top: 1px solid #ddd; padding-top: 12px;">
-        <p style="margin: 0; font-weight: 500;">${settings.footerNote}</p>
-      </div>
-    </div>
-  `;
-}
-
 function buildPayslipHtml({ settings, staffMember, payPeriodStr = "Current Pay Period" }) {
   const base = Number(staffMember.baseSalary) || 0;
   const allowances = Number(staffMember.allowances) || 0;
@@ -468,11 +386,13 @@ function buildPayslipHtml({ settings, staffMember, payPeriodStr = "Current Pay P
           <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Employee Information</p>
           <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold; color: #091D26;">${staffMember.name}</p>
           <p style="margin: 2px 0 0 0; font-size: 12px;">Designation: <b>${staffMember.role}</b></p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;">Employment Type: <b>${staffMember.type || "Full-Time"}</b></p>
           <p style="margin: 2px 0 0 0; font-size: 12px;">Bank A/C: <b>${staffMember.bankAccount || "Cash Remittance"}</b></p>
         </div>
         <div style="text-align: right;">
-          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Employment Terms</p>
-          <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold; color: #091D26;">${staffMember.type || "Full-Time"}</p>
+          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Staff Code / ID</p>
+          <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold; color: #091D26;">${staffMember.id}</p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;">Phone: <b>${staffMember.phone || "--"}</b></p>
           <p style="margin: 2px 0 0 0; font-size: 12px;">Payment Status: <b>${staffMember.paid ? "DISBURSED / PAID" : "PENDING DISBURSEMENT"}</b></p>
         </div>
       </div>
@@ -529,116 +449,6 @@ function buildPayslipHtml({ settings, staffMember, payPeriodStr = "Current Pay P
         <span>EPF (12%): <b>${settings.currency}${epfEmployer.toFixed(2)}</b></span>
         <span>ETF (3%): <b>${settings.currency}${etfEmployer.toFixed(2)}</b></span>
       </div>
-    </div>
-  `;
-}
-
-function buildDailyAttendanceReportHtml({ settings, reportList, titleStr }) {
-  return `
-    <div class="a4-container">
-      <div style="border-bottom: 3px double #091D26; padding-bottom: 16px; display: flex; justify-content: space-between;">
-        <div>
-          <h1 style="font-size: 24px; font-weight: 900; text-transform: uppercase; margin: 0; color: #091D26;">${settings.hotelName}</h1>
-          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; color: #555;">Daily Staff Shift & Attendance Audit Sheet</p>
-        </div>
-        <div style="text-align: right;">
-          <div style="display: inline-block; border: 2px solid #091D26; padding: 6px 14px; font-weight: bold; font-size: 12px; background: #F3EFE6;">
-            ATTENDANCE LOG
-          </div>
-          <p style="margin: 8px 0 0 0; font-size: 12px;"><b>Scope:</b> ${titleStr}</p>
-        </div>
-      </div>
-      <table style="width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px;">
-        <thead>
-          <tr style="border-bottom: 2px solid #091D26; background: #F3EFE6;">
-            <th style="padding: 10px 6px; text-align: left;">Date</th>
-            <th style="padding: 10px 6px; text-align: left;">Employee Name</th>
-            <th style="padding: 10px 6px; text-align: left;">Role</th>
-            <th style="padding: 10px 6px; text-align: center;">In Time</th>
-            <th style="padding: 10px 6px; text-align: center;">Out Time</th>
-            <th style="padding: 10px 6px; text-align: center;">Shift Hours</th>
-            <th style="padding: 10px 6px; text-align: center;">Duty Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${reportList.map((m) => `
-            <tr style="border-bottom: 1px solid #ddd;">
-              <td style="padding: 10px 6px; font-family: monospace;">${m.date || "--"}</td>
-              <td style="padding: 10px 6px; font-weight: bold;">${m.name}</td>
-              <td style="padding: 10px 6px;">${m.role}</td>
-              <td style="padding: 10px 6px; text-align: center; font-family: monospace;">${m.clockIn || "--:--"}</td>
-              <td style="padding: 10px 6px; text-align: center; font-family: monospace;">${m.clockOut || "--:--"}</td>
-              <td style="padding: 10px 6px; text-align: center; font-weight: bold;">${m.hoursLogged || "--"}</td>
-              <td style="padding: 10px 6px; text-align: center; font-weight: bold; color: ${m.isOnDuty ? '#0D9488' : '#64748B'};">
-                ${m.isOnDuty ? "ON DUTY" : m.clockOut ? "COMPLETED" : "OFF DUTY"}
-              </td>
-            </tr>
-          `).join("")}
-        </tbody>
-      </table>
-    </div>
-  `;
-}
-
-function buildSalesReportHtml({ settings, salesList, prebookingsList, titleStr, totalSales }) {
-  return `
-    <div class="a4-container">
-      <div style="border-bottom: 3px double #091D26; padding-bottom: 16px; display: flex; justify-content: space-between;">
-        <div>
-          <h1 style="font-size: 24px; font-weight: 900; text-transform: uppercase; margin: 0; color: #091D26;">${settings.hotelName}</h1>
-          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; color: #555;">Executive Sales, Turnover & Prebooking Report</p>
-        </div>
-        <div style="text-align: right;">
-          <div style="display: inline-block; border: 2px solid #091D26; padding: 6px 14px; font-weight: bold; font-size: 12px; background: #F3EFE6;">
-            REVENUE AUDIT
-          </div>
-          <p style="margin: 8px 0 0 0; font-size: 12px;"><b>Scope:</b> ${titleStr}</p>
-        </div>
-      </div>
-
-      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 20px 0;">
-        <div style="border: 1px solid #091D26; padding: 12px; background: #FAF9F5; border-radius: 4px;">
-          <div style="font-size: 10px; font-weight: bold; text-transform: uppercase; color: #555;">Gross Settled Revenue</div>
-          <div style="font-size: 20px; font-weight: 900; color: #0D9488; margin-top: 4px;">${settings.currency}${Number(totalSales).toLocaleString()}</div>
-        </div>
-        <div style="border: 1px solid #091D26; padding: 12px; background: #FAF9F5; border-radius: 4px;">
-          <div style="font-size: 10px; font-weight: bold; text-transform: uppercase; color: #555;">Settled Transactions</div>
-          <div style="font-size: 20px; font-weight: 900; color: #091D26; margin-top: 4px;">${salesList.length} Folios</div>
-        </div>
-        <div style="border: 1px solid #091D26; padding: 12px; background: #FAF9F5; border-radius: 4px;">
-          <div style="font-size: 10px; font-weight: bold; text-transform: uppercase; color: #555;">Pre-Bookings Manifest</div>
-          <div style="font-size: 20px; font-weight: 900; color: #6366F1; margin-top: 4px;">${prebookingsList.length} Stays</div>
-        </div>
-      </div>
-
-      <h3 style="font-size: 14px; font-weight: bold; text-transform: uppercase; margin-top: 24px; border-bottom: 2px solid #091D26; padding-bottom: 4px;">
-        1. Settled Revenue & Folios Ledger
-      </h3>
-      <table style="width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 11px;">
-        <thead>
-          <tr style="border-bottom: 2px solid #091D26; background: #F3EFE6;">
-            <th style="padding: 8px 6px; text-align: left;">Date & Time</th>
-            <th style="padding: 8px 6px; text-align: left;">Folio / Bill #</th>
-            <th style="padding: 8px 6px; text-align: left;">Room</th>
-            <th style="padding: 8px 6px; text-align: left;">Guest Name</th>
-            <th style="padding: 8px 6px; text-align: center;">Tender</th>
-            <th style="padding: 8px 6px; text-align: right;">Total Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${salesList.map((s) => `
-            <tr style="border-bottom: 1px solid #ddd;">
-              <td style="padding: 8px 6px; font-family: monospace;">${s.date} ${s.settledAt || ""}</td>
-              <td style="padding: 8px 6px; font-family: monospace; font-weight: bold;">${s.orderId}</td>
-              <td style="padding: 8px 6px;">#${s.roomNumber}</td>
-              <td style="padding: 8px 6px; font-weight: bold;">${s.guestName}</td>
-              <td style="padding: 8px 6px; text-align: center;">${s.settlementMethod}</td>
-              <td style="padding: 8px 6px; text-align: right; font-weight: bold;">${settings.currency}${Number(s.totalAmount).toLocaleString()}</td>
-            </tr>
-          `).join("")}
-          ${salesList.length === 0 ? `<tr><td colspan="6" style="padding: 16px; text-align: center; color: #888;">No sales records found for this period.</td></tr>` : ""}
-        </tbody>
-      </table>
     </div>
   `;
 }
@@ -797,7 +607,7 @@ export default function App() {
   const [staffViewSubTab, setStaffViewSubTab] = useState("attendance");
   const [newStaffForm, setNewStaffForm] = useState({
     name: "",
-    role: "Front Desk",
+    role: "Front Desk Agent",
     pin: "1234",
     type: "Full-Time",
     baseSalary: "75000",
@@ -812,10 +622,11 @@ export default function App() {
     phone: "",
   });
 
+  // EDIT STAFF FORM STATE
   const [editingStaffMember, setEditingStaffMember] = useState(null);
   const [editStaffForm, setEditStaffForm] = useState({
     name: "",
-    role: "Front Desk",
+    role: "Front Desk Agent",
     pin: "",
     type: "Full-Time",
     baseSalary: "0",
@@ -925,7 +736,7 @@ export default function App() {
     setCheckInModalRoom(null);
   };
 
-  // PIN Operations with Cyber Brute-Force Rate Limiting
+  // PIN Operations
   const handlePinDigit = (digit) => {
     if (Date.now() < pinLockoutUntil) {
       setPinError(`Too many failed attempts. Locked for ${Math.ceil((pinLockoutUntil - Date.now()) / 1000)}s`);
@@ -1035,26 +846,28 @@ export default function App() {
       }
     });
 
+    // Staff Listener (Reliable mapping and state update)
     const staffRef = ref(rtdb, "staff");
     const unsubStaff = onValue(staffRef, (snapshot) => {
-      if (!snapshot.exists()) {
-        const seedStaffMap = {};
-        INITIAL_STAFF_SEEDS.forEach((s) => { seedStaffMap[s.id] = s; });
-        set(staffRef, seedStaffMap);
-      } else {
+      if (snapshot.exists()) {
         const data = snapshot.val();
         const staffList = Object.keys(data).map((k) => ({
           ...data[k],
           id: k,
-          baseSalary: Number(data[k].baseSalary) || 65000,
+          name: data[k].name || "Staff Member",
+          role: data[k].role || "Front Desk Agent",
+          type: data[k].type || "Full-Time",
+          pin: String(data[k].pin || "0000"),
+          baseSalary: Number(data[k].baseSalary) || 0,
           allowances: Number(data[k].allowances) || 0,
           serviceCharge: Number(data[k].serviceCharge) || 0,
           bonus: Number(data[k].bonus) || 0,
           overtimePay: Number(data[k].overtimePay) || 0,
-          epfDeduction: Number(data[k].epfDeduction) || Math.round((Number(data[k].baseSalary) || 65000) * 0.08),
+          epfDeduction: Number(data[k].epfDeduction) || 0,
           taxDeduction: Number(data[k].taxDeduction) || 0,
           advanceDeduction: Number(data[k].advanceDeduction) || 0,
           bankAccount: data[k].bankAccount || "",
+          phone: data[k].phone || "",
           isOnDuty: Boolean(data[k].isOnDuty),
           clockIn: data[k].clockIn || "",
           clockOut: data[k].clockOut || "",
@@ -1062,6 +875,10 @@ export default function App() {
           paid: Boolean(data[k].paid)
         }));
         setStaff(staffList);
+      } else {
+        const seedStaffMap = {};
+        INITIAL_STAFF_SEEDS.forEach((s) => { seedStaffMap[s.id] = s; });
+        set(staffRef, seedStaffMap);
       }
       setLoading(false);
     });
@@ -1146,7 +963,7 @@ export default function App() {
     update(ref(rtdb, `rooms/${room.id}`), { rateStrategy: nextStrategy });
   };
 
-  // Staff Remuneration Editor: Accessible by Manager or Admin
+  // --- STAFF EDIT INITIALIZER: BINDS ALL FIELDS ACCURATELY ---
   const handleStartEditStaff = (member) => {
     if (!isManagerOrAdmin) {
       alert("Access Denied: Only Managers and Admins can modify staff profiles.");
@@ -1155,48 +972,69 @@ export default function App() {
     setEditingStaffMember(member);
     setEditStaffForm({
       name: member.name || "",
-      role: member.role || "Front Desk",
-      pin: member.pin || "1234",
+      role: member.role || "Front Desk Agent",
+      pin: String(member.pin || ""),
       type: member.type || "Full-Time",
-      baseSalary: String(member.baseSalary || 0),
-      allowances: String(member.allowances || 0),
-      serviceCharge: String(member.serviceCharge || 0),
-      bonus: String(member.bonus || 0),
-      overtimePay: String(member.overtimePay || 0),
-      epfDeduction: String(member.epfDeduction || Math.round((Number(member.baseSalary) || 0) * 0.08)),
-      taxDeduction: String(member.taxDeduction || 0),
-      advanceDeduction: String(member.advanceDeduction || 0),
+      baseSalary: String(member.baseSalary ?? 0),
+      allowances: String(member.allowances ?? 0),
+      serviceCharge: String(member.serviceCharge ?? 0),
+      bonus: String(member.bonus ?? 0),
+      overtimePay: String(member.overtimePay ?? 0),
+      epfDeduction: String(member.epfDeduction ?? Math.round((Number(member.baseSalary) || 0) * 0.08)),
+      taxDeduction: String(member.taxDeduction ?? 0),
+      advanceDeduction: String(member.advanceDeduction ?? 0),
       bankAccount: member.bankAccount || "",
       phone: member.phone || "",
     });
   };
 
+  // --- STAFF SAVE HANDLER: WRITES TO FIREBASE & UPDATES LOCAL STATE IMMEDIATELY ---
   const handleSaveStaffEdit = (e) => {
     e.preventDefault();
     if (!isManagerOrAdmin || !editingStaffMember) return;
 
+    const baseVal = parseFloat(editStaffForm.baseSalary) || 0;
+    const allowancesVal = parseFloat(editStaffForm.allowances) || 0;
+    const serviceVal = parseFloat(editStaffForm.serviceCharge) || 0;
+    const bonusVal = parseFloat(editStaffForm.bonus) || 0;
+    const overtimeVal = parseFloat(editStaffForm.overtimePay) || 0;
+    const epfVal = parseFloat(editStaffForm.epfDeduction) || 0;
+    const taxVal = parseFloat(editStaffForm.taxDeduction) || 0;
+    const advanceVal = parseFloat(editStaffForm.advanceDeduction) || 0;
+
     const updated = {
       name: sanitizeInput(editStaffForm.name),
       role: editStaffForm.role,
-      pin: sanitizeInput(editStaffForm.pin),
       type: editStaffForm.type,
-      baseSalary: parseFloat(editStaffForm.baseSalary) || 0,
-      allowances: parseFloat(editStaffForm.allowances) || 0,
-      serviceCharge: parseFloat(editStaffForm.serviceCharge) || 0,
-      bonus: parseFloat(editStaffForm.bonus) || 0,
-      overtimePay: parseFloat(editStaffForm.overtimePay) || 0,
-      epfDeduction: parseFloat(editStaffForm.epfDeduction) || 0,
-      taxDeduction: parseFloat(editStaffForm.taxDeduction) || 0,
-      advanceDeduction: parseFloat(editStaffForm.advanceDeduction) || 0,
+      pin: sanitizeInput(editStaffForm.pin),
+      baseSalary: baseVal,
+      allowances: allowancesVal,
+      serviceCharge: serviceVal,
+      bonus: bonusVal,
+      overtimePay: overtimeVal,
+      epfDeduction: epfVal,
+      taxDeduction: taxVal,
+      advanceDeduction: advanceVal,
       bankAccount: sanitizeInput(editStaffForm.bankAccount),
       phone: sanitizeInput(editStaffForm.phone),
     };
 
-    update(ref(rtdb, `staff/${editingStaffMember.id}`), updated);
-    setEditingStaffMember(null);
+    // 1. Immediately update local state to avoid any input reset
+    setStaff((prev) =>
+      prev.map((s) => (s.id === editingStaffMember.id ? { ...s, ...updated } : s))
+    );
+
+    // 2. Persist to Firebase Realtime Database
+    update(ref(rtdb, `staff/${editingStaffMember.id}`), updated)
+      .then(() => {
+        setEditingStaffMember(null);
+      })
+      .catch((err) => {
+        alert("Failed to save changes to database: " + err.message);
+      });
   };
 
-  // Staff Deletion: Accessible by Manager or Admin
+  // Staff Deletion
   const handleDeleteStaff = (member) => {
     if (!isManagerOrAdmin) {
       alert("Access Denied: Only Managers and Admins can delete staff profiles.");
@@ -1307,7 +1145,7 @@ export default function App() {
     if (item.stock > 0) handleUpdateStockLevel(item.id, -1);
   };
 
-  // Pre-Bookings & Reservation Management Actions
+  // Pre-Bookings Actions
   const handleCreatePrebooking = (e) => {
     e.preventDefault();
     if (!newBookingForm.guestName || !newBookingForm.roomNumber) {
@@ -1390,7 +1228,7 @@ export default function App() {
     setActiveTab("frontdesk");
   };
 
-  // Settings & Database Backup (Manager & Admin only)
+  // Settings & Database Backup
   const handleSaveAllSettings = () => {
     if (!isManagerOrAdmin) {
       alert("Access Denied: Only Manager or Admin can save system settings.");
@@ -1460,7 +1298,6 @@ export default function App() {
     }
   };
 
-  // Safe delete for front desk guest ID photo
   const handleDeleteRoomPhoto = (roomId) => {
     if (!isManagerOrAdmin) {
       alert("Access Denied: Only Manager or Admin can delete stored guest verification photos.");
@@ -1660,7 +1497,7 @@ export default function App() {
     const newStaff = {
       id: staffId,
       name: sanitizeInput(newStaffForm.name),
-      role: newStaffForm.role || "Front Desk",
+      role: newStaffForm.role || "Front Desk Agent",
       pin: sanitizeInput(newStaffForm.pin) || "0000",
       type: newStaffForm.type || "Full-Time",
       baseSalary: base,
@@ -1891,7 +1728,7 @@ export default function App() {
     );
   }
 
-  // --- PIN TERMINAL LOCK SCREEN (ADMIN & MANAGER SECURELY HIDDEN) ---
+  // --- PIN TERMINAL LOCK SCREEN ---
   if (!currentUser) {
     const keypadButtons = [
       { key: "1", sub: "" },
@@ -1910,7 +1747,6 @@ export default function App() {
 
     const isLockedOut = Date.now() < pinLockoutUntil;
 
-    // Filter quick buttons to NEVER display Admin, Manager, or Supervisor accounts
     const safeOperationalStaff = staff.filter(s => {
       const r = (s.role || "").toLowerCase();
       return !r.includes("admin") && !r.includes("manager") && !r.includes("supervisor");
@@ -2144,7 +1980,7 @@ export default function App() {
         </header>
 
         <main className="no-print flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
-          {/* TAB 1: FRONT DESK WITH SECURE PHOTO PREVIEW & ACCESS CONTROL */}
+          {/* TAB 1: FRONT DESK */}
           {activeTab === "frontdesk" && (
             <div className="max-w-7xl mx-auto space-y-6 pb-12">
               <div className="bg-gradient-to-r from-[#091D26] via-[#0F2D3C] to-[#0A3042] rounded-3xl p-6 sm:p-8 text-white shadow-xl border border-white/10 relative overflow-hidden">
@@ -3061,7 +2897,7 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 4: ROOM ADMIN (RESTRICTED TO MANAGERS AND ADMINS) */}
+          {/* TAB 4: ROOM ADMIN */}
           {activeTab === "room-admin" && isManagerOrAdmin && (
             <div className="max-w-7xl mx-auto space-y-6">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -3506,7 +3342,6 @@ export default function App() {
                                 </button>
                               </td>
 
-                              {/* Modify Action for Managers & Admins */}
                               {isManagerOrAdmin && (
                                 <td className="p-3.5 text-center">
                                   <button
@@ -3520,7 +3355,6 @@ export default function App() {
                                 </td>
                               )}
 
-                              {/* Delete Action for Managers & Admins */}
                               {isManagerOrAdmin && (
                                 <td className="p-3.5 text-center">
                                   <button
@@ -3544,16 +3378,16 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 6: SETTINGS (RESTRICTED TO MANAGERS AND ADMINS) */}
+          {/* TAB 6: SETTINGS */}
           {activeTab === "settings" && isManagerOrAdmin && (
             <div className="max-w-6xl mx-auto space-y-8 pb-16">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-[#E6DFD3] pb-4">
                 <div>
                   <h2 className="text-2xl font-bold flex items-center gap-2">
-                    <Settings className="w-6 h-6 text-[#14B8A6]" /> System, Business & Peripheral Settings[cite: 3]
+                    <Settings className="w-6 h-6 text-[#14B8A6]" /> System, Business & Peripheral Settings
                   </h2>
                   <p className="text-xs text-slate-500">
-                    Manage company identity, thermal printing options, automated cash drawer solenoid, and database backup files.[cite: 3]
+                    Manage company identity, thermal printing options, automated cash drawer solenoid, and database backup files.
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -3562,14 +3396,14 @@ export default function App() {
                     onClick={handleDownloadBackup}
                     className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[#D3C8B7] bg-white hover:bg-slate-50 text-xs font-bold shadow-sm"
                   >
-                    <Download className="w-4 h-4 text-slate-500" /> Download Backup[cite: 3]
+                    <Download className="w-4 h-4 text-slate-500" /> Download Backup
                   </button>
                   <button
                     type="button"
                     onClick={handleSaveAllSettings}
                     className="flex items-center gap-1.5 px-5 py-2 rounded-lg bg-[#0D9488] hover:bg-[#0F766E] text-white text-xs font-bold shadow-md transition-all"
                   >
-                    <Save className="w-4 h-4" /> Save Changes[cite: 3]
+                    <Save className="w-4 h-4" /> Save Changes
                   </button>
                 </div>
               </div>
@@ -3584,14 +3418,14 @@ export default function App() {
               <div className="bg-white rounded-2xl border border-[#E6DFD3] p-6 shadow-sm space-y-4">
                 <div className="border-b border-slate-100 pb-2">
                   <h3 className="font-bold text-sm text-[#091D26] uppercase tracking-wide flex items-center gap-2">
-                    <Building2 className="w-4 h-4 text-[#14B8A6]" /> COMPANY & BUSINESS INFORMATION[cite: 3]
+                    <Building2 className="w-4 h-4 text-[#14B8A6]" /> COMPANY & BUSINESS INFORMATION
                   </h3>
-                  <p className="text-[11px] text-slate-400">Printed on official receipts, tax invoices, and IT reports[cite: 3]</p>
+                  <p className="text-[11px] text-slate-400">Printed on official receipts, tax invoices, and IT reports</p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Trading / Brand Name[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Trading / Brand Name</label>
                     <input
                       type="text"
                       value={settingsForm.hotelName}
@@ -3600,7 +3434,7 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Brand Tagline / Slogan[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Brand Tagline / Slogan</label>
                     <input
                       type="text"
                       value={settingsForm.tagline}
@@ -3609,7 +3443,7 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Registered Legal Entity Name[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Registered Legal Entity Name</label>
                     <input
                       type="text"
                       value={settingsForm.legalEntity}
@@ -3618,7 +3452,7 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Business Registration No. (BRN / Company ID)[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Business Registration No. (BRN / Company ID)</label>
                     <input
                       type="text"
                       value={settingsForm.companyRegNo}
@@ -3627,7 +3461,7 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Tax Identification / VAT / GST No.[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Tax Identification / VAT / GST No.</label>
                     <input
                       type="text"
                       value={settingsForm.taxNumber}
@@ -3636,7 +3470,7 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Terminal Hardware Identifier[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Terminal Hardware Identifier</label>
                     <input
                       type="text"
                       value={settingsForm.terminalId}
@@ -3645,7 +3479,7 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Contact Phone Number[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Contact Phone Number</label>
                     <input
                       type="text"
                       value={settingsForm.phone}
@@ -3654,7 +3488,7 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Business Email Address[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Business Email Address</label>
                     <input
                       type="email"
                       value={settingsForm.email}
@@ -3663,7 +3497,7 @@ export default function App() {
                     />
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="block font-semibold mb-1 text-slate-700">Official Website or Social Link[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Official Website or Social Link</label>
                     <input
                       type="text"
                       value={settingsForm.website}
@@ -3672,7 +3506,7 @@ export default function App() {
                     />
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="block font-semibold mb-1 text-slate-700">Full Physical Street Address[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Full Physical Street Address</label>
                     <input
                       type="text"
                       value={settingsForm.address}
@@ -3688,16 +3522,16 @@ export default function App() {
                 <div className="border-b border-slate-100 pb-2 flex justify-between items-center">
                   <div>
                     <h3 className="font-bold text-sm text-[#091D26] uppercase tracking-wide flex items-center gap-2">
-                      <Send className="w-4 h-4 text-[#14B8A6]" /> AUTOMATED DAILY 11:30 PM EMAIL DISPATCH[cite: 3]
+                      <Send className="w-4 h-4 text-[#14B8A6]" /> AUTOMATED DAILY 11:30 PM EMAIL DISPATCH
                     </h3>
-                    <p className="text-[11px] text-slate-400">Auto-dispatches complete end-of-day sales, collections, balances, and shift worksheets[cite: 3]</p>
+                    <p className="text-[11px] text-slate-400">Auto-dispatches complete end-of-day sales, collections, balances, and shift worksheets</p>
                   </div>
                   <span className="text-[10px] font-mono text-slate-400 border px-1.5 py-0.5 rounded">EOD Auto-task</span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Target Recipient Email[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Target Recipient Email</label>
                     <input
                       type="email"
                       value={settingsForm.emailRecipient}
@@ -3706,7 +3540,7 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Scheduled Time (24h)[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Scheduled Time (24h)</label>
                     <input
                       type="text"
                       value={settingsForm.emailScheduleTime}
@@ -3715,13 +3549,13 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Automation Status[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Automation Status</label>
                     <select
                       value={settingsForm.emailStatus}
                       onChange={(e) => setSettingsForm({ ...settingsForm, emailStatus: e.target.value })}
                       className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white font-medium"
                     >
-                      <option value="Disabled (Manual trigger only)">Disabled (Manual trigger only)[cite: 3]</option>
+                      <option value="Disabled (Manual trigger only)">Disabled (Manual trigger only)</option>
                       <option value="Enabled (Daily Auto Send)">Enabled (Daily Auto Send)</option>
                     </select>
                   </div>
@@ -3730,14 +3564,14 @@ export default function App() {
                 <div className="bg-[#FAF9F5] p-3.5 rounded-xl border border-[#E6DFD3] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                   <div className="text-[11px] text-slate-500">
                     <b>What data is transmitted in the 11:30 PM package?</b><br />
-                    Gross revenue, net sales, taxes, service pool, room occupancy, minibar orders, cashier balance, and shift audits.[cite: 3]
+                    Gross revenue, net sales, taxes, service pool, room occupancy, minibar orders, cashier balance, and shift audits.
                   </div>
                   <button
                     type="button"
                     onClick={() => alert(`Email report package dispatched to ${settingsForm.emailRecipient}`)}
                     className="px-4 py-2.5 bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-lg text-xs font-bold shrink-0 shadow-sm"
                   >
-                    Send Daily Report Now[cite: 3]
+                    Send Daily Report Now
                   </button>
                 </div>
 
@@ -3748,7 +3582,7 @@ export default function App() {
                     className="flex items-center gap-1.5 text-xs text-slate-600 font-semibold hover:text-black"
                   >
                     {showAdvancedEmail ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-                    Advanced: Direct Silent Webhook or EmailJS API Keys (Optional)[cite: 3]
+                    Advanced: Direct Silent Webhook or EmailJS API Keys (Optional)
                   </button>
                   {showAdvancedEmail && (
                     <div className="mt-2 p-3 bg-slate-50 border rounded-xl space-y-2 text-xs">
@@ -3770,78 +3604,78 @@ export default function App() {
                 <div className="border-b border-slate-100 pb-2 flex justify-between items-center">
                   <div>
                     <h3 className="font-bold text-sm text-[#091D26] uppercase tracking-wide flex items-center gap-2">
-                      <Printer className="w-4 h-4 text-[#14B8A6]" /> THERMAL AUTO-PRINTER CONFIGURATION[cite: 3]
+                      <Printer className="w-4 h-4 text-[#14B8A6]" /> THERMAL AUTO-PRINTER CONFIGURATION
                     </h3>
-                    <p className="text-[11px] text-slate-400">Hardwired direct slip generation for USB, LAN, or Bluetooth portable printers[cite: 3]</p>
+                    <p className="text-[11px] text-slate-400">Hardwired direct slip generation for USB, LAN, or Bluetooth portable printers</p>
                   </div>
-                  <span className="text-[10px] font-mono text-slate-400 border px-1.5 py-0.5 rounded">System Default Spooler[cite: 3]</span>
+                  <span className="text-[10px] font-mono text-slate-400 border px-1.5 py-0.5 rounded">System Default Spooler</span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Paper Roll Width[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Paper Roll Width</label>
                     <select
                       value={settingsForm.paperRollWidth}
                       onChange={(e) => setSettingsForm({ ...settingsForm, paperRollWidth: e.target.value })}
                       className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white font-medium"
                     >
-                      <option value="80mm Thermal Paper (Standard POS)">80mm Thermal Paper (Standard POS)[cite: 3]</option>
+                      <option value="80mm Thermal Paper (Standard POS)">80mm Thermal Paper (Standard POS)</option>
                       <option value="58mm Thermal Paper (Compact / Mobile)">58mm Thermal Paper (Compact / Mobile)</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Receipt Font Size[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Receipt Font Size</label>
                     <select
                       value={settingsForm.receiptFontSize}
                       onChange={(e) => setSettingsForm({ ...settingsForm, receiptFontSize: e.target.value })}
                       className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white font-medium"
                     >
-                      <option value="14px - Extra Bold & Large">14px - Extra Bold & Large[cite: 3]</option>
+                      <option value="14px - Extra Bold & Large">14px - Extra Bold & Large</option>
                       <option value="12px - Standard POS">12px - Standard POS</option>
                       <option value="10px - Compact Condense">10px - Compact Condense</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Receipt Font Type[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Receipt Font Type</label>
                     <select
                       value={settingsForm.receiptFontType}
                       onChange={(e) => setSettingsForm({ ...settingsForm, receiptFontType: e.target.value })}
                       className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white font-medium"
                     >
-                      <option value="Monospace (Classic ESC/POS Receipt)">Monospace (Classic ESC/POS Receipt)[cite: 3]</option>
+                      <option value="Monospace (Classic ESC/POS Receipt)">Monospace (Classic ESC/POS Receipt)</option>
                       <option value="Modern Sans-Serif">Modern Sans-Serif</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Thermal Slip Margins[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Thermal Slip Margins</label>
                     <select
                       value={settingsForm.slipMargins}
                       onChange={(e) => setSettingsForm({ ...settingsForm, slipMargins: e.target.value })}
                       className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white font-medium"
                     >
-                      <option value="2mm - Standard Thermal Margin">2mm - Standard Thermal Margin[cite: 3]</option>
+                      <option value="2mm - Standard Thermal Margin">2mm - Standard Thermal Margin</option>
                       <option value="0mm - Full Bleed Edge">0mm - Full Bleed Edge</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Auto-Print on Saved Order[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Auto-Print on Saved Order</label>
                     <select
                       value={settingsForm.autoPrintKOT}
                       onChange={(e) => setSettingsForm({ ...settingsForm, autoPrintKOT: e.target.value })}
                       className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white font-medium"
                     >
-                      <option value="Yes - Print KOT & BOT Slips">Yes - Print KOT & BOT Slips[cite: 3]</option>
+                      <option value="Yes - Print KOT & BOT Slips">Yes - Print KOT & BOT Slips</option>
                       <option value="No - Manual Only">No - Manual Only</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Auto-Print on Settlement[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Auto-Print on Settlement</label>
                     <select
                       value={settingsForm.autoPrintSettlement}
                       onChange={(e) => setSettingsForm({ ...settingsForm, autoPrintSettlement: e.target.value })}
                       className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white font-medium"
                     >
-                      <option value="Yes - Print Final Tax Invoice">Yes - Print Final Tax Invoice[cite: 3]</option>
+                      <option value="Yes - Print Final Tax Invoice">Yes - Print Final Tax Invoice</option>
                       <option value="No - Screen Only">No - Screen Only</option>
                     </select>
                   </div>
@@ -3850,7 +3684,7 @@ export default function App() {
                 <div className="bg-[#FAF9F5] p-3 rounded-xl border border-[#E6DFD3] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                   <div className="text-[11px] text-slate-500">
                     <b>Direct WebUSB Thermal Printer Connection</b><br />
-                    Pair once with your POS printer for fast raw print output or print via OS print spooler.[cite: 3]
+                    Pair once with your POS printer for fast raw print output or print via OS print spooler.
                   </div>
                   <div className="flex gap-2 shrink-0">
                     <button
@@ -3858,7 +3692,7 @@ export default function App() {
                       onClick={() => alert("Searching for connected WebUSB thermal printers...")}
                       className="px-3.5 py-2 bg-[#091D26] text-white rounded-lg text-xs font-bold flex items-center gap-1.5"
                     >
-                      <Usb className="w-3.5 h-3.5" /> Pair USB Printer[cite: 3]
+                      <Usb className="w-3.5 h-3.5" /> Pair USB Printer
                     </button>
                     <button
                       type="button"
@@ -3869,7 +3703,7 @@ export default function App() {
                       }}
                       className="px-3.5 py-2 border border-[#D3C8B7] rounded-lg text-xs font-bold hover:bg-slate-50 flex items-center gap-1.5"
                     >
-                      <Printer className="w-3.5 h-3.5" /> Test Slip[cite: 3]
+                      <Printer className="w-3.5 h-3.5" /> Test Slip
                     </button>
                   </div>
                 </div>
@@ -3879,42 +3713,42 @@ export default function App() {
               <div className="bg-white rounded-2xl border border-[#E6DFD3] p-6 shadow-sm space-y-4">
                 <div className="border-b border-slate-100 pb-2">
                   <h3 className="font-bold text-sm text-[#091D26] uppercase tracking-wide flex items-center gap-2">
-                    <Banknote className="w-4 h-4 text-[#14B8A6]" /> AUTOMATED CASH DRAWER SOLENOID[cite: 3]
+                    <Banknote className="w-4 h-4 text-[#14B8A6]" /> AUTOMATED CASH DRAWER SOLENOID
                   </h3>
-                  <p className="text-[11px] text-slate-400">Triggers electrical RJ11/RJ12 drawer pulse via printer kick ports[cite: 3]</p>
+                  <p className="text-[11px] text-slate-400">Triggers electrical RJ11/RJ12 drawer pulse via printer kick ports</p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Auto Drawer Kick[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Auto Drawer Kick</label>
                     <select
                       value={settingsForm.autoDrawerKick}
                       onChange={(e) => setSettingsForm({ ...settingsForm, autoDrawerKick: e.target.value })}
                       className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white font-medium"
                     >
-                      <option value="Enabled (Auto-Pop on Payment)">Enabled (Auto-Pop on Payment)[cite: 3]</option>
+                      <option value="Enabled (Auto-Pop on Payment)">Enabled (Auto-Pop on Payment)</option>
                       <option value="Disabled">Disabled</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Drawer Kick Trigger[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Drawer Kick Trigger</label>
                     <select
                       value={settingsForm.drawerKickTrigger}
                       onChange={(e) => setSettingsForm({ ...settingsForm, drawerKickTrigger: e.target.value })}
                       className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white font-medium"
                     >
-                      <option value="Cash Payments Only">Cash Payments Only[cite: 3]</option>
+                      <option value="Cash Payments Only">Cash Payments Only</option>
                       <option value="All Settlement Tenders">All Settlement Tenders</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">RJ11 / RJ12 Pinout[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">RJ11 / RJ12 Pinout</label>
                     <select
                       value={settingsForm.drawerPinout}
                       onChange={(e) => setSettingsForm({ ...settingsForm, drawerPinout: e.target.value })}
                       className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white font-medium"
                     >
-                      <option value="Pin 2 / ESC p 0 (Epson, Rongta, Xprint)">Pin 2 / ESC p 0 (Epson, Rongta, Xprint)[cite: 3]</option>
+                      <option value="Pin 2 / ESC p 0 (Epson, Rongta, Xprint)">Pin 2 / ESC p 0 (Epson, Rongta, Xprint)</option>
                       <option value="Pin 5 / ESC p 1 (Star Micronics)">Pin 5 / ESC p 1 (Star Micronics)</option>
                     </select>
                   </div>
@@ -3927,17 +3761,17 @@ export default function App() {
                     className="flex items-center gap-2 text-xs font-semibold text-slate-700"
                   >
                     <span className={`px-2 py-1 rounded font-bold text-xs ${settingsForm.drawerChime ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"}`}>
-                      {settingsForm.drawerChime ? "Chime ON" : "Muted"}[cite: 3]
+                      {settingsForm.drawerChime ? "Chime ON" : "Muted"}
                     </span>
                     {settingsForm.drawerChime ? <Volume2 className="w-4 h-4 text-[#14B8A6]" /> : <VolumeX className="w-4 h-4 text-slate-400" />}
-                    <span className="text-[11px] text-slate-500">Plays brass bell chime upon successful payment settlement[cite: 3]</span>
+                    <span className="text-[11px] text-slate-500">Plays brass bell chime upon successful payment settlement</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => alert("Solenoid pulse sent! Cash drawer kicked open.")}
                     className="px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-lg text-xs font-bold shadow-sm"
                   >
-                    Pop Drawer[cite: 3]
+                    Pop Drawer
                   </button>
                 </div>
               </div>
@@ -3946,14 +3780,14 @@ export default function App() {
               <div className="bg-white rounded-2xl border border-[#E6DFD3] p-6 shadow-sm space-y-4">
                 <div className="border-b border-slate-100 pb-2">
                   <h3 className="font-bold text-sm text-[#091D26] uppercase tracking-wide flex items-center gap-2">
-                    <DollarSign className="w-4 h-4 text-[#14B8A6]" /> CURRENCY, TAXES & SURCHARGE RATES[cite: 3]
+                    <DollarSign className="w-4 h-4 text-[#14B8A6]" /> CURRENCY, TAXES & SURCHARGE RATES
                   </h3>
-                  <p className="text-[11px] text-slate-400">Default rates applied across folios and receipts[cite: 3]</p>
+                  <p className="text-[11px] text-slate-400">Default rates applied across folios and receipts</p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Currency Symbol / Code[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Currency Symbol / Code</label>
                     <input
                       type="text"
                       value={settingsForm.currency}
@@ -3962,7 +3796,7 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Default Service Charge (%)[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Default Service Charge (%)</label>
                     <input
                       type="number"
                       value={settingsForm.serviceChargeRate}
@@ -3971,7 +3805,7 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Sales Tax / VAT Rate (%)[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Sales Tax / VAT Rate (%)</label>
                     <input
                       type="number"
                       value={settingsForm.vatRate}
@@ -3980,7 +3814,7 @@ export default function App() {
                     />
                   </div>
                   <div className="sm:col-span-3">
-                    <label className="block font-semibold mb-1 text-slate-700">Thermal Receipt Header Notes[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Thermal Receipt Header Notes</label>
                     <textarea
                       rows={2}
                       value={settingsForm.headerNote}
@@ -3989,7 +3823,7 @@ export default function App() {
                     />
                   </div>
                   <div className="sm:col-span-3">
-                    <label className="block font-semibold mb-1 text-slate-700">Thermal Receipt Footer Message[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Thermal Receipt Footer Message</label>
                     <textarea
                       rows={2}
                       value={settingsForm.footerNote}
@@ -4004,33 +3838,33 @@ export default function App() {
               <div className="bg-white rounded-2xl border border-[#E6DFD3] p-6 shadow-sm space-y-4">
                 <div className="border-b border-slate-100 pb-2">
                   <h3 className="font-bold text-sm text-[#091D26] uppercase tracking-wide flex items-center gap-2">
-                    <Download className="w-4 h-4 text-[#14B8A6]" /> SYSTEM DATABASE BACKUP & DISASTER RECOVERY[cite: 3]
+                    <Download className="w-4 h-4 text-[#14B8A6]" /> SYSTEM DATABASE BACKUP & DISASTER RECOVERY
                   </h3>
-                  <p className="text-[11px] text-slate-400">Export or restore full state database (folios, staff, inventory, and shift logs)[cite: 3]</p>
+                  <p className="text-[11px] text-slate-400">Export or restore full state database (folios, staff, inventory, and shift logs)</p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                   <div className="p-4 bg-[#FAF9F5] border border-[#E6DFD3] rounded-xl flex flex-col justify-between space-y-3">
                     <div>
-                      <span className="font-bold block mb-1">Export JSON Database Backup[cite: 3]</span>
-                      <p className="text-slate-500">Download a complete snapshot of all dishes, ingredients, staff credentials, and sales records.[cite: 3]</p>
+                      <span className="font-bold block mb-1">Export JSON Database Backup</span>
+                      <p className="text-slate-500">Download a complete snapshot of all dishes, ingredients, staff credentials, and sales records.</p>
                     </div>
                     <button
                       type="button"
                       onClick={handleDownloadBackup}
                       className="w-full py-2.5 bg-[#091D26] text-white rounded-lg font-bold flex items-center justify-center gap-2 shadow-sm"
                     >
-                      <Download className="w-4 h-4" /> Download System Backup (json)[cite: 3]
+                      <Download className="w-4 h-4" /> Download System Backup (json)
                     </button>
                   </div>
 
                   <div className="p-4 bg-[#FAF9F5] border border-[#E6DFD3] rounded-xl flex flex-col justify-between space-y-3">
                     <div>
-                      <span className="font-bold block mb-1">Restore System from Backup File[cite: 3]</span>
-                      <p className="text-slate-500">Upload a previously exported '.json' file to restore settings, inventory levels, menus, and transaction history.[cite: 3]</p>
+                      <span className="font-bold block mb-1">Restore System from Backup File</span>
+                      <p className="text-slate-500">Upload a previously exported '.json' file to restore settings, inventory levels, menus, and transaction history.</p>
                     </div>
                     <label className="w-full py-2.5 border border-[#D3C8B7] bg-white hover:bg-slate-50 rounded-lg font-bold flex items-center justify-center gap-2 cursor-pointer shadow-sm">
-                      <Upload className="w-4 h-4 text-slate-500" /> Select Backup File (json)[cite: 3]
+                      <Upload className="w-4 h-4 text-slate-500" /> Select Backup File (json)
                       <input type="file" accept=".json" onChange={handleRestoreBackup} className="hidden" />
                     </label>
                   </div>
@@ -4041,10 +3875,10 @@ export default function App() {
               <div className="bg-red-50/60 rounded-2xl border border-red-200 p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                   <h4 className="font-bold text-xs text-red-900 uppercase flex items-center gap-1.5">
-                    <AlertTriangle className="w-4 h-4 text-red-600" /> ADMINISTRATOR DATA PURGE (RESET TEST DATA)[cite: 3]
+                    <AlertTriangle className="w-4 h-4 text-red-600" /> ADMINISTRATOR DATA PURGE (RESET TEST DATA)
                   </h4>
                   <p className="text-[11px] text-red-700 mt-0.5">
-                    Clear test transactions, reset all tables to VACANT, and start with a clean ledger without overriding the cash float.[cite: 3]
+                    Clear test transactions, reset all tables to VACANT, and start with a clean ledger without overriding the cash float.
                   </p>
                 </div>
                 <button
@@ -4052,7 +3886,7 @@ export default function App() {
                   onClick={handlePurgeTestData}
                   className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold shrink-0 shadow-sm"
                 >
-                  Purge Test Records[cite: 3]
+                  Purge Test Records
                 </button>
               </div>
             </div>
@@ -4449,7 +4283,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: EDIT STAFF MEMBER (ACCESSIBLE TO MANAGERS AND ADMINS) */}
+      {/* MODAL: EDIT STAFF MEMBER (COMPLETE WITH ALL REMUNERATION AND DESIGNATION FIELDS) */}
       {editingStaffMember && isManagerOrAdmin && (
         <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border my-8">
@@ -4492,6 +4326,32 @@ export default function App() {
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1">Employment Type</label>
+                  <select
+                    value={editStaffForm.type}
+                    onChange={(e) => setEditStaffForm({ ...editStaffForm, type: e.target.value })}
+                    className="w-full border rounded-xl p-2.5 bg-white font-semibold"
+                  >
+                    <option value="Full-Time">Full-Time</option>
+                    <option value="Part-Time">Part-Time</option>
+                    <option value="Contract">Contract</option>
+                    <option value="Intern / Trainee">Intern / Trainee</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Contact Phone</label>
+                  <input
+                    type="tel"
+                    value={editStaffForm.phone}
+                    onChange={(e) => setEditStaffForm({ ...editStaffForm, phone: e.target.value })}
+                    placeholder="+94 77 ..."
+                    className="w-full border rounded-xl p-2.5"
+                  />
+                </div>
+              </div>
+
               <div className="bg-[#FAF9F5] p-3.5 rounded-2xl border space-y-2">
                 <span className="font-bold text-[11px] uppercase text-[#0D9488] block">Gross Earnings ({settings.currency})</span>
                 <div className="grid grid-cols-3 gap-2">
@@ -4499,6 +4359,7 @@ export default function App() {
                     <label className="block text-[10px] font-semibold mb-1">Basic Salary</label>
                     <input
                       type="number"
+                      step="any"
                       value={editStaffForm.baseSalary}
                       onChange={(e) => setEditStaffForm({ ...editStaffForm, baseSalary: e.target.value })}
                       className="w-full border rounded-lg p-2 font-bold"
@@ -4508,6 +4369,7 @@ export default function App() {
                     <label className="block text-[10px] font-semibold mb-1">Allowances</label>
                     <input
                       type="number"
+                      step="any"
                       value={editStaffForm.allowances}
                       onChange={(e) => setEditStaffForm({ ...editStaffForm, allowances: e.target.value })}
                       className="w-full border rounded-lg p-2 font-bold"
@@ -4517,6 +4379,7 @@ export default function App() {
                     <label className="block text-[10px] font-semibold mb-1">Service Pool</label>
                     <input
                       type="number"
+                      step="any"
                       value={editStaffForm.serviceCharge}
                       onChange={(e) => setEditStaffForm({ ...editStaffForm, serviceCharge: e.target.value })}
                       className="w-full border rounded-lg p-2 font-bold"
@@ -4526,6 +4389,7 @@ export default function App() {
                     <label className="block text-[10px] font-semibold mb-1">Bonus</label>
                     <input
                       type="number"
+                      step="any"
                       value={editStaffForm.bonus}
                       onChange={(e) => setEditStaffForm({ ...editStaffForm, bonus: e.target.value })}
                       className="w-full border rounded-lg p-2"
@@ -4535,6 +4399,7 @@ export default function App() {
                     <label className="block text-[10px] font-semibold mb-1">Overtime Pay</label>
                     <input
                       type="number"
+                      step="any"
                       value={editStaffForm.overtimePay}
                       onChange={(e) => setEditStaffForm({ ...editStaffForm, overtimePay: e.target.value })}
                       className="w-full border rounded-lg p-2"
@@ -4544,6 +4409,7 @@ export default function App() {
                     <label className="block text-[10px] font-semibold mb-1">Terminal PIN</label>
                     <input
                       type="text"
+                      maxLength={6}
                       value={editStaffForm.pin}
                       onChange={(e) => setEditStaffForm({ ...editStaffForm, pin: e.target.value })}
                       className="w-full border rounded-lg p-2 font-mono"
@@ -4559,6 +4425,7 @@ export default function App() {
                     <label className="block text-[10px] font-semibold mb-1">EPF (Employee 8%)</label>
                     <input
                       type="number"
+                      step="any"
                       value={editStaffForm.epfDeduction}
                       onChange={(e) => setEditStaffForm({ ...editStaffForm, epfDeduction: e.target.value })}
                       className="w-full border border-rose-200 rounded-lg p-2 font-bold text-rose-700 bg-white"
@@ -4568,6 +4435,7 @@ export default function App() {
                     <label className="block text-[10px] font-semibold mb-1">Tax / PAYE</label>
                     <input
                       type="number"
+                      step="any"
                       value={editStaffForm.taxDeduction}
                       onChange={(e) => setEditStaffForm({ ...editStaffForm, taxDeduction: e.target.value })}
                       className="w-full border border-rose-200 rounded-lg p-2 font-bold text-rose-700 bg-white"
@@ -4577,6 +4445,7 @@ export default function App() {
                     <label className="block text-[10px] font-semibold mb-1">Advance / Loans</label>
                     <input
                       type="number"
+                      step="any"
                       value={editStaffForm.advanceDeduction}
                       onChange={(e) => setEditStaffForm({ ...editStaffForm, advanceDeduction: e.target.value })}
                       className="w-full border border-rose-200 rounded-lg p-2 font-bold text-rose-700 bg-white"
@@ -4709,7 +4578,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: ADD ROOM (MANAGERS AND ADMINS) */}
+      {/* MODAL: ADD ROOM */}
       {showAddRoomModal && isManagerOrAdmin && (
         <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 border shadow-2xl">
@@ -4799,7 +4668,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: ADD INVENTORY (MANAGERS AND ADMINS) */}
+      {/* MODAL: ADD INVENTORY */}
       {showAddInventoryModal && isManagerOrAdmin && (
         <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 border shadow-2xl">
@@ -4858,7 +4727,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: EDIT INVENTORY (MANAGERS AND ADMINS) */}
+      {/* MODAL: EDIT INVENTORY */}
       {editingInventoryItem && isManagerOrAdmin && (
         <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 border shadow-2xl">
@@ -4910,7 +4779,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: ADD STAFF (MANAGERS AND ADMINS) */}
+      {/* MODAL: ADD STAFF */}
       {showAddStaffModal && isManagerOrAdmin && (
         <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-[#E6DFD3]">
@@ -4953,6 +4822,25 @@ export default function App() {
                 />
               </div>
               <div className="grid grid-cols-2 gap-2">
+                <select
+                  value={newStaffForm.type}
+                  onChange={(e) => setNewStaffForm({ ...newStaffForm, type: e.target.value })}
+                  className="w-full border rounded p-2 bg-white"
+                >
+                  <option value="Full-Time">Full-Time</option>
+                  <option value="Part-Time">Part-Time</option>
+                  <option value="Contract">Contract</option>
+                  <option value="Intern / Trainee">Intern / Trainee</option>
+                </select>
+                <input
+                  type="tel"
+                  placeholder="Contact Phone Number"
+                  value={newStaffForm.phone}
+                  onChange={(e) => setNewStaffForm({ ...newStaffForm, phone: e.target.value })}
+                  className="w-full border rounded p-2"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
                 <input
                   type="number"
                   placeholder="Base Monthly Salary"
@@ -4982,6 +4870,15 @@ export default function App() {
                   value={newStaffForm.bonus}
                   onChange={(e) => setNewStaffForm({ ...newStaffForm, bonus: e.target.value })}
                   className="w-full border rounded p-2"
+                />
+              </div>
+              <div>
+                <input
+                  type="text"
+                  placeholder="Bank Account Details (Bank Name & Account No.)"
+                  value={newStaffForm.bankAccount}
+                  onChange={(e) => setNewStaffForm({ ...newStaffForm, bankAccount: e.target.value })}
+                  className="w-full border rounded p-2 font-mono"
                 />
               </div>
               <button type="submit" className="w-full bg-[#14B8A6] text-white font-bold py-3 rounded-lg">
