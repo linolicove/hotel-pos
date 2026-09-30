@@ -51,7 +51,8 @@ import {
   Send,
   Volume2,
   VolumeX,
-  RefreshCw
+  RefreshCw,
+  Sparkles
 } from "lucide-react";
 
 // --- 1. FIREBASE CONFIGURATION (REALTIME DATABASE) ---
@@ -69,7 +70,7 @@ const firebaseConfig = {
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const rtdb = getDatabase(app);
 
-// Comprehensive settings schema matching your settings image
+// Comprehensive settings schema matching your settings dashboard
 const DEFAULT_SETTINGS = {
   // Company & Business Information
   hotelName: "Linoli Cove Midigama",
@@ -89,7 +90,7 @@ const DEFAULT_SETTINGS = {
   emailStatus: "Disabled (Manual trigger only)",
 
   // Thermal Auto-Printer Configuration
-  paperRollWidth: "80mm", // '80mm' or '58mm'
+  paperRollWidth: "80mm",
   receiptFontSize: "14px - Extra Bold & Large",
   receiptFontType: "Monospace (Classic ESC/POS)",
   slipMargins: "2mm - Standard Thermal Margin",
@@ -161,7 +162,6 @@ const INITIAL_STAFF_SEEDS = [
   }
 ];
 
-// Helper: Get Today's Date String YYYY-MM-DD
 const getTodayKey = () => new Date().toISOString().split("T")[0];
 
 // --- 2. PROGRAMMATIC ISOLATED PRINT ENGINE ---
@@ -346,7 +346,6 @@ function buildA4Html({ settings, room, isTemporary, settlementMethod, total }) {
   `;
 }
 
-// Built-in Official A4 Payslip Generator
 function buildPayslipHtml({ settings, staffMember }) {
   const base = Number(staffMember.baseSalary) || 0;
   const allowances = Number(staffMember.allowances) || 0;
@@ -402,7 +401,6 @@ function buildPayslipHtml({ settings, staffMember }) {
   `;
 }
 
-// Built-in Official A4 Daily Attendance Sheet Generator
 function buildDailyAttendanceHtml({ settings, staffList, dateStr }) {
   return `
     <div class="a4-container">
@@ -449,6 +447,9 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState("frontdesk");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Front Desk Room Status Filter State
+  const [frontDeskFilter, setFrontDeskFilter] = useState("all");
 
   // RTDB Synchronized State
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
@@ -497,7 +498,7 @@ export default function App() {
   // Staff & Compensation Management State
   const [showAddStaffModal, setShowAddStaffModal] = useState(false);
   const [staffSearchQuery, setStaffSearchQuery] = useState("");
-  const [staffViewSubTab, setStaffViewSubTab] = useState("roster"); // "roster" | "attendance"
+  const [staffViewSubTab, setStaffViewSubTab] = useState("roster");
   const [newStaffForm, setNewStaffForm] = useState({
     name: "",
     role: "Front Desk",
@@ -603,16 +604,6 @@ export default function App() {
       setPinError("");
       if (nextPin.length >= 4) verifyPin(nextPin);
     }
-  };
-
-  const handlePinDelete = () => {
-    setPinInput((prev) => prev.slice(0, -1));
-    setPinError("");
-  };
-
-  const handlePinClear = () => {
-    setPinInput("");
-    setPinError("");
   };
 
   const verifyPin = (candidatePin) => {
@@ -1278,7 +1269,7 @@ export default function App() {
       </div>
     );
   }
-  
+
   return (
     <div className="flex h-screen overflow-hidden bg-[#FAF9F5] text-[#091D26]">
       {/* DESKTOP SIDEBAR */}
@@ -1355,69 +1346,299 @@ export default function App() {
         </header>
 
         <main className="no-print flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
-          {/* TAB 1: FRONT DESK */}
+          {/* =========================================================
+              TAB 1: FRONT DESK & LIVE STATUS (ENHANCED & ATTRACTIVE)
+              ========================================================= */}
           {activeTab === "frontdesk" && (
-            <div className="max-w-7xl mx-auto space-y-6">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h2 className="text-2xl font-bold text-[#091D26]">Front Desk Operations</h2>
-                  <p className="text-sm text-slate-500">Live guest room status, photo IDs, and check-in</p>
+            <div className="max-w-7xl mx-auto space-y-6 pb-12">
+              {/* Executive Overview Banner */}
+              <div className="bg-gradient-to-r from-[#091D26] via-[#0F2D3C] to-[#0A3042] rounded-3xl p-6 sm:p-8 text-white shadow-xl border border-white/10 relative overflow-hidden">
+                <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-[#14B8A6]/10 rounded-full blur-3xl pointer-events-none" />
+                <div className="relative z-10 flex flex-col lg:flex-row justify-between lg:items-center gap-6">
+                  <div>
+                    <span className="text-[11px] font-bold text-[#2DD4BF] uppercase tracking-widest flex items-center gap-1.5">
+                      <Waves className="w-3.5 h-3.5" /> Front Desk Executive Operations
+                    </span>
+                    <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white mt-1">
+                      Room Management & Direct Settlement
+                    </h2>
+                    <p className="text-xs text-slate-300 mt-1 max-w-xl">
+                      Live guest folios, instant check-in with tablet camera identification, turnover status, and direct one-click settlement.
+                    </p>
+                  </div>
+
+                  {/* Summary Metric Pills */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 shrink-0">
+                    <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-3 text-center min-w-[90px]">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Total</span>
+                      <span className="text-xl font-black text-white">{rooms.length}</span>
+                    </div>
+                    <div className="bg-[#14B8A6]/10 backdrop-blur-md border border-[#14B8A6]/30 rounded-2xl p-3 text-center min-w-[90px]">
+                      <span className="text-[10px] uppercase font-bold text-[#2DD4BF] block">Available</span>
+                      <span className="text-xl font-black text-[#2DD4BF]">
+                        {rooms.filter((r) => r.status === "available").length}
+                      </span>
+                    </div>
+                    <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-3 text-center min-w-[90px]">
+                      <span className="text-[10px] uppercase font-bold text-slate-300 block">Occupied</span>
+                      <span className="text-xl font-black text-white">
+                        {rooms.filter((r) => r.status === "occupied").length}
+                      </span>
+                    </div>
+                    <div className="bg-amber-500/10 backdrop-blur-md border border-amber-400/30 rounded-2xl p-3 text-center min-w-[90px]">
+                      <span className="text-[10px] uppercase font-bold text-amber-300 block">Turnover</span>
+                      <span className="text-xl font-black text-amber-300">
+                        {rooms.filter((r) => r.status === "cleaning").length}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {rooms.map((room) => (
-                  <div key={room.id} className="bg-white border border-[#E6DFD3] rounded-xl p-5 shadow-sm flex flex-col justify-between">
-                    <div>
-                      <div className="flex justify-between items-start mb-2">
-                        <span className="text-2xl font-black">#{room.number}</span>
-                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize ${
-                          room.status === "available" ? "bg-[#CCFBF1] text-[#0F766E]" : "bg-[#0F2D3C] text-white"
-                        }`}>{room.status}</span>
-                      </div>
-                      <p className="text-xs font-semibold text-[#0F766E] uppercase">{room.type}</p>
-                      <p className="text-xs text-slate-500 mb-4">{settings.currency}{room.rate} / night</p>
+              {/* Status Filter Tabs */}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-1.5 p-1 bg-white border border-[#E6DFD3] rounded-2xl shadow-sm overflow-x-auto max-w-full">
+                  {[
+                    { id: "all", label: "All Rooms", count: rooms.length },
+                    { id: "available", label: "Available", count: rooms.filter((r) => r.status === "available").length },
+                    { id: "occupied", label: "Occupied", count: rooms.filter((r) => r.status === "occupied").length },
+                    { id: "cleaning", label: "Cleaning", count: rooms.filter((r) => r.status === "cleaning").length },
+                    { id: "maintenance", label: "Maintenance", count: rooms.filter((r) => r.status === "maintenance").length },
+                  ].map((filter) => (
+                    <button
+                      key={filter.id}
+                      type="button"
+                      onClick={() => setFrontDeskFilter(filter.id)}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                        frontDeskFilter === filter.id
+                          ? "bg-[#091D26] text-white shadow-sm"
+                          : "text-slate-600 hover:text-black hover:bg-[#FAF9F5]"
+                      }`}
+                    >
+                      <span>{filter.label}</span>
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                        frontDeskFilter === filter.id
+                          ? "bg-white/20 text-white"
+                          : "bg-slate-100 text-slate-600"
+                      }`}>
+                        {filter.count}
+                      </span>
+                    </button>
+                  ))}
+                </div>
 
-                      {room.status === "occupied" && (
-                        <div className="bg-[#FAF9F5] p-3 rounded-lg border border-[#E6DFD3] mb-4 text-xs space-y-2">
-                          <div className="flex items-center gap-3">
-                            {room.guestPhoto ? (
-                              <img src={room.guestPhoto} alt="Guest" className="w-10 h-10 rounded-full object-cover border border-[#14B8A6]" />
-                            ) : (
-                              <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-400">
-                                <ImageIcon className="w-4 h-4" />
-                              </div>
-                            )}
-                            <div className="truncate">
-                              <span className="font-bold block truncate">{room.guestName}</span>
-                              <span className="text-[10px] text-slate-500">{room.guestPhone}</span>
+                {isManager && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAddRoomModal(true)}
+                    className="inline-flex items-center gap-2 bg-[#14B8A6] hover:bg-[#0D9488] text-white px-4 py-2 rounded-xl text-xs font-bold shadow-sm transition-all"
+                  >
+                    <Plus className="w-4 h-4" /> Add Room Unit
+                  </button>
+                )}
+              </div>
+
+              {/* Enhanced Room Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                {rooms
+                  .filter((room) => {
+                    if (frontDeskFilter === "all") return true;
+                    return room.status === frontDeskFilter;
+                  })
+                  .map((room) => {
+                    const billTotal = calculateTotal(room);
+                    const isOccupied = room.status === "occupied";
+                    const isAvailable = room.status === "available";
+                    const isCleaning = room.status === "cleaning";
+                    const isMaintenance = room.status === "maintenance";
+
+                    return (
+                      <div
+                        key={room.id}
+                        className={`bg-white rounded-3xl border transition-all duration-200 flex flex-col justify-between overflow-hidden shadow-sm hover:shadow-md ${
+                          isOccupied
+                            ? "border-[#0F2D3C]/40 ring-1 ring-[#0F2D3C]/10"
+                            : isAvailable
+                            ? "border-emerald-200 hover:border-emerald-400"
+                            : isCleaning
+                            ? "border-amber-200 hover:border-amber-400"
+                            : "border-rose-200 hover:border-rose-400"
+                        }`}
+                      >
+                        {/* Top Card Details */}
+                        <div className="p-5 pb-3">
+                          <div className="flex justify-between items-start mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-2xl sm:text-3xl font-black text-[#091D26] tracking-tight">
+                                #{room.number}
+                              </span>
+                              {isOccupied && (
+                                <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" title="Active Guest Stay" />
+                              )}
                             </div>
+                            <span
+                              className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                isAvailable
+                                  ? "bg-[#CCFBF1] text-[#0F766E] border border-[#2DD4BF]/40"
+                                  : isOccupied
+                                  ? "bg-[#091D26] text-white shadow-sm"
+                                  : isCleaning
+                                  ? "bg-amber-100 text-amber-900 border border-amber-200"
+                                  : "bg-rose-100 text-rose-800 border border-rose-200"
+                              }`}
+                            >
+                              {room.status}
+                            </span>
                           </div>
-                        </div>
-                      )}
-                    </div>
 
-                    <div className="pt-2 border-t border-[#F3EFE6] flex gap-2">
-                      {room.status === "available" ? (
-                        <button
-                          type="button"
-                          onClick={() => { setCheckInModalRoom(room); setGuestPhoto(null); }}
-                          className="w-full bg-[#14B8A6] hover:bg-[#0D9488] text-white py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5"
-                        >
-                          <Camera className="w-3.5 h-3.5" /> Check In & Photo
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => { setSelectedRoomId(room.id); setActiveTab("active-orders"); }}
-                          className="w-full bg-[#F3EFE6] hover:bg-[#E6DFD3] text-[#091D26] py-2 rounded-lg text-xs font-semibold"
-                        >
-                          View Folio
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                          <p className="text-[11px] font-bold text-[#0F766E] uppercase tracking-wider truncate">
+                            {room.type}
+                          </p>
+                          <p className="text-xs text-slate-500 font-medium">
+                            {settings.currency}{Number(room.rate).toLocaleString()} <span className="text-[10px] text-slate-400">/ night</span>
+                          </p>
+
+                          {/* Occupied Stay Details with ID Snapshot */}
+                          {isOccupied && (
+                            <div className="mt-4 p-3.5 bg-gradient-to-br from-[#FAF9F5] to-[#F4EFE6] rounded-2xl border border-[#E6DFD3] space-y-2.5 shadow-inner">
+                              <div className="flex items-center gap-3">
+                                {room.guestPhoto ? (
+                                  <img
+                                    src={room.guestPhoto}
+                                    alt="Guest ID"
+                                    className="w-11 h-11 rounded-2xl object-cover border-2 border-[#14B8A6] shadow-sm shrink-0"
+                                  />
+                                ) : (
+                                  <div className="w-11 h-11 rounded-2xl bg-white border border-[#D3C8B7] flex items-center justify-center text-slate-400 shrink-0 shadow-sm">
+                                    <ImageIcon className="w-5 h-5 text-slate-400" />
+                                  </div>
+                                )}
+                                <div className="truncate min-w-0">
+                                  <span className="font-extrabold text-[#091D26] text-xs block truncate leading-tight">
+                                    {room.guestName || "Walk-In Guest"}
+                                  </span>
+                                  <span className="text-[10px] text-slate-500 block truncate mt-0.5">
+                                    {room.guestPhone || "No contact logged"}
+                                  </span>
+                                  <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+                                    Out: {room.checkOut || "Today"}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Outstanding Folio Balance */}
+                              <div className="flex justify-between items-center pt-2 border-t border-slate-300/50">
+                                <div>
+                                  <span className="text-[9px] uppercase font-bold text-slate-400 block leading-tight">Folio Bill</span>
+                                  <span className="text-[10px] font-mono font-semibold text-[#0F766E]">{room.orderId}</span>
+                                </div>
+                                <div className="text-right">
+                                  <span className="text-base font-black text-[#0D9488]">
+                                    {settings.currency}{billTotal.toFixed(2)}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Cleaning Turnover Placeholder */}
+                          {isCleaning && (
+                            <div className="mt-3 p-3 bg-amber-50/70 border border-amber-200/80 rounded-2xl text-[11px] text-amber-800 flex items-center gap-2">
+                              <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+                              <span>Housekeeping in progress. Needs linen change & minibar restock.</span>
+                            </div>
+                          )}
+
+                          {/* Maintenance Placeholder */}
+                          {isMaintenance && (
+                            <div className="mt-3 p-3 bg-rose-50 border border-rose-200 rounded-2xl text-[11px] text-rose-800 flex items-center gap-2">
+                              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                              <span>Out of order for scheduled engineering inspection.</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Interactive Action Bar with Direct Settle Button */}
+                        <div className="p-4 pt-0">
+                          {isAvailable && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCheckInModalRoom(room);
+                                setGuestPhoto(null);
+                              }}
+                              className="w-full bg-[#14B8A6] hover:bg-[#0D9488] active:scale-[0.98] text-white py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all"
+                            >
+                              <Camera className="w-4 h-4" /> Check In & Photo ID
+                            </button>
+                          )}
+
+                          {isOccupied && (
+                            <div className="space-y-2 pt-2">
+                              {/* Direct Primary Bill Settlement Button */}
+                              {(isManager || isFrontDesk) && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleInitiateSettleOrder(room)}
+                                  className="w-full bg-gradient-to-r from-[#0D9488] to-[#0F766E] hover:from-[#0F766E] hover:to-[#091D26] active:scale-[0.98] text-white py-2.5 rounded-xl text-xs font-black shadow-md flex items-center justify-between px-3.5 transition-all"
+                                >
+                                  <span className="flex items-center gap-1.5">
+                                    <CreditCard className="w-4 h-4 text-[#2DD4BF]" />
+                                    <span>Direct Settle Bill</span>
+                                  </span>
+                                  <span className="bg-white/20 px-2 py-0.5 rounded-lg text-[11px] font-mono font-bold">
+                                    {settings.currency}{billTotal.toFixed(0)}
+                                  </span>
+                                  <ArrowRight className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedRoomId(room.id);
+                                    setActiveTab("active-orders");
+                                  }}
+                                  className="flex-1 bg-[#F3EFE6] hover:bg-[#E6DFD3] text-[#091D26] py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1 transition-colors"
+                                >
+                                  <Receipt className="w-3.5 h-3.5 text-slate-500" /> Folio Items
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handlePrintTemporaryBill(room)}
+                                  className="flex-1 bg-white border border-[#D3C8B7] hover:bg-slate-50 text-slate-700 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1 transition-colors"
+                                  title="Print Pro-Forma Interim Statement"
+                                >
+                                  <Printer className="w-3.5 h-3.5 text-slate-500" /> Temp Slip
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {isCleaning && (
+                            <button
+                              type="button"
+                              onClick={() => updateRoomStatus(room.id, "available")}
+                              className="w-full bg-[#CCFBF1] hover:bg-[#99F6E4] text-[#0F766E] border border-[#2DD4BF] py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-sm"
+                            >
+                              <CheckCircle2 className="w-4 h-4 text-[#0D9488]" /> Mark Clean & Ready
+                            </button>
+                          )}
+
+                          {isMaintenance && isManager && (
+                            <button
+                              type="button"
+                              onClick={() => updateRoomStatus(room.id, "available")}
+                              className="w-full bg-[#E6DFD3] hover:bg-[#D3C8B7] text-[#091D26] py-2.5 rounded-xl text-xs font-bold transition-colors"
+                            >
+                              Clear Maintenance Lock
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
               </div>
             </div>
           )}
@@ -1457,11 +1678,7 @@ export default function App() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => {
-                            const html = buildA4Html({ settings, room, isTemporary: false, settlementMethod: "Paid", total: billTotal });
-                            printIsolatedDocument(html, "a4");
-                            update(ref(rtdb, `rooms/${room.id}`), { status: "available", orderId: null, guestName: "", guestPhoto: null, orderItems: null });
-                          }}
+                          onClick={() => handleInitiateSettleOrder(room)}
                           className="flex-1 bg-[#0D9488] text-white py-2 rounded-lg text-xs font-bold"
                         >
                           Settle & Print
@@ -1714,7 +1931,7 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 6: COMPLETE SETTINGS MODULE (MATCHING YOUR SCREENSHOT) */}
+          {/* TAB 6: COMPLETE SETTINGS MODULE */}
           {activeTab === "settings" && isManager && (
             <div className="max-w-6xl mx-auto space-y-8 pb-16">
               {/* Header Action Bar */}
@@ -2199,6 +2416,7 @@ export default function App() {
             <canvas ref={canvasRef} className="hidden" />
 
             <form onSubmit={handleOpenOrderAndCheckIn} className="space-y-4 text-xs">
+              {/* Photo Box */}
               <div className="bg-[#FAF9F5] p-3 rounded-xl border space-y-2">
                 <span className="font-bold text-[11px] block">Guest Photo / Passport</span>
                 {isCameraActive ? (
@@ -2278,27 +2496,98 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL 2: SETTLEMENT */}
+      {/* MODAL 2: SETTLEMENT CONSOLE */}
       {settleOrderRoom && (
         <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-[#E6DFD3]">
-            <div className="flex justify-between items-start mb-4 pb-3 border-b">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-[#E6DFD3]">
+            <div className="flex justify-between items-start mb-4 pb-3 border-b border-[#E6DFD3]">
               <div>
-                <span className="text-xs uppercase font-bold text-[#0F766E]">Order Settlement</span>
-                <h3 className="font-black text-xl">Room #{settleOrderRoom.number}</h3>
+                <span className="text-xs uppercase font-bold text-[#0F766E]">Direct Order Settlement</span>
+                <h3 className="font-black text-xl text-[#091D26]">Room #{settleOrderRoom.number}</h3>
+                <p className="text-xs text-slate-500">Guest: {settleOrderRoom.guestName || "Walk-In"}</p>
               </div>
-              <button type="button" onClick={() => setSettleOrderRoom(null)} className="text-slate-400">
+              <button type="button" onClick={() => setSettleOrderRoom(null)} className="text-slate-400 hover:text-black">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="text-xs mb-4">Total Settling: <b>{settings.currency}{calculateTotal(settleOrderRoom).toFixed(2)}</b></div>
-            <div className="flex gap-2">
+
+            <div className="max-h-44 overflow-y-auto border border-[#E6DFD3] rounded-2xl p-3 bg-[#FAF9F5] mb-4 text-xs space-y-1.5">
+              {settleOrderRoom.orderItems?.map((item) => (
+                <div key={item.id} className="flex justify-between py-1 border-b border-slate-100 last:border-none">
+                  <div>
+                    <span className="font-semibold text-slate-800">{item.quantity}x {item.description}</span>
+                  </div>
+                  <span className="font-semibold text-[#091D26]">{settings.currency}{Number(item.total).toFixed(2)}</span>
+                </div>
+              ))}
+              <div className="pt-2 flex justify-between font-black text-sm text-[#091D26]">
+                <span>Total Balance Due:</span>
+                <span className="text-[#0D9488] text-base">
+                  {settings.currency}{calculateTotal(settleOrderRoom).toFixed(2)}
+                </span>
+              </div>
+            </div>
+
+            {/* Tender Method Selection */}
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-slate-700 mb-2">Tender Method:</label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { id: "Credit Card", icon: CreditCard },
+                  { id: "Cash", icon: Banknote },
+                  { id: "Transfer", icon: Building2 },
+                ].map(({ id, icon: Icon }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setSettlementMethod(id)}
+                    className={`py-2.5 text-xs font-bold rounded-xl border flex items-center justify-center gap-1.5 transition-all ${
+                      settlementMethod === id
+                        ? "bg-[#0F2D3C] text-white border-[#0F2D3C]"
+                        : "bg-white text-slate-700 border-[#E6DFD3] hover:bg-[#F3EFE6]"
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" /> {id}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {settlementMethod === "Cash" && (
+              <div className="bg-[#FAF9F5] p-3 rounded-2xl border border-[#E6DFD3] mb-4 flex items-center gap-3 text-xs">
+                <div className="flex-1">
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Cash Tendered:</label>
+                  <input
+                    type="number"
+                    placeholder="0.00"
+                    value={cashTendered}
+                    onChange={(e) => setCashTendered(e.target.value)}
+                    className="w-full border border-[#D3C8B7] rounded-lg px-2.5 py-1.5 font-bold text-sm focus:outline-none"
+                  />
+                </div>
+                <div className="flex-1 text-right">
+                  <span className="block text-[11px] font-semibold text-slate-600">Change Due:</span>
+                  <span className="text-base font-black text-[#0D9488]">
+                    {settings.currency}{changeDue.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setSettleOrderRoom(null)}
+                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-3 rounded-xl text-xs font-semibold"
+              >
+                Back
+              </button>
               <button
                 type="button"
                 onClick={handleConfirmOrderSettlement}
-                className="w-full bg-[#0D9488] hover:bg-[#0F766E] text-white py-3 rounded-lg text-xs font-bold"
+                className="flex-2 bg-[#0D9488] hover:bg-[#0F766E] text-white py-3 px-6 rounded-xl text-xs font-bold shadow-md flex items-center justify-center gap-1.5"
               >
-                Confirm Payment & Settle
+                <Check className="w-4 h-4" /> Confirm & Auto-Print Invoice
               </button>
             </div>
           </div>
