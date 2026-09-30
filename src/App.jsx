@@ -62,10 +62,10 @@ import {
   ChevronRight,
   Usb,
   Calendar,
-  PieChart,
   CalendarRange,
-  BookOpen,
-  Filter
+  Filter,
+  Eye,
+  ShieldAlert
 } from "lucide-react";
 
 // --- 1. FIREBASE CONFIGURATION (REALTIME DATABASE) ---
@@ -82,6 +82,23 @@ const firebaseConfig = {
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const rtdb = getDatabase(app);
+
+// --- CYBERSECURITY & DEFENSE HELPERS ---
+// Sanitizes input strings against XSS / HTML Injection attacks
+function sanitizeInput(str) {
+  if (typeof str !== "string") return str;
+  return str
+    .replace(/[<>]/g, "")
+    .replace(/javascript:/gi, "")
+    .replace(/onload=/gi, "")
+    .trim();
+}
+
+// Validates that base64 images conform strictly to supported image data URIs
+function isValidImageDataUri(dataUri) {
+  if (!dataUri || typeof dataUri !== "string") return false;
+  return /^data:image\/(jpeg|jpg|png|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(dataUri);
+}
 
 const DEFAULT_SETTINGS = {
   hotelName: "Linoli Cove Midigama",
@@ -333,250 +350,7 @@ function buildThermalHtml({ settings, room, isTemporary, settlementMethod, total
   `;
 }
 
-function buildA4Html({ settings, room, isTemporary, settlementMethod, total, cashTendered = 0, changeDue = 0 }) {
-  const items = room?.orderItems || [];
-  const isCash = settlementMethod === "Cash" && !isTemporary;
-
-  return `
-    <div class="a4-container">
-      <div style="border-bottom: 3px double #091D26; padding-bottom: 16px; display: flex; justify-content: space-between;">
-        <div>
-          <h1 style="font-size: 24px; font-weight: 900; text-transform: uppercase; margin: 0; color: #091D26;">${settings.hotelName}</h1>
-          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; text-transform: uppercase; color: #555;">${settings.tagline}</p>
-          <p style="margin: 4px 0 0 0; font-size: 11px; color: #333;">${settings.address} | Tel: ${settings.phone}</p>
-          <p style="margin: 2px 0 0 0; font-size: 11px; color: #333;">Tax Reg: ${settings.taxNumber} | BRN: ${settings.companyRegNo}</p>
-        </div>
-        <div style="text-align: right;">
-          <div style="display: inline-block; border: 2px solid #091D26; padding: 6px 14px; font-weight: bold; font-size: 12px;">
-            ${isTemporary ? "GUEST STATEMENT" : "OFFICIAL TAX INVOICE"}
-          </div>
-          <p style="margin: 8px 0 0 0; font-size: 12px;"><b>Date:</b> ${new Date().toLocaleDateString()}</p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;"><b>Folio No:</b> ${room?.orderId || `ORD-${room?.number}`}</p>
-        </div>
-      </div>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 20px 0; padding: 12px 16px; border: 1px solid #091D26; border-radius: 4px;">
-        <div>
-          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Guest Information</p>
-          <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold;">${room?.guestName || "Unregistered Guest"}</p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;">Contact: ${room?.guestPhone || "No contact recorded"}</p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;">Settlement: <b>${isTemporary ? "Pending" : settlementMethod}</b></p>
-        </div>
-        <div style="text-align: right;">
-          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Stay Details</p>
-          <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold;">Room #${room?.number} (${room?.type})</p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;">Duration: ${room?.checkIn} to ${room?.checkOut}</p>
-        </div>
-      </div>
-      <table style="margin: 20px 0; font-size: 12px;">
-        <thead>
-          <tr style="border-bottom: 2px solid #091D26; text-align: left;">
-            <th style="padding: 10px 4px;">Description</th>
-            <th style="padding: 10px 4px; text-align: center;">Qty</th>
-            <th style="padding: 10px 4px; text-align: right;">Rate</th>
-            <th style="padding: 10px 4px; text-align: right;">Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${items.map(item => `
-            <tr style="border-bottom: 1px solid #ddd;">
-              <td style="padding: 10px 4px;">${item.description}</td>
-              <td style="padding: 10px 4px; text-align: center;">${item.quantity}</td>
-              <td style="padding: 10px 4px; text-align: right;">${settings.currency}${Number(item.unitPrice).toFixed(2)}</td>
-              <td style="padding: 10px 4px; text-align: right; font-weight: bold;">${settings.currency}${Number(item.total).toFixed(2)}</td>
-            </tr>
-          `).join("")}
-        </tbody>
-      </table>
-      <div style="border-top: 2px solid #091D26; border-bottom: 2px solid #091D26; padding: 12px 4px; margin: 24px 0;">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <span style="font-size: 14px; font-weight: bold;">Total Bill Amount:</span>
-          <span style="font-size: 20px; font-weight: 900;">${settings.currency}${Number(total).toFixed(2)}</span>
-        </div>
-        ${isCash ? `
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 13px; color: #444;">
-            <span>Amount Given (Cash Tendered):</span>
-            <span style="font-weight: bold;">${settings.currency}${Number(cashTendered).toFixed(2)}</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: 14px; font-weight: bold; border-top: 1px dotted #ccc; padding-top: 6px; color: #0D9488;">
-            <span>Balance Returned (Change Due):</span>
-            <span style="font-size: 18px; font-weight: 900;">${settings.currency}${Number(changeDue).toFixed(2)}</span>
-          </div>
-        ` : `
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: 12px; color: #666;">
-            <span>Payment Method:</span>
-            <span style="font-weight: bold;">${settlementMethod}</span>
-          </div>
-        `}
-      </div>
-      <div style="margin-top: 50px; text-align: center; font-size: 11px; border-top: 1px solid #ddd; padding-top: 12px;">
-        <p style="margin: 0; font-weight: 500;">${settings.footerNote}</p>
-      </div>
-    </div>
-  `;
-}
-
-function buildPayslipHtml({ settings, staffMember, payPeriodStr = "Current Pay Period" }) {
-  const base = Number(staffMember.baseSalary) || 0;
-  const allowances = Number(staffMember.allowances) || 0;
-  const serviceCharge = Number(staffMember.serviceCharge) || 0;
-  const bonus = Number(staffMember.bonus) || 0;
-  const overtime = Number(staffMember.overtimePay) || 0;
-  const totalEarnings = base + allowances + serviceCharge + bonus + overtime;
-
-  const epfEmployee = Number(staffMember.epfDeduction) || Math.round(base * 0.08);
-  const taxWithholding = Number(staffMember.taxDeduction) || 0;
-  const advances = Number(staffMember.advanceDeduction) || 0;
-  const totalDeductions = epfEmployee + taxWithholding + advances;
-
-  const netPay = Math.max(0, totalEarnings - totalDeductions);
-  const epfEmployer = Math.round(base * 0.12);
-  const etfEmployer = Math.round(base * 0.03);
-
-  return `
-    <div class="a4-container">
-      <div style="border-bottom: 3px double #091D26; padding-bottom: 16px; display: flex; justify-content: space-between;">
-        <div>
-          <h1 style="font-size: 24px; font-weight: 900; text-transform: uppercase; margin: 0; color: #091D26;">${settings.hotelName}</h1>
-          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; text-transform: uppercase; color: #555;">Monthly Remuneration Statement</p>
-        </div>
-        <div style="text-align: right;">
-          <div style="display: inline-block; border: 2px solid #091D26; padding: 6px 14px; font-weight: bold; font-size: 12px; background: #F3EFE6;">
-            CONFIDENTIAL PAYSLIP
-          </div>
-          <p style="margin: 8px 0 0 0; font-size: 12px;"><b>Pay Cycle:</b> ${payPeriodStr}</p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;"><b>Date:</b> ${new Date().toLocaleDateString()}</p>
-        </div>
-      </div>
-
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 18px 0; padding: 12px 16px; border: 1px solid #091D26; border-radius: 4px; background: #FAF9F5;">
-        <div>
-          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Employee Information</p>
-          <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold; color: #091D26;">${staffMember.name}</p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;">Designation: <b>${staffMember.role}</b></p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;">Bank A/C: <b>${staffMember.bankAccount || "Cash Remittance"}</b></p>
-        </div>
-        <div style="text-align: right;">
-          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Employment Terms</p>
-          <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold; color: #091D26;">${staffMember.type || "Full-Time"}</p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;">Payment Status: <b>${staffMember.paid ? "DISBURSED / PAID" : "PENDING DISBURSEMENT"}</b></p>
-        </div>
-      </div>
-
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0;">
-        <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
-          <thead>
-            <tr style="border-bottom: 2px solid #091D26; background: #E6DFD3;">
-              <th style="padding: 8px 6px; text-align: left;">Earnings</th>
-              <th style="padding: 8px 6px; text-align: right;">Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr style="border-bottom: 1px solid #eee;"><td style="padding: 8px 6px;">Basic Salary</td><td style="padding: 8px 6px; text-align: right;">${settings.currency}${base.toFixed(2)}</td></tr>
-            <tr style="border-bottom: 1px solid #eee;"><td style="padding: 8px 6px;">Fixed Allowances</td><td style="padding: 8px 6px; text-align: right;">${settings.currency}${allowances.toFixed(2)}</td></tr>
-            <tr style="border-bottom: 1px solid #eee;"><td style="padding: 8px 6px;">Service Charge Pool Share</td><td style="padding: 8px 6px; text-align: right;">${settings.currency}${serviceCharge.toFixed(2)}</td></tr>
-            <tr style="border-bottom: 1px solid #eee;"><td style="padding: 8px 6px;">Performance Bonus</td><td style="padding: 8px 6px; text-align: right;">${settings.currency}${bonus.toFixed(2)}</td></tr>
-            <tr style="border-bottom: 1px solid #eee;"><td style="padding: 8px 6px;">Overtime Pay</td><td style="padding: 8px 6px; text-align: right;">${settings.currency}${overtime.toFixed(2)}</td></tr>
-            <tr style="border-top: 2px solid #091D26; font-weight: bold; background: #FAF9F5;">
-              <td style="padding: 8px 6px;">Total Gross Earnings:</td>
-              <td style="padding: 8px 6px; text-align: right;">${settings.currency}${totalEarnings.toFixed(2)}</td>
-            </tr>
-          </tbody>
-        </table>
-
-        <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
-          <thead>
-            <tr style="border-bottom: 2px solid #091D26; background: #FFE4E6;">
-              <th style="padding: 8px 6px; text-align: left; color: #9F1239;">Deductions</th>
-              <th style="padding: 8px 6px; text-align: right; color: #9F1239;">Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr style="border-bottom: 1px solid #eee;"><td style="padding: 8px 6px;">EPF (Employee 8%)</td><td style="padding: 8px 6px; text-align: right;">${settings.currency}${epfEmployee.toFixed(2)}</td></tr>
-            <tr style="border-bottom: 1px solid #eee;"><td style="padding: 8px 6px;">Tax / PAYE Withholding</td><td style="padding: 8px 6px; text-align: right;">${settings.currency}${taxWithholding.toFixed(2)}</td></tr>
-            <tr style="border-bottom: 1px solid #eee;"><td style="padding: 8px 6px;">Salary Advance / Loans</td><td style="padding: 8px 6px; text-align: right;">${settings.currency}${advances.toFixed(2)}</td></tr>
-            <tr style="border-bottom: 1px solid #eee; height: 35px;"><td style="padding: 8px 6px;"></td><td></td></tr>
-            <tr style="border-bottom: 1px solid #eee; height: 35px;"><td style="padding: 8px 6px;"></td><td></td></tr>
-            <tr style="border-top: 2px solid #091D26; font-weight: bold; background: #FFF1F2; color: #9F1239;">
-              <td style="padding: 8px 6px;">Total Deductions:</td>
-              <td style="padding: 8px 6px; text-align: right;">${settings.currency}${totalDeductions.toFixed(2)}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div style="border: 2px solid #091D26; background: #CCFBF1; padding: 14px 18px; margin: 18px 0; display: flex; justify-content: space-between; align-items: center; border-radius: 4px;">
-        <span style="font-size: 13px; font-weight: bold; text-transform: uppercase; color: #0F766E;">NET TAKE-HOME PAYABLE:</span>
-        <span style="font-size: 26px; font-weight: 900; color: #0D9488;">${settings.currency}${netPay.toFixed(2)}</span>
-      </div>
-
-      <div style="background: #F8FAFC; border: 1px dashed #94A3B8; padding: 10px 14px; margin: 16px 0; font-size: 11px; display: flex; justify-content: space-between;">
-        <span><b>Employer Statutory:</b></span>
-        <span>EPF (12%): <b>${settings.currency}${epfEmployer.toFixed(2)}</b></span>
-        <span>ETF (3%): <b>${settings.currency}${etfEmployer.toFixed(2)}</b></span>
-      </div>
-    </div>
-  `;
-}
-
-function buildDailyAttendanceReportHtml({ settings, reportList, titleStr }) {
-  return `
-    <div class="a4-container">
-      <div style="border-bottom: 3px double #091D26; padding-bottom: 16px; display: flex; justify-content: space-between;">
-        <div>
-          <h1 style="font-size: 24px; font-weight: 900; text-transform: uppercase; margin: 0; color: #091D26;">${settings.hotelName}</h1>
-          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; color: #555;">Daily Staff Shift & Attendance Audit Sheet</p>
-        </div>
-        <div style="text-align: right;">
-          <div style="display: inline-block; border: 2px solid #091D26; padding: 6px 14px; font-weight: bold; font-size: 12px; background: #F3EFE6;">
-            ATTENDANCE LOG
-          </div>
-          <p style="margin: 8px 0 0 0; font-size: 12px;"><b>Scope:</b> ${titleStr}</p>
-        </div>
-      </div>
-      <table style="width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px;">
-        <thead>
-          <tr style="border-bottom: 2px solid #091D26; background: #F3EFE6;">
-            <th style="padding: 10px 6px; text-align: left;">Date</th>
-            <th style="padding: 10px 6px; text-align: left;">Employee Name</th>
-            <th style="padding: 10px 6px; text-align: left;">Role</th>
-            <th style="padding: 10px 6px; text-align: center;">In Time</th>
-            <th style="padding: 10px 6px; text-align: center;">Out Time</th>
-            <th style="padding: 10px 6px; text-align: center;">Shift Hours</th>
-            <th style="padding: 10px 6px; text-align: center;">Duty Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${reportList.map((m) => `
-            <tr style="border-bottom: 1px solid #ddd;">
-              <td style="padding: 10px 6px; font-family: monospace;">${m.date || "--"}</td>
-              <td style="padding: 10px 6px; font-weight: bold;">${m.name}</td>
-              <td style="padding: 10px 6px;">${m.role}</td>
-              <td style="padding: 10px 6px; text-align: center; font-family: monospace;">${m.clockIn || "--:--"}</td>
-              <td style="padding: 10px 6px; text-align: center; font-family: monospace;">${m.clockOut || "--:--"}</td>
-              <td style="padding: 10px 6px; text-align: center; font-weight: bold;">${m.hoursLogged || "--"}</td>
-              <td style="padding: 10px 6px; text-align: center; font-weight: bold; color: ${m.isOnDuty ? '#0D9488' : '#64748B'};">
-                ${m.isOnDuty ? "ON DUTY" : m.clockOut ? "COMPLETED" : "OFF DUTY"}
-              </td>
-            </tr>
-          `).join("")}
-        </tbody>
-      </table>
-      <div style="margin-top: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; font-size: 11px;">
-        <div>
-          <p style="font-weight: bold; text-transform: uppercase; margin-bottom: 30px;">Shift Supervisor Verified:</p>
-          <div style="border-bottom: 1px solid #000; width: 85%;"></div>
-        </div>
-        <div style="text-align: right;">
-          <p style="font-weight: bold; text-transform: uppercase; margin-bottom: 30px;">Management Sign-Off:</p>
-          <div style="border-bottom: 1px solid #000; width: 85%; margin-left: auto;"></div>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-// Built-in Official Sales & Prebooking Audit Report Generator
-function buildSalesReportHtml({ settings, salesList, prebookingsList, titleStr, totalSales, totalNights }) {
+function buildSalesReportHtml({ settings, salesList, prebookingsList, titleStr, totalSales }) {
   return `
     <div class="a4-container">
       <div style="border-bottom: 3px double #091D26; padding-bottom: 16px; display: flex; justify-content: space-between;">
@@ -635,46 +409,6 @@ function buildSalesReportHtml({ settings, salesList, prebookingsList, titleStr, 
           ${salesList.length === 0 ? `<tr><td colspan="6" style="padding: 16px; text-align: center; color: #888;">No sales records found for this period.</td></tr>` : ""}
         </tbody>
       </table>
-
-      <h3 style="font-size: 14px; font-weight: bold; text-transform: uppercase; margin-top: 30px; border-bottom: 2px solid #091D26; padding-bottom: 4px;">
-        2. Advance Pre-Bookings & Reservations
-      </h3>
-      <table style="width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 11px;">
-        <thead>
-          <tr style="border-bottom: 2px solid #091D26; background: #F3EFE6;">
-            <th style="padding: 8px 6px; text-align: left;">Check-In</th>
-            <th style="padding: 8px 6px; text-align: left;">Check-Out</th>
-            <th style="padding: 8px 6px; text-align: left;">Room #</th>
-            <th style="padding: 8px 6px; text-align: left;">Guest Name</th>
-            <th style="padding: 8px 6px; text-align: center;">Status</th>
-            <th style="padding: 8px 6px; text-align: right;">Est. Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${prebookingsList.map((p) => `
-            <tr style="border-bottom: 1px solid #ddd;">
-              <td style="padding: 8px 6px; font-family: monospace;">${p.checkInDate}</td>
-              <td style="padding: 8px 6px; font-family: monospace;">${p.checkOutDate}</td>
-              <td style="padding: 8px 6px; font-weight: bold;">#${p.roomNumber}</td>
-              <td style="padding: 8px 6px; font-weight: bold;">${p.guestName}</td>
-              <td style="padding: 8px 6px; text-align: center;">${p.status}</td>
-              <td style="padding: 8px 6px; text-align: right; font-weight: bold;">${settings.currency}${Number(p.totalRate || 0).toLocaleString()}</td>
-            </tr>
-          `).join("")}
-          ${prebookingsList.length === 0 ? `<tr><td colspan="6" style="padding: 16px; text-align: center; color: #888;">No advance pre-bookings found for this period.</td></tr>` : ""}
-        </tbody>
-      </table>
-      
-      <div style="margin-top: 50px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; font-size: 11px;">
-        <div>
-          <p style="font-weight: bold; text-transform: uppercase; margin-bottom: 30px;">Prepared By (Duty Cashier):</p>
-          <div style="border-bottom: 1px solid #000; width: 85%;"></div>
-        </div>
-        <div style="text-align: right;">
-          <p style="font-weight: bold; text-transform: uppercase; margin-bottom: 30px;">Audited & Approved By (Finance):</p>
-          <div style="border-bottom: 1px solid #000; width: 85%; margin-left: auto;"></div>
-        </div>
-      </div>
     </div>
   `;
 }
@@ -706,6 +440,8 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [pinInput, setPinInput] = useState("");
   const [pinError, setPinError] = useState("");
+  const [failedPinAttempts, setFailedPinAttempts] = useState(0);
+  const [pinLockoutUntil, setPinLockoutUntil] = useState(0);
 
   const [activeTab, setActiveTab] = useState("frontdesk");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -729,11 +465,14 @@ export default function App() {
   const [attendanceStaffFilter, setAttendanceStaffFilter] = useState("all");
 
   // Reports & Analytics Sub-tab & Filter States
-  const [reportsSubTab, setReportsSubTab] = useState("sales"); // "sales" | "prebookings" | "minibar" | "occupancy"
+  const [reportsSubTab, setReportsSubTab] = useState("sales");
   const [reportDateFrom, setReportDateFrom] = useState(getTodayKey());
   const [reportDateTo, setReportDateTo] = useState(getTodayKey());
   const [reportPaymentMethodFilter, setReportPaymentMethodFilter] = useState("all");
   const [reportBookingStatusFilter, setReportBookingStatusFilter] = useState("all");
+
+  // Modal to preview guest photo from sales report or check-in
+  const [viewPhotoModalData, setViewPhotoModalData] = useState(null);
 
   // Pre-Booking Creation Modal State
   const [showAddBookingModal, setShowAddBookingModal] = useState(false);
@@ -752,7 +491,6 @@ export default function App() {
   // Active Selection & Print Mode State
   const [selectedRoomId, setSelectedRoomId] = useState("");
   const [printFormat, setPrintFormat] = useState("thermal");
-  const [isTemporaryBill, setIsTemporaryBill] = useState(false);
 
   // Front Desk Modals & Camera/File State
   const [checkInModalRoom, setCheckInModalRoom] = useState(null);
@@ -915,7 +653,9 @@ export default function App() {
       const ctx = canvas.getContext("2d");
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const base64Image = canvas.toDataURL("image/jpeg", 0.7);
-      setGuestPhoto(base64Image);
+      if (isValidImageDataUri(base64Image)) {
+        setGuestPhoto(base64Image);
+      }
       stopCamera();
     }
   };
@@ -923,6 +663,11 @@ export default function App() {
   const handleFileUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      alert("Cybersecurity validation error: Only image files are permitted.");
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -935,7 +680,10 @@ export default function App() {
         canvas.height = img.height * scale;
         const ctx = canvas.getContext("2d");
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        setGuestPhoto(canvas.toDataURL("image/jpeg", 0.7));
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+        if (isValidImageDataUri(dataUrl)) {
+          setGuestPhoto(dataUrl);
+        }
       };
       img.src = event.target.result;
     };
@@ -948,8 +696,13 @@ export default function App() {
     setCheckInModalRoom(null);
   };
 
-  // PIN Operations
+  // PIN Operations with Cyber Brute-Force Rate Limiting
   const handlePinDigit = (digit) => {
+    if (Date.now() < pinLockoutUntil) {
+      setPinError(`Too many failed attempts. Locked for ${Math.ceil((pinLockoutUntil - Date.now()) / 1000)}s`);
+      return;
+    }
+
     if (pinInput.length < 6) {
       const nextPin = pinInput + digit;
       setPinInput(nextPin);
@@ -964,9 +717,21 @@ export default function App() {
       setCurrentUser(matched);
       setPinInput("");
       setPinError("");
+      setFailedPinAttempts(0);
       setActiveTab("frontdesk");
     } else {
-      if (candidatePin.length >= 4) setPinError("Invalid Access PIN");
+      if (candidatePin.length >= 4) {
+        const nextAttempts = failedPinAttempts + 1;
+        setFailedPinAttempts(nextAttempts);
+        if (nextAttempts >= 5) {
+          const lockout = Date.now() + 30000;
+          setPinLockoutUntil(lockout);
+          setPinError("Security lockout: 5 failed PIN attempts. Wait 30s.");
+        } else {
+          setPinError(`Invalid PIN (Attempt ${nextAttempts}/5)`);
+        }
+        setPinInput("");
+      }
     }
   };
 
@@ -1008,6 +773,7 @@ export default function App() {
             weekendRate: Number(roomObj.weekendRate) || Math.round((Number(roomObj.rate) || 18000) * 1.2),
             peakRate: Number(roomObj.peakRate) || Math.round((Number(roomObj.rate) || 18000) * 1.4),
             rateStrategy: roomObj.rateStrategy || "standard",
+            guestPhoto: roomObj.guestPhoto || null,
             orderItems: orderItemsArray 
           };
         });
@@ -1071,19 +837,16 @@ export default function App() {
       setLoading(false);
     });
 
-    // Attendance Records Listener
     const allAttendanceRef = ref(rtdb, "attendance_records");
     const unsubAllAttendance = onValue(allAttendanceRef, (snapshot) => {
       setAllAttendanceRecords(snapshot.val() || {});
     });
 
-    // Settled Sales Records Listener
     const salesRef = ref(rtdb, "sales_records");
     const unsubSales = onValue(salesRef, (snapshot) => {
       setSalesRecords(snapshot.val() || {});
     });
 
-    // Pre-Bookings & Advance Reservations Listener
     const prebookingsRef = ref(rtdb, "prebookings");
     const unsubPrebookings = onValue(prebookingsRef, (snapshot) => {
       setPrebookings(snapshot.val() || {});
@@ -1131,7 +894,7 @@ export default function App() {
     const peakVal = parseFloat(editRoomForm.peakRate) || Math.round(baseVal * 1.4);
 
     const updated = {
-      type: editRoomForm.type,
+      type: sanitizeInput(editRoomForm.type),
       rate: baseVal,
       weekendRate: weekendVal,
       peakRate: peakVal,
@@ -1172,9 +935,9 @@ export default function App() {
     if (!editingStaffMember) return;
 
     const updated = {
-      name: editStaffForm.name.trim(),
+      name: sanitizeInput(editStaffForm.name),
       role: editStaffForm.role,
-      pin: editStaffForm.pin,
+      pin: sanitizeInput(editStaffForm.pin),
       type: editStaffForm.type,
       baseSalary: parseFloat(editStaffForm.baseSalary) || 0,
       allowances: parseFloat(editStaffForm.allowances) || 0,
@@ -1184,8 +947,8 @@ export default function App() {
       epfDeduction: parseFloat(editStaffForm.epfDeduction) || 0,
       taxDeduction: parseFloat(editStaffForm.taxDeduction) || 0,
       advanceDeduction: parseFloat(editStaffForm.advanceDeduction) || 0,
-      bankAccount: editStaffForm.bankAccount,
-      phone: editStaffForm.phone,
+      bankAccount: sanitizeInput(editStaffForm.bankAccount),
+      phone: sanitizeInput(editStaffForm.phone),
     };
 
     update(ref(rtdb, `staff/${editingStaffMember.id}`), updated);
@@ -1204,7 +967,7 @@ export default function App() {
 
     const newItem = {
       id: itemId,
-      name: newInventoryForm.name.trim(),
+      name: sanitizeInput(newInventoryForm.name),
       category: newInventoryForm.category || "minibar",
       cost: cleanCost,
       price: cleanPrice,
@@ -1237,7 +1000,7 @@ export default function App() {
     const cleanStock = parseInt(editInventoryForm.stock, 10) || 0;
 
     const updated = {
-      name: editInventoryForm.name.trim(),
+      name: sanitizeInput(editInventoryForm.name),
       category: editInventoryForm.category || "minibar",
       cost: cleanCost,
       price: cleanPrice,
@@ -1293,9 +1056,15 @@ export default function App() {
     const bookingId = `BK-${Date.now().toString().slice(-6)}`;
     const newBooking = {
       id: bookingId,
-      ...newBookingForm,
+      guestName: sanitizeInput(newBookingForm.guestName),
+      guestPhone: sanitizeInput(newBookingForm.guestPhone),
+      roomNumber: sanitizeInput(newBookingForm.roomNumber),
+      checkInDate: newBookingForm.checkInDate,
+      checkOutDate: newBookingForm.checkOutDate,
       totalRate: parseFloat(newBookingForm.totalRate) || 18000,
       depositAmount: parseFloat(newBookingForm.depositAmount) || 0,
+      status: newBookingForm.status,
+      notes: sanitizeInput(newBookingForm.notes),
       createdAt: new Date().toISOString()
     };
     set(ref(rtdb, `prebookings/${bookingId}`), newBooking);
@@ -1410,9 +1179,14 @@ export default function App() {
     }
   };
 
-  // Time-Clock
-  const formatTimeNow = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  // Safe delete for front desk guest ID photo
+  const handleDeleteRoomPhoto = (roomId) => {
+    if (window.confirm("Delete guest identification image for this room?")) {
+      update(ref(rtdb, `rooms/${roomId}`), { guestPhoto: null });
+    }
+  };
 
+  // Attendance Clock In / Out
   const handleClockIn = (staffMember) => {
     const timeStr = formatTimeClean();
     const day = getTodayKey();
@@ -1489,7 +1263,7 @@ export default function App() {
     printIsolatedDocument(html, printFormat);
   };
 
-  // SETTLE ORDER & SAVE INTO PERMANENT SALES LEDGER
+  // SETTLE ORDER & SAVE INTO PERMANENT SALES LEDGER (WITH GUEST PHOTO PRESERVATION)
   const handleConfirmOrderSettlement = () => {
     if (!settleOrderRoom) return;
     const total = calculateTotal(settleOrderRoom);
@@ -1498,13 +1272,14 @@ export default function App() {
     const day = getTodayKey();
     const saleId = `SALE-${Date.now()}`;
 
-    // 1. Archive complete invoice into sales_records node
+    // Preserves guest identification photo permanently inside sales record ledger
     const saleRecord = {
       id: saleId,
       orderId: settleOrderRoom.orderId || `ORD-${settleOrderRoom.number}`,
       roomNumber: settleOrderRoom.number,
       guestName: settleOrderRoom.guestName || "Walk-In",
       guestPhone: settleOrderRoom.guestPhone || "",
+      guestPhoto: settleOrderRoom.guestPhoto || null, // Image saved permanently
       checkIn: settleOrderRoom.checkIn || day,
       checkOut: settleOrderRoom.checkOut || day,
       totalAmount: total,
@@ -1540,24 +1315,20 @@ export default function App() {
 
     printIsolatedDocument(html, printFormat);
 
+    // Free the room for housekeeping turnover
     update(ref(rtdb, `rooms/${settleOrderRoom.id}`), {
       status: "cleaning",
       orderId: null,
       openedAt: null,
       guestName: "",
       guestPhone: "",
-      guestPhoto: null,
+      guestPhoto: null, // Cleared from current active room only after archiving into saleRecord
       checkIn: "",
       checkOut: "",
       orderItems: null,
     });
     setSettleOrderRoom(null);
     setCashTendered("");
-  };
-
-  const handlePrintPayslip = (staffMember) => {
-    const html = buildPayslipHtml({ settings, staffMember, payPeriodStr: `${selectedDate.slice(0, 7)} Monthly Cycle` });
-    printIsolatedDocument(html, "a4");
   };
 
   const handlePrintDailyAttendanceReport = () => {
@@ -1581,7 +1352,6 @@ export default function App() {
     printIsolatedDocument(html, "a4");
   };
 
-  // Print Full Sales & Prebooking Report
   const handlePrintSalesReport = () => {
     const totalSalesAmount = filteredSalesList.reduce((acc, s) => acc + Number(s.totalAmount || 0), 0);
     const html = buildSalesReportHtml({
@@ -1589,8 +1359,7 @@ export default function App() {
       salesList: filteredSalesList,
       prebookingsList: filteredPrebookingsList,
       titleStr: `${reportDateFrom} to ${reportDateTo}`,
-      totalSales: totalSalesAmount,
-      totalNights: filteredSalesList.length
+      totalSales: totalSalesAmount
     });
     printIsolatedDocument(html, "a4");
   };
@@ -1602,9 +1371,9 @@ export default function App() {
     const base = parseFloat(newStaffForm.baseSalary) || 0;
     const newStaff = {
       id: staffId,
-      name: newStaffForm.name.trim(),
+      name: sanitizeInput(newStaffForm.name),
       role: newStaffForm.role || "Front Desk",
-      pin: newStaffForm.pin || "0000",
+      pin: sanitizeInput(newStaffForm.pin) || "0000",
       type: newStaffForm.type || "Full-Time",
       baseSalary: base,
       allowances: parseFloat(newStaffForm.allowances) || 0,
@@ -1614,9 +1383,9 @@ export default function App() {
       epfDeduction: parseFloat(newStaffForm.epfDeduction) || Math.round(base * 0.08),
       taxDeduction: parseFloat(newStaffForm.taxDeduction) || 0,
       advanceDeduction: parseFloat(newStaffForm.advanceDeduction) || 0,
-      bankAccount: newStaffForm.bankAccount || "",
+      bankAccount: sanitizeInput(newStaffForm.bankAccount) || "",
       paid: false,
-      phone: newStaffForm.phone || "",
+      phone: sanitizeInput(newStaffForm.phone) || "",
     };
     setStaff((prev) => [...prev, newStaff]);
     setShowAddStaffModal(false);
@@ -1640,7 +1409,7 @@ export default function App() {
     update(ref(rtdb, `rooms/${roomId}`), { status });
   };
 
-  // CHECK-IN WITH DYNAMIC NIGHTLY RATE CALCULATION
+  // CHECK-IN WITH DYNAMIC NIGHTLY RATE CALCULATION & IMAGE PRESERVATION
   const handleOpenOrderAndCheckIn = (e) => {
     e.preventDefault();
     if (!checkInModalRoom || !guestForm.name) return;
@@ -1664,9 +1433,9 @@ export default function App() {
       status: "occupied",
       orderId,
       openedAt: now.toLocaleString(),
-      guestName: guestForm.name,
-      guestPhone: guestForm.phone,
-      guestPhoto: guestPhoto || null,
+      guestName: sanitizeInput(guestForm.name),
+      guestPhone: sanitizeInput(guestForm.phone),
+      guestPhoto: guestPhoto || null, // Image saved and stays until explicitly deleted
       checkIn: now.toISOString().split("T")[0],
       checkOut: new Date(Date.now() + nights * 86400000).toISOString().split("T")[0],
       orderItems: { [itemId]: initialOrderItem },
@@ -1686,7 +1455,7 @@ export default function App() {
     const itemId = `itm_${Date.now()}`;
     const newItem = {
       id: itemId,
-      description: newItemDesc,
+      description: sanitizeInput(newItemDesc),
       quantity,
       unitPrice,
       total: unitPrice * quantity,
@@ -1737,7 +1506,7 @@ export default function App() {
     const newRoomData = {
       id: roomId,
       number: roomId,
-      type: newRoomForm.type,
+      type: sanitizeInput(newRoomForm.type),
       rate: baseVal,
       weekendRate: wkndVal,
       peakRate: peakVal,
@@ -1764,7 +1533,7 @@ export default function App() {
   const totalPayrollNet = staff.reduce((acc, s) => acc + Math.max(0, calculateStaffGross(s) - calculateStaffDeductions(s)), 0);
   const totalServiceCharges = staff.reduce((acc, s) => acc + (Number(s.serviceCharge) || 0), 0);
 
-  // Attendance Reports Array
+  // Monitor Reports Array
   const allArchivedReports = Object.keys(allAttendanceRecords).flatMap((dateKey) => {
     const dayRecords = allAttendanceRecords[dateKey] || {};
     return Object.keys(dayRecords).map((shiftKey) => {
@@ -1791,7 +1560,7 @@ export default function App() {
     return matchesStaff && matchesDate;
   });
 
-  // --- FILTERED SALES & PREBOOKINGS REPORT LISTS ---
+  // Sales and Pre-bookings
   const allSalesList = Object.values(salesRecords).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
   const filteredSalesList = allSalesList.filter((sale) => {
     const saleDate = sale.date || "";
@@ -1808,7 +1577,6 @@ export default function App() {
     return matchesDateRange && matchesStatus;
   });
 
-  // Analytics Metrics
   const totalSalesRevenue = filteredSalesList.reduce((acc, s) => acc + Number(s.totalAmount || 0), 0);
   const totalMinibarRevenue = filteredSalesList.reduce((acc, s) => {
     const items = s.orderItems || [];
@@ -1828,7 +1596,7 @@ export default function App() {
     );
   }
 
-  // PIN TERMINAL LOCK SCREEN
+  // --- PIN TERMINAL LOCK SCREEN (WITH CYBERATTACK BRUTE-FORCE DEFENSE) ---
   if (!currentUser) {
     const keypadButtons = [
       { key: "1", sub: "" },
@@ -1845,6 +1613,8 @@ export default function App() {
       { key: "Del", sub: "" },
     ];
 
+    const isLockedOut = Date.now() < pinLockoutUntil;
+
     return (
       <div className="relative min-h-screen w-full flex items-center justify-center p-4 sm:p-6 overflow-hidden bg-[#040D14] text-white select-none">
         <div className="absolute -top-32 -left-32 w-96 h-96 bg-[#0D9488]/20 rounded-full blur-[130px] pointer-events-none" />
@@ -1854,13 +1624,15 @@ export default function App() {
         <div className="relative z-10 w-full max-w-sm bg-white/[0.04] backdrop-blur-2xl border border-white/10 rounded-[32px] p-6 sm:p-8 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.7)] flex flex-col items-center">
           <div className="w-full flex items-center justify-between pb-4 mb-4 border-b border-white/[0.08] text-[11px] text-slate-400">
             <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className={`w-2 h-2 rounded-full ${isLockedOut ? "bg-rose-500 animate-ping" : "bg-emerald-400 animate-pulse"}`} />
               <span className="font-mono tracking-wider text-slate-300">
                 {settings.terminalId || "TERMINAL-01"}
               </span>
             </div>
-            <span className="text-[10px] font-semibold uppercase tracking-widest text-[#2DD4BF] bg-[#2DD4BF]/10 px-2 py-0.5 rounded-full border border-[#2DD4BF]/20">
-              System Ready
+            <span className={`text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-full border ${
+              isLockedOut ? "text-rose-400 bg-rose-500/10 border-rose-500/30" : "text-[#2DD4BF] bg-[#2DD4BF]/10 border-[#2DD4BF]/20"
+            }`}>
+              {isLockedOut ? "Defense Lockdown" : "System Secure"}
             </span>
           </div>
 
@@ -1895,10 +1667,10 @@ export default function App() {
                 );
               })}
             </div>
-            <div className="h-5 flex items-center mt-2">
+            <div className="h-6 flex items-center mt-2 text-center">
               {pinError ? (
                 <span className="text-xs font-bold text-rose-400 flex items-center gap-1.5 animate-pulse">
-                  <AlertTriangle className="w-3.5 h-3.5" /> {pinError}
+                  <ShieldAlert className="w-3.5 h-3.5 shrink-0" /> {pinError}
                 </span>
               ) : (
                 <span className="text-[11px] text-slate-400 font-medium tracking-wide">
@@ -1915,6 +1687,7 @@ export default function App() {
                 <button
                   key={key}
                   type="button"
+                  disabled={isLockedOut}
                   onClick={() => {
                     if (key === "Clear") {
                       setPinInput("");
@@ -1927,7 +1700,9 @@ export default function App() {
                     }
                   }}
                   className={`h-15 rounded-2xl active:scale-95 transition-all flex flex-col items-center justify-center border shadow-sm ${
-                    isAction
+                    isLockedOut
+                      ? "opacity-30 cursor-not-allowed border-white/5 bg-white/[0.02]"
+                      : isAction
                       ? "bg-white/[0.03] hover:bg-white/[0.08] border-white/5 text-slate-400 hover:text-white"
                       : "bg-white/[0.06] hover:bg-white/[0.14] active:bg-[#14B8A6]/20 border-white/10 hover:border-white/20 text-slate-100"
                   }`}
@@ -1951,7 +1726,7 @@ export default function App() {
             })}
           </div>
 
-          {staff && staff.length > 0 && (
+          {staff && staff.length > 0 && !isLockedOut && (
             <div className="mt-6 pt-4 border-t border-white/[0.08] w-full">
               <div className="flex justify-between items-center mb-2 px-1">
                 <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
@@ -2068,7 +1843,7 @@ export default function App() {
         </header>
 
         <main className="no-print flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
-          {/* TAB 1: FRONT DESK WITH LIVE DYNAMIC RATES */}
+          {/* TAB 1: FRONT DESK WITH PERSISTENT PHOTO ID & DELETE OPTION */}
           {activeTab === "frontdesk" && (
             <div className="max-w-7xl mx-auto space-y-6 pb-12">
               <div className="bg-gradient-to-r from-[#091D26] via-[#0F2D3C] to-[#0A3042] rounded-3xl p-6 sm:p-8 text-white shadow-xl border border-white/10 relative overflow-hidden">
@@ -2081,7 +1856,7 @@ export default function App() {
                       Live Rooms & Dynamic Rates
                     </h2>
                     <p className="text-xs text-slate-300 mt-1 max-w-xl">
-                      Live night rates adjust automatically according to room strategy (Standard, Weekend, Peak, and Auto-Occupancy).
+                      Guest photo IDs remain saved permanently until explicitly deleted or cleared on checkout folio archiving.
                     </p>
                   </div>
 
@@ -2227,29 +2002,50 @@ export default function App() {
 
                           {isOccupied && (
                             <div className="mt-4 p-3.5 bg-gradient-to-br from-[#FAF9F5] to-[#F4EFE6] rounded-2xl border border-[#E6DFD3] space-y-2.5 shadow-inner">
-                              <div className="flex items-center gap-3">
-                                {room.guestPhoto ? (
-                                  <img
-                                    src={room.guestPhoto}
-                                    alt="Guest ID"
-                                    className="w-11 h-11 rounded-2xl object-cover border-2 border-[#14B8A6] shadow-sm shrink-0"
-                                  />
-                                ) : (
-                                  <div className="w-11 h-11 rounded-2xl bg-white border border-[#D3C8B7] flex items-center justify-center text-slate-400 shrink-0 shadow-sm">
-                                    <ImageIcon className="w-5 h-5 text-slate-400" />
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  {room.guestPhoto ? (
+                                    <div className="relative group/pic">
+                                      <img
+                                        src={room.guestPhoto}
+                                        alt="Guest ID"
+                                        onClick={() => setViewPhotoModalData({
+                                          title: `Room #${room.number} - ${room.guestName}`,
+                                          image: room.guestPhoto,
+                                          details: `Checked In: ${room.checkIn} to ${room.checkOut}`
+                                        })}
+                                        className="w-12 h-12 rounded-2xl object-cover border-2 border-[#14B8A6] shadow-sm shrink-0 cursor-pointer hover:scale-105 transition-transform"
+                                        title="Click to view full photo"
+                                      />
+                                    </div>
+                                  ) : (
+                                    <div className="w-12 h-12 rounded-2xl bg-white border border-[#D3C8B7] flex items-center justify-center text-slate-400 shrink-0 shadow-sm">
+                                      <ImageIcon className="w-5 h-5 text-slate-400" />
+                                    </div>
+                                  )}
+                                  <div className="truncate min-w-0">
+                                    <span className="font-extrabold text-[#091D26] text-xs block truncate leading-tight">
+                                      {room.guestName || "Walk-In Guest"}
+                                    </span>
+                                    <span className="text-[10px] text-slate-500 block truncate mt-0.5">
+                                      {room.guestPhone || "No contact logged"}
+                                    </span>
+                                    <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+                                      Out: {room.checkOut || "Today"}
+                                    </span>
                                   </div>
-                                )}
-                                <div className="truncate min-w-0">
-                                  <span className="font-extrabold text-[#091D26] text-xs block truncate leading-tight">
-                                    {room.guestName || "Walk-In Guest"}
-                                  </span>
-                                  <span className="text-[10px] text-slate-500 block truncate mt-0.5">
-                                    {room.guestPhone || "No contact logged"}
-                                  </span>
-                                  <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
-                                    Out: {room.checkOut || "Today"}
-                                  </span>
                                 </div>
+
+                                {room.guestPhoto && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteRoomPhoto(room.id)}
+                                    className="p-1 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50"
+                                    title="Delete saved photo"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
                               </div>
 
                               <div className="flex justify-between items-center pt-2 border-t border-slate-300/50">
@@ -2520,7 +2316,7 @@ export default function App() {
           )}
 
           {/* =========================================================
-              NEW TAB: COMPREHENSIVE REPORTS, SALES & PREBOOKINGS
+              TAB: REPORTS & ANALYTICS (WITH SALES IMAGE PREVIEW)
               ========================================================= */}
           {activeTab === "reports" && canAccessTab("reports") && (
             <div className="max-w-7xl mx-auto space-y-6 pb-16">
@@ -2531,7 +2327,7 @@ export default function App() {
                     <BarChart3 className="w-6 h-6 text-[#14B8A6]" /> Hospitality Reports & Analytics
                   </h2>
                   <p className="text-sm text-slate-500">
-                    Audit settled sales revenue, advance pre-bookings by date, minibar consumptions, and occupancy.
+                    Audit settled sales revenue, guest photo IDs, advance pre-bookings by date, and occupancy.
                   </p>
                 </div>
 
@@ -2553,7 +2349,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Top Analytical KPI Metric Cards */}
+              {/* Analytical KPI Metric Cards */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div className="bg-white border border-[#E6DFD3] rounded-3xl p-4 shadow-sm">
                   <p className="text-[11px] font-bold uppercase text-slate-400">Total Settled Sales</p>
@@ -2613,7 +2409,6 @@ export default function App() {
                   })}
                 </div>
 
-                {/* Date Range & Tender Filters */}
                 <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto bg-white p-2 rounded-2xl border border-[#E6DFD3] shadow-sm text-xs">
                   <span className="font-semibold text-slate-500 flex items-center gap-1">
                     <Filter className="w-3.5 h-3.5 text-slate-400" /> Range:
@@ -2659,13 +2454,13 @@ export default function App() {
                 </div>
               </div>
 
-              {/* REPORT VIEW 1: SALES & SETTLED INVOICES LEDGER */}
+              {/* REPORT VIEW 1: SALES & SETTLED INVOICES LEDGER WITH GUEST PHOTO BUTTON */}
               {reportsSubTab === "sales" && (
                 <div className="bg-white rounded-3xl border border-[#E6DFD3] shadow-sm overflow-hidden">
                   <div className="p-4 border-b border-[#F3EFE6] flex justify-between items-center bg-[#FAF9F5]">
                     <div>
                       <h3 className="font-bold text-sm text-[#091D26]">Settled Sales Transactions</h3>
-                      <p className="text-[11px] text-slate-500">Every paid checkout folio is permanently recorded here</p>
+                      <p className="text-[11px] text-slate-500">Every paid checkout folio is permanently recorded here with attached photo identification</p>
                     </div>
                     <span className="text-xs font-mono font-bold text-[#0D9488]">
                       Total: {settings.currency}{Number(totalSalesRevenue).toLocaleString()}
@@ -2679,9 +2474,9 @@ export default function App() {
                           <th className="p-3.5">Date & Time</th>
                           <th className="p-3.5">Folio / Order</th>
                           <th className="p-3.5">Room</th>
-                          <th className="p-3.5">Guest Name</th>
+                          <th className="p-3.5">Guest Info</th>
+                          <th className="p-3.5 text-center">Guest ID Image</th>
                           <th className="p-3.5 text-center">Tender</th>
-                          <th className="p-3.5 text-right">Tendered / Change</th>
                           <th className="p-3.5 text-right font-black">Total Paid</th>
                           <th className="p-3.5 text-center">Receipt</th>
                         </tr>
@@ -2699,22 +2494,37 @@ export default function App() {
                               {sale.guestName}
                               <div className="text-[10px] text-slate-400 font-normal">{sale.guestPhone || "No contact"}</div>
                             </td>
+
+                            {/* Clickable Guest Image Preview Button */}
+                            <td className="p-3.5 text-center">
+                              {sale.guestPhoto ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setViewPhotoModalData({
+                                    title: `Guest ID - ${sale.guestName} (Room #${sale.roomNumber})`,
+                                    image: sale.guestPhoto,
+                                    details: `Folio: ${sale.orderId} | Settled: ${sale.date} ${sale.settledAt || ""}`
+                                  })}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-teal-50 hover:bg-teal-100 text-[#0F766E] font-bold border border-teal-200 transition-all shadow-xs"
+                                >
+                                  <img src={sale.guestPhoto} alt="Thumb" className="w-5 h-5 rounded-md object-cover border border-[#0D9488]" />
+                                  <span>View Photo</span>
+                                </button>
+                              ) : (
+                                <span className="text-[10px] text-slate-400">No Image</span>
+                              )}
+                            </td>
+
                             <td className="p-3.5 text-center">
                               <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full text-[10px] font-bold">
                                 {sale.settlementMethod}
                               </span>
                             </td>
-                            <td className="p-3.5 text-right font-mono text-slate-500">
-                              {sale.settlementMethod === "Cash" ? (
-                                <div>
-                                  <span>{settings.currency}{Number(sale.cashTendered || 0).toLocaleString()}</span>
-                                  <div className="text-[10px] text-emerald-600">Ret: {settings.currency}{Number(sale.changeReturned || 0).toLocaleString()}</div>
-                                </div>
-                              ) : "--"}
-                            </td>
+
                             <td className="p-3.5 text-right font-black text-sm text-[#0D9488]">
                               {settings.currency}{Number(sale.totalAmount || 0).toLocaleString()}
                             </td>
+
                             <td className="p-3.5 text-center">
                               <button
                                 type="button"
@@ -2757,7 +2567,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* REPORT VIEW 2: PRE-BOOKINGS & ADVANCE RESERVATIONS BY DATE */}
+              {/* REPORT VIEW 2: PRE-BOOKINGS & ADVANCE RESERVATIONS */}
               {reportsSubTab === "prebookings" && (
                 <div className="bg-white rounded-3xl border border-[#E6DFD3] shadow-sm overflow-hidden">
                   <div className="p-4 border-b border-[#F3EFE6] flex justify-between items-center bg-[#FAF9F5]">
@@ -2851,7 +2661,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* REPORT VIEW 3: MINIBAR & CONSUMPTION AUDIT */}
+              {/* REPORT VIEW 3: MINIBAR CONSUMPTION */}
               {reportsSubTab === "minibar" && (
                 <div className="bg-white rounded-3xl border border-[#E6DFD3] shadow-sm overflow-hidden">
                   <div className="p-4 border-b border-[#F3EFE6] flex justify-between items-center bg-[#FAF9F5]">
@@ -2894,7 +2704,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* REPORT VIEW 4: OCCUPANCY & ADR ANALYTICS */}
+              {/* REPORT VIEW 4: OCCUPANCY & ADR */}
               {reportsSubTab === "occupancy" && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                   <div className="bg-white rounded-3xl border border-[#E6DFD3] p-5 shadow-sm space-y-3">
@@ -3422,10 +3232,10 @@ export default function App() {
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-[#E6DFD3] pb-4">
                 <div>
                   <h2 className="text-2xl font-bold flex items-center gap-2">
-                    <Settings className="w-6 h-6 text-[#14B8A6]" /> System, Business & Peripheral Settings
+                    <Settings className="w-6 h-6 text-[#14B8A6]" /> System, Business & Peripheral Settings[cite: 3]
                   </h2>
                   <p className="text-xs text-slate-500">
-                    Manage company identity, thermal printing options, automated cash drawer solenoid, and database backup files.
+                    Manage company identity, thermal printing options, automated cash drawer solenoid, and database backup files.[cite: 3]
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -3434,14 +3244,14 @@ export default function App() {
                     onClick={handleDownloadBackup}
                     className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[#D3C8B7] bg-white hover:bg-slate-50 text-xs font-bold shadow-sm"
                   >
-                    <Download className="w-4 h-4 text-slate-500" /> Download Backup
+                    <Download className="w-4 h-4 text-slate-500" /> Download Backup[cite: 3]
                   </button>
                   <button
                     type="button"
                     onClick={handleSaveAllSettings}
                     className="flex items-center gap-1.5 px-5 py-2 rounded-lg bg-[#0D9488] hover:bg-[#0F766E] text-white text-xs font-bold shadow-md transition-all"
                   >
-                    <Save className="w-4 h-4" /> Save Changes
+                    <Save className="w-4 h-4" /> Save Changes[cite: 3]
                   </button>
                 </div>
               </div>
@@ -3456,14 +3266,14 @@ export default function App() {
               <div className="bg-white rounded-2xl border border-[#E6DFD3] p-6 shadow-sm space-y-4">
                 <div className="border-b border-slate-100 pb-2">
                   <h3 className="font-bold text-sm text-[#091D26] uppercase tracking-wide flex items-center gap-2">
-                    <Building2 className="w-4 h-4 text-[#14B8A6]" /> COMPANY & BUSINESS INFORMATION
+                    <Building2 className="w-4 h-4 text-[#14B8A6]" /> COMPANY & BUSINESS INFORMATION[cite: 3]
                   </h3>
-                  <p className="text-[11px] text-slate-400">Printed on official receipts, tax invoices, and IT reports</p>
+                  <p className="text-[11px] text-slate-400">Printed on official receipts, tax invoices, and IT reports[cite: 3]</p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Trading / Brand Name</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Trading / Brand Name[cite: 3]</label>
                     <input
                       type="text"
                       value={settingsForm.hotelName}
@@ -3472,7 +3282,7 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Brand Tagline / Slogan</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Brand Tagline / Slogan[cite: 3]</label>
                     <input
                       type="text"
                       value={settingsForm.tagline}
@@ -3481,7 +3291,7 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Registered Legal Entity Name</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Registered Legal Entity Name[cite: 3]</label>
                     <input
                       type="text"
                       value={settingsForm.legalEntity}
@@ -3490,7 +3300,7 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Business Registration No. (BRN / Company ID)</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Business Registration No. (BRN / Company ID)[cite: 3]</label>
                     <input
                       type="text"
                       value={settingsForm.companyRegNo}
@@ -3499,7 +3309,7 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Tax Identification / VAT / GST No.</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Tax Identification / VAT / GST No.[cite: 3]</label>
                     <input
                       type="text"
                       value={settingsForm.taxNumber}
@@ -3508,7 +3318,7 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Terminal Hardware Identifier</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Terminal Hardware Identifier[cite: 3]</label>
                     <input
                       type="text"
                       value={settingsForm.terminalId}
@@ -3517,7 +3327,7 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Contact Phone Number</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Contact Phone Number[cite: 3]</label>
                     <input
                       type="text"
                       value={settingsForm.phone}
@@ -3526,7 +3336,7 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Business Email Address</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Business Email Address[cite: 3]</label>
                     <input
                       type="email"
                       value={settingsForm.email}
@@ -3535,7 +3345,7 @@ export default function App() {
                     />
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="block font-semibold mb-1 text-slate-700">Official Website or Social Link</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Official Website or Social Link[cite: 3]</label>
                     <input
                       type="text"
                       value={settingsForm.website}
@@ -3544,7 +3354,7 @@ export default function App() {
                     />
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="block font-semibold mb-1 text-slate-700">Full Physical Street Address</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Full Physical Street Address[cite: 3]</label>
                     <input
                       type="text"
                       value={settingsForm.address}
@@ -3560,16 +3370,16 @@ export default function App() {
                 <div className="border-b border-slate-100 pb-2 flex justify-between items-center">
                   <div>
                     <h3 className="font-bold text-sm text-[#091D26] uppercase tracking-wide flex items-center gap-2">
-                      <Send className="w-4 h-4 text-[#14B8A6]" /> AUTOMATED DAILY 11:30 PM EMAIL DISPATCH
+                      <Send className="w-4 h-4 text-[#14B8A6]" /> AUTOMATED DAILY 11:30 PM EMAIL DISPATCH[cite: 3]
                     </h3>
-                    <p className="text-[11px] text-slate-400">Auto-dispatches complete end-of-day sales, collections, balances, and shift worksheets</p>
+                    <p className="text-[11px] text-slate-400">Auto-dispatches complete end-of-day sales, collections, balances, and shift worksheets[cite: 3]</p>
                   </div>
                   <span className="text-[10px] font-mono text-slate-400 border px-1.5 py-0.5 rounded">EOD Auto-task</span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Target Recipient Email</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Target Recipient Email[cite: 3]</label>
                     <input
                       type="email"
                       value={settingsForm.emailRecipient}
@@ -3578,7 +3388,7 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Scheduled Time (24h)</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Scheduled Time (24h)[cite: 3]</label>
                     <input
                       type="text"
                       value={settingsForm.emailScheduleTime}
@@ -3587,13 +3397,13 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Automation Status</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Automation Status[cite: 3]</label>
                     <select
                       value={settingsForm.emailStatus}
                       onChange={(e) => setSettingsForm({ ...settingsForm, emailStatus: e.target.value })}
                       className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white font-medium"
                     >
-                      <option value="Disabled (Manual trigger only)">Disabled (Manual trigger only)</option>
+                      <option value="Disabled (Manual trigger only)">Disabled (Manual trigger only)[cite: 3]</option>
                       <option value="Enabled (Daily Auto Send)">Enabled (Daily Auto Send)</option>
                     </select>
                   </div>
@@ -3602,38 +3412,15 @@ export default function App() {
                 <div className="bg-[#FAF9F5] p-3.5 rounded-xl border border-[#E6DFD3] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                   <div className="text-[11px] text-slate-500">
                     <b>What data is transmitted in the 11:30 PM package?</b><br />
-                    Gross revenue, net sales, taxes, service pool, room occupancy, minibar orders, cashier balance, and shift audits.
+                    Gross revenue, net sales, taxes, service pool, room occupancy, minibar orders, cashier balance, and shift audits.[cite: 3]
                   </div>
                   <button
                     type="button"
                     onClick={() => alert(`Email report package dispatched to ${settingsForm.emailRecipient}`)}
                     className="px-4 py-2.5 bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-lg text-xs font-bold shrink-0 shadow-sm"
                   >
-                    Send Daily Report Now
+                    Send Daily Report Now[cite: 3]
                   </button>
-                </div>
-
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => setShowAdvancedEmail(!showAdvancedEmail)}
-                    className="flex items-center gap-1.5 text-xs text-slate-600 font-semibold hover:text-black"
-                  >
-                    {showAdvancedEmail ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-                    Advanced: Direct Silent Webhook or EmailJS API Keys (Optional)
-                  </button>
-                  {showAdvancedEmail && (
-                    <div className="mt-2 p-3 bg-slate-50 border rounded-xl space-y-2 text-xs">
-                      <label className="block font-semibold">Custom Webhook / Relay URL</label>
-                      <input
-                        type="url"
-                        placeholder="https://api.resort-os.com/v1/webhook"
-                        value={settingsForm.webhookUrl || ""}
-                        onChange={(e) => setSettingsForm({ ...settingsForm, webhookUrl: e.target.value })}
-                        className="w-full border rounded-lg p-2 bg-white"
-                      />
-                    </div>
-                  )}
                 </div>
               </div>
 
@@ -3642,78 +3429,78 @@ export default function App() {
                 <div className="border-b border-slate-100 pb-2 flex justify-between items-center">
                   <div>
                     <h3 className="font-bold text-sm text-[#091D26] uppercase tracking-wide flex items-center gap-2">
-                      <Printer className="w-4 h-4 text-[#14B8A6]" /> THERMAL AUTO-PRINTER CONFIGURATION
+                      <Printer className="w-4 h-4 text-[#14B8A6]" /> THERMAL AUTO-PRINTER CONFIGURATION[cite: 3]
                     </h3>
-                    <p className="text-[11px] text-slate-400">Hardwired direct slip generation for USB, LAN, or Bluetooth portable printers</p>
+                    <p className="text-[11px] text-slate-400">Hardwired direct slip generation for USB, LAN, or Bluetooth portable printers[cite: 3]</p>
                   </div>
-                  <span className="text-[10px] font-mono text-slate-400 border px-1.5 py-0.5 rounded">System Default Spooler</span>
+                  <span className="text-[10px] font-mono text-slate-400 border px-1.5 py-0.5 rounded">System Default Spooler[cite: 3]</span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Paper Roll Width</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Paper Roll Width[cite: 3]</label>
                     <select
                       value={settingsForm.paperRollWidth}
                       onChange={(e) => setSettingsForm({ ...settingsForm, paperRollWidth: e.target.value })}
                       className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white font-medium"
                     >
-                      <option value="80mm Thermal Paper (Standard POS)">80mm Thermal Paper (Standard POS)</option>
+                      <option value="80mm Thermal Paper (Standard POS)">80mm Thermal Paper (Standard POS)[cite: 3]</option>
                       <option value="58mm Thermal Paper (Compact / Mobile)">58mm Thermal Paper (Compact / Mobile)</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Receipt Font Size</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Receipt Font Size[cite: 3]</label>
                     <select
                       value={settingsForm.receiptFontSize}
                       onChange={(e) => setSettingsForm({ ...settingsForm, receiptFontSize: e.target.value })}
                       className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white font-medium"
                     >
-                      <option value="14px - Extra Bold & Large">14px - Extra Bold & Large</option>
+                      <option value="14px - Extra Bold & Large">14px - Extra Bold & Large[cite: 3]</option>
                       <option value="12px - Standard POS">12px - Standard POS</option>
                       <option value="10px - Compact Condense">10px - Compact Condense</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Receipt Font Type</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Receipt Font Type[cite: 3]</label>
                     <select
                       value={settingsForm.receiptFontType}
                       onChange={(e) => setSettingsForm({ ...settingsForm, receiptFontType: e.target.value })}
                       className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white font-medium"
                     >
-                      <option value="Monospace (Classic ESC/POS Receipt)">Monospace (Classic ESC/POS Receipt)</option>
+                      <option value="Monospace (Classic ESC/POS Receipt)">Monospace (Classic ESC/POS Receipt)[cite: 3]</option>
                       <option value="Modern Sans-Serif">Modern Sans-Serif</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Thermal Slip Margins</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Thermal Slip Margins[cite: 3]</label>
                     <select
                       value={settingsForm.slipMargins}
                       onChange={(e) => setSettingsForm({ ...settingsForm, slipMargins: e.target.value })}
                       className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white font-medium"
                     >
-                      <option value="2mm - Standard Thermal Margin">2mm - Standard Thermal Margin</option>
+                      <option value="2mm - Standard Thermal Margin">2mm - Standard Thermal Margin[cite: 3]</option>
                       <option value="0mm - Full Bleed Edge">0mm - Full Bleed Edge</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Auto-Print on Saved Order</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Auto-Print on Saved Order[cite: 3]</label>
                     <select
                       value={settingsForm.autoPrintKOT}
                       onChange={(e) => setSettingsForm({ ...settingsForm, autoPrintKOT: e.target.value })}
                       className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white font-medium"
                     >
-                      <option value="Yes - Print KOT & BOT Slips">Yes - Print KOT & BOT Slips</option>
+                      <option value="Yes - Print KOT & BOT Slips">Yes - Print KOT & BOT Slips[cite: 3]</option>
                       <option value="No - Manual Only">No - Manual Only</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Auto-Print on Settlement</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Auto-Print on Settlement[cite: 3]</label>
                     <select
                       value={settingsForm.autoPrintSettlement}
                       onChange={(e) => setSettingsForm({ ...settingsForm, autoPrintSettlement: e.target.value })}
                       className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white font-medium"
                     >
-                      <option value="Yes - Print Final Tax Invoice">Yes - Print Final Tax Invoice</option>
+                      <option value="Yes - Print Final Tax Invoice">Yes - Print Final Tax Invoice[cite: 3]</option>
                       <option value="No - Screen Only">No - Screen Only</option>
                     </select>
                   </div>
@@ -3722,7 +3509,7 @@ export default function App() {
                 <div className="bg-[#FAF9F5] p-3 rounded-xl border border-[#E6DFD3] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                   <div className="text-[11px] text-slate-500">
                     <b>Direct WebUSB Thermal Printer Connection</b><br />
-                    Pair once with your POS printer for fast raw print output or print via OS print spooler.
+                    Pair once with your POS printer for fast raw print output or print via OS print spooler.[cite: 3]
                   </div>
                   <div className="flex gap-2 shrink-0">
                     <button
@@ -3730,7 +3517,7 @@ export default function App() {
                       onClick={() => alert("Searching for connected WebUSB thermal printers...")}
                       className="px-3.5 py-2 bg-[#091D26] text-white rounded-lg text-xs font-bold flex items-center gap-1.5"
                     >
-                      <Usb className="w-3.5 h-3.5" /> Pair USB Printer
+                      <Usb className="w-3.5 h-3.5" /> Pair USB Printer[cite: 3]
                     </button>
                     <button
                       type="button"
@@ -3741,7 +3528,7 @@ export default function App() {
                       }}
                       className="px-3.5 py-2 border border-[#D3C8B7] rounded-lg text-xs font-bold hover:bg-slate-50 flex items-center gap-1.5"
                     >
-                      <Printer className="w-3.5 h-3.5" /> Test Slip
+                      <Printer className="w-3.5 h-3.5" /> Test Slip[cite: 3]
                     </button>
                   </div>
                 </div>
@@ -3751,42 +3538,42 @@ export default function App() {
               <div className="bg-white rounded-2xl border border-[#E6DFD3] p-6 shadow-sm space-y-4">
                 <div className="border-b border-slate-100 pb-2">
                   <h3 className="font-bold text-sm text-[#091D26] uppercase tracking-wide flex items-center gap-2">
-                    <Banknote className="w-4 h-4 text-[#14B8A6]" /> AUTOMATED CASH DRAWER SOLENOID
+                    <Banknote className="w-4 h-4 text-[#14B8A6]" /> AUTOMATED CASH DRAWER SOLENOID[cite: 3]
                   </h3>
-                  <p className="text-[11px] text-slate-400">Triggers electrical RJ11/RJ12 drawer pulse via printer kick ports</p>
+                  <p className="text-[11px] text-slate-400">Triggers electrical RJ11/RJ12 drawer pulse via printer kick ports[cite: 3]</p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Auto Drawer Kick</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Auto Drawer Kick[cite: 3]</label>
                     <select
                       value={settingsForm.autoDrawerKick}
                       onChange={(e) => setSettingsForm({ ...settingsForm, autoDrawerKick: e.target.value })}
                       className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white font-medium"
                     >
-                      <option value="Enabled (Auto-Pop on Payment)">Enabled (Auto-Pop on Payment)</option>
+                      <option value="Enabled (Auto-Pop on Payment)">Enabled (Auto-Pop on Payment)[cite: 3]</option>
                       <option value="Disabled">Disabled</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Drawer Kick Trigger</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Drawer Kick Trigger[cite: 3]</label>
                     <select
                       value={settingsForm.drawerKickTrigger}
                       onChange={(e) => setSettingsForm({ ...settingsForm, drawerKickTrigger: e.target.value })}
                       className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white font-medium"
                     >
-                      <option value="Cash Payments Only">Cash Payments Only</option>
+                      <option value="Cash Payments Only">Cash Payments Only[cite: 3]</option>
                       <option value="All Settlement Tenders">All Settlement Tenders</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">RJ11 / RJ12 Pinout</label>
+                    <label className="block font-semibold mb-1 text-slate-700">RJ11 / RJ12 Pinout[cite: 3]</label>
                     <select
                       value={settingsForm.drawerPinout}
                       onChange={(e) => setSettingsForm({ ...settingsForm, drawerPinout: e.target.value })}
                       className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white font-medium"
                     >
-                      <option value="Pin 2 / ESC p 0 (Epson, Rongta, Xprint)">Pin 2 / ESC p 0 (Epson, Rongta, Xprint)</option>
+                      <option value="Pin 2 / ESC p 0 (Epson, Rongta, Xprint)">Pin 2 / ESC p 0 (Epson, Rongta, Xprint)[cite: 3]</option>
                       <option value="Pin 5 / ESC p 1 (Star Micronics)">Pin 5 / ESC p 1 (Star Micronics)</option>
                     </select>
                   </div>
@@ -3799,17 +3586,17 @@ export default function App() {
                     className="flex items-center gap-2 text-xs font-semibold text-slate-700"
                   >
                     <span className={`px-2 py-1 rounded font-bold text-xs ${settingsForm.drawerChime ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"}`}>
-                      {settingsForm.drawerChime ? "Chime ON" : "Muted"}
+                      {settingsForm.drawerChime ? "Chime ON" : "Muted"}[cite: 3]
                     </span>
                     {settingsForm.drawerChime ? <Volume2 className="w-4 h-4 text-[#14B8A6]" /> : <VolumeX className="w-4 h-4 text-slate-400" />}
-                    <span className="text-[11px] text-slate-500">Plays brass bell chime upon successful payment settlement</span>
+                    <span className="text-[11px] text-slate-500">Plays brass bell chime upon successful payment settlement[cite: 3]</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => alert("Solenoid pulse sent! Cash drawer kicked open.")}
                     className="px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-lg text-xs font-bold shadow-sm"
                   >
-                    Pop Drawer
+                    Pop Drawer[cite: 3]
                   </button>
                 </div>
               </div>
@@ -3818,14 +3605,14 @@ export default function App() {
               <div className="bg-white rounded-2xl border border-[#E6DFD3] p-6 shadow-sm space-y-4">
                 <div className="border-b border-slate-100 pb-2">
                   <h3 className="font-bold text-sm text-[#091D26] uppercase tracking-wide flex items-center gap-2">
-                    <DollarSign className="w-4 h-4 text-[#14B8A6]" /> CURRENCY, TAXES & SURCHARGE RATES
+                    <DollarSign className="w-4 h-4 text-[#14B8A6]" /> CURRENCY, TAXES & SURCHARGE RATES[cite: 3]
                   </h3>
-                  <p className="text-[11px] text-slate-400">Default rates applied across folios and receipts</p>
+                  <p className="text-[11px] text-slate-400">Default rates applied across folios and receipts[cite: 3]</p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Currency Symbol / Code</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Currency Symbol / Code[cite: 3]</label>
                     <input
                       type="text"
                       value={settingsForm.currency}
@@ -3834,7 +3621,7 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Default Service Charge (%)</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Default Service Charge (%)[cite: 3]</label>
                     <input
                       type="number"
                       value={settingsForm.serviceChargeRate}
@@ -3843,7 +3630,7 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Sales Tax / VAT Rate (%)</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Sales Tax / VAT Rate (%)[cite: 3]</label>
                     <input
                       type="number"
                       value={settingsForm.vatRate}
@@ -3852,7 +3639,7 @@ export default function App() {
                     />
                   </div>
                   <div className="sm:col-span-3">
-                    <label className="block font-semibold mb-1 text-slate-700">Thermal Receipt Header Notes</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Thermal Receipt Header Notes[cite: 3]</label>
                     <textarea
                       rows={2}
                       value={settingsForm.headerNote}
@@ -3861,7 +3648,7 @@ export default function App() {
                     />
                   </div>
                   <div className="sm:col-span-3">
-                    <label className="block font-semibold mb-1 text-slate-700">Thermal Receipt Footer Message</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Thermal Receipt Footer Message[cite: 3]</label>
                     <textarea
                       rows={2}
                       value={settingsForm.footerNote}
@@ -3876,33 +3663,33 @@ export default function App() {
               <div className="bg-white rounded-2xl border border-[#E6DFD3] p-6 shadow-sm space-y-4">
                 <div className="border-b border-slate-100 pb-2">
                   <h3 className="font-bold text-sm text-[#091D26] uppercase tracking-wide flex items-center gap-2">
-                    <Download className="w-4 h-4 text-[#14B8A6]" /> SYSTEM DATABASE BACKUP & DISASTER RECOVERY
+                    <Download className="w-4 h-4 text-[#14B8A6]" /> SYSTEM DATABASE BACKUP & DISASTER RECOVERY[cite: 3]
                   </h3>
-                  <p className="text-[11px] text-slate-400">Export or restore full state database (folios, staff, inventory, and shift logs)</p>
+                  <p className="text-[11px] text-slate-400">Export or restore full state database (folios, staff, inventory, and shift logs)[cite: 3]</p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                   <div className="p-4 bg-[#FAF9F5] border border-[#E6DFD3] rounded-xl flex flex-col justify-between space-y-3">
                     <div>
-                      <span className="font-bold block mb-1">Export JSON Database Backup</span>
-                      <p className="text-slate-500">Download a complete snapshot of all dishes, ingredients, staff credentials, and sales records.</p>
+                      <span className="font-bold block mb-1">Export JSON Database Backup[cite: 3]</span>
+                      <p className="text-slate-500">Download a complete snapshot of all dishes, ingredients, staff credentials, and sales records.[cite: 3]</p>
                     </div>
                     <button
                       type="button"
                       onClick={handleDownloadBackup}
                       className="w-full py-2.5 bg-[#091D26] text-white rounded-lg font-bold flex items-center justify-center gap-2 shadow-sm"
                     >
-                      <Download className="w-4 h-4" /> Download System Backup (json)
+                      <Download className="w-4 h-4" /> Download System Backup (json)[cite: 3]
                     </button>
                   </div>
 
                   <div className="p-4 bg-[#FAF9F5] border border-[#E6DFD3] rounded-xl flex flex-col justify-between space-y-3">
                     <div>
-                      <span className="font-bold block mb-1">Restore System from Backup File</span>
-                      <p className="text-slate-500">Upload a previously exported '.json' file to restore settings, inventory levels, menus, and transaction history.</p>
+                      <span className="font-bold block mb-1">Restore System from Backup File[cite: 3]</span>
+                      <p className="text-slate-500">Upload a previously exported '.json' file to restore settings, inventory levels, menus, and transaction history.[cite: 3]</p>
                     </div>
                     <label className="w-full py-2.5 border border-[#D3C8B7] bg-white hover:bg-slate-50 rounded-lg font-bold flex items-center justify-center gap-2 cursor-pointer shadow-sm">
-                      <Upload className="w-4 h-4 text-slate-500" /> Select Backup File (json)
+                      <Upload className="w-4 h-4 text-slate-500" /> Select Backup File (json)[cite: 3]
                       <input type="file" accept=".json" onChange={handleRestoreBackup} className="hidden" />
                     </label>
                   </div>
@@ -3913,10 +3700,10 @@ export default function App() {
               <div className="bg-red-50/60 rounded-2xl border border-red-200 p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                   <h4 className="font-bold text-xs text-red-900 uppercase flex items-center gap-1.5">
-                    <AlertTriangle className="w-4 h-4 text-red-600" /> ADMINISTRATOR DATA PURGE (RESET TEST DATA)
+                    <AlertTriangle className="w-4 h-4 text-red-600" /> ADMINISTRATOR DATA PURGE (RESET TEST DATA)[cite: 3]
                   </h4>
                   <p className="text-[11px] text-red-700 mt-0.5">
-                    Clear test transactions, reset all tables to VACANT, and start with a clean ledger without overriding the cash float.
+                    Clear test transactions, reset all tables to VACANT, and start with a clean ledger without overriding the cash float.[cite: 3]
                   </p>
                 </div>
                 <button
@@ -3924,13 +3711,53 @@ export default function App() {
                   onClick={handlePurgeTestData}
                   className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold shrink-0 shadow-sm"
                 >
-                  Purge Test Records
+                  Purge Test Records[cite: 3]
                 </button>
               </div>
             </div>
           )}
         </main>
       </div>
+
+      {/* MODAL: IMAGE VIEWER / LIGHTBOX FOR SALES REPORT & FRONT DESK */}
+      {viewPhotoModalData && (
+        <div className="fixed inset-0 bg-[#06151E]/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-[#E6DFD3] space-y-4">
+            <div className="flex justify-between items-center border-b pb-2">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-[#0F766E]">Archived Photo Verification</span>
+                <h3 className="font-bold text-base text-[#091D26]">{viewPhotoModalData.title}</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewPhotoModalData(null)}
+                className="text-slate-400 hover:text-black p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="rounded-2xl overflow-hidden border border-[#D3C8B7] bg-black flex items-center justify-center aspect-video">
+              <img
+                src={viewPhotoModalData.image}
+                alt="Document Preview"
+                className="max-h-[380px] w-full object-contain"
+              />
+            </div>
+
+            <div className="p-3 bg-[#FAF9F5] rounded-xl border text-xs text-slate-600 flex justify-between items-center">
+              <span>{viewPhotoModalData.details}</span>
+              <a
+                href={viewPhotoModalData.image}
+                download="Guest_ID_Archive.jpg"
+                className="px-3 py-1.5 bg-[#0D9488] text-white rounded-lg font-bold text-[11px] inline-flex items-center gap-1"
+              >
+                <Download className="w-3.5 h-3.5" /> Download
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL: CREATE PRE-BOOKING RESERVATION */}
       {showAddBookingModal && (
