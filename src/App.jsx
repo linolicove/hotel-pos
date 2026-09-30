@@ -109,7 +109,6 @@ const DEFAULT_SETTINGS = {
   footerNote: "Thank you for your visit!\nPlease come again.",
 };
 
-// Seed inventory with Unit Cost & Selling Price
 const INITIAL_INVENTORY_SEEDS = [
   { id: "inv1", name: "Artisanal Sparkling Water", category: "minibar", cost: 450, price: 850, stock: 48 },
   { id: "inv2", name: "Organic Coconut Chips", category: "minibar", cost: 320, price: 650, stock: 32 },
@@ -130,6 +129,11 @@ const INITIAL_STAFF_SEEDS = [
     allowances: 25000,
     serviceCharge: 35000,
     bonus: 15000,
+    overtimePay: 0,
+    epfDeduction: 10000,
+    taxDeduction: 5000,
+    advanceDeduction: 0,
+    bankAccount: "Commercial Bank - 8009234123",
     paid: true, 
     phone: "+94 77 123 4567"
   },
@@ -143,6 +147,11 @@ const INITIAL_STAFF_SEEDS = [
     allowances: 15000,
     serviceCharge: 35000,
     bonus: 8000,
+    overtimePay: 4500,
+    epfDeduction: 6000,
+    taxDeduction: 0,
+    advanceDeduction: 5000,
+    bankAccount: "HNB Bank - 003010482912",
     paid: false, 
     phone: "+94 77 234 5678"
   },
@@ -156,6 +165,11 @@ const INITIAL_STAFF_SEEDS = [
     allowances: 12000,
     serviceCharge: 35000,
     bonus: 5000,
+    overtimePay: 3000,
+    epfDeduction: 5200,
+    taxDeduction: 0,
+    advanceDeduction: 0,
+    bankAccount: "Sampath Bank - 100958291039",
     paid: false, 
     phone: "+94 77 345 6789"
   }
@@ -353,7 +367,6 @@ function buildA4Html({ settings, room, isTemporary, settlementMethod, total, cas
         </tbody>
       </table>
 
-      <!-- Financial Totals Section -->
       <div style="border-top: 2px solid #091D26; border-bottom: 2px solid #091D26; padding: 12px 4px; margin: 24px 0;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <span style="font-size: 14px; font-weight: bold;">Total Bill Amount:</span>
@@ -383,57 +396,160 @@ function buildA4Html({ settings, room, isTemporary, settlementMethod, total, cas
   `;
 }
 
-// Built-in Official A4 Payslip Generator
-function buildPayslipHtml({ settings, staffMember }) {
+// Built-in Official A4 Payslip Generator (Comprehensive Remuneration & Deductions)
+function buildPayslipHtml({ settings, staffMember, payPeriodStr = "Current Pay Period" }) {
   const base = Number(staffMember.baseSalary) || 0;
   const allowances = Number(staffMember.allowances) || 0;
   const serviceCharge = Number(staffMember.serviceCharge) || 0;
   const bonus = Number(staffMember.bonus) || 0;
-  const grossPay = base + allowances + serviceCharge + bonus;
+  const overtime = Number(staffMember.overtimePay) || 0;
+  const totalEarnings = base + allowances + serviceCharge + bonus + overtime;
+
+  const epfEmployee = Number(staffMember.epfDeduction) || Math.round(base * 0.08);
+  const taxWithholding = Number(staffMember.taxDeduction) || 0;
+  const advances = Number(staffMember.advanceDeduction) || 0;
+  const totalDeductions = epfEmployee + taxWithholding + advances;
+
+  const netPay = Math.max(0, totalEarnings - totalDeductions);
+
+  const epfEmployer = Math.round(base * 0.12);
+  const etfEmployer = Math.round(base * 0.03);
 
   return `
     <div class="a4-container">
-      <div style="border-bottom: 3px double #091D26; padding-bottom: 16px; display: flex; justify-content: space-between;">
+      <div style="border-bottom: 3px double #091D26; padding-bottom: 16px; display: flex; justify-content: space-between; align-items: flex-start;">
         <div>
           <h1 style="font-size: 24px; font-weight: 900; text-transform: uppercase; margin: 0; color: #091D26;">${settings.hotelName}</h1>
-          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; color: #555;">Monthly Remuneration Statement</p>
+          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; text-transform: uppercase; color: #555;">${settings.tagline}</p>
+          <p style="margin: 4px 0 0 0; font-size: 11px; color: #333;">${settings.address} | Tel: ${settings.phone}</p>
+          <p style="margin: 2px 0 0 0; font-size: 11px; color: #333;">Tax ID / VAT: ${settings.taxNumber} | BRN: ${settings.companyRegNo}</p>
         </div>
         <div style="text-align: right;">
-          <div style="display: inline-block; border: 2px solid #091D26; padding: 6px 14px; font-weight: bold; font-size: 12px;">
-            OFFICIAL PAYSLIP
+          <div style="display: inline-block; border: 2px solid #091D26; padding: 6px 14px; font-weight: bold; font-size: 12px; text-transform: uppercase; background: #F3EFE6;">
+            CONFIDENTIAL PAYSLIP
           </div>
-          <p style="margin: 8px 0 0 0; font-size: 12px;"><b>Date:</b> ${new Date().toLocaleDateString()}</p>
+          <p style="margin: 8px 0 0 0; font-size: 12px;"><b>Pay Cycle:</b> ${payPeriodStr}</p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;"><b>Date of Issue:</b> ${new Date().toLocaleDateString()}</p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;"><b>Ref:</b> PAY-${staffMember.id.toUpperCase()}</p>
         </div>
       </div>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 20px 0; padding: 12px 16px; border: 1px solid #091D26; border-radius: 4px;">
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 18px 0; padding: 12px 16px; border: 1px solid #091D26; border-radius: 4px; background: #FAF9F5;">
         <div>
-          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Employee</p>
-          <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold;">${staffMember.name}</p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;">Role: <b>${staffMember.role}</b></p>
+          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Employee Information</p>
+          <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold; color: #091D26;">${staffMember.name}</p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;">Designation: <b>${staffMember.role}</b></p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;">Contact: ${staffMember.phone || "N/A"}</p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;">Bank A/C: <b>${staffMember.bankAccount || "Cash Payout / Check"}</b></p>
         </div>
         <div style="text-align: right;">
-          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Status</p>
-          <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold;">${staffMember.type}</p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;">Payout: <b>${staffMember.paid ? "PAID" : "PENDING"}</b></p>
+          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Employment Details</p>
+          <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold; color: #091D26;">${staffMember.type || "Full-Time"}</p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;">EPF / Social Security: <b>REG-${staffMember.id}</b></p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;">Payment Status: <b>${staffMember.paid ? "DISBURSED / PAID" : "PENDING DISBURSEMENT"}</b></p>
         </div>
       </div>
-      <table style="margin: 20px 0; font-size: 12px;">
-        <thead>
-          <tr style="border-bottom: 2px solid #091D26; background: #F3EFE6;">
-            <th style="padding: 10px 8px; text-align: left;">Earnings Component</th>
-            <th style="padding: 10px 8px; text-align: right;">Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr style="border-bottom: 1px solid #ddd;"><td style="padding: 10px 8px;">Base Monthly Salary</td><td style="padding: 10px 8px; text-align: right;">${settings.currency}${base.toFixed(2)}</td></tr>
-          <tr style="border-bottom: 1px solid #ddd;"><td style="padding: 10px 8px;">Allowances (Housing/Meals)</td><td style="padding: 10px 8px; text-align: right;">${settings.currency}${allowances.toFixed(2)}</td></tr>
-          <tr style="border-bottom: 1px solid #ddd;"><td style="padding: 10px 8px;">Service Charge Pool</td><td style="padding: 10px 8px; text-align: right;">${settings.currency}${serviceCharge.toFixed(2)}</td></tr>
-          <tr style="border-bottom: 1px solid #ddd;"><td style="padding: 10px 8px;">Bonus & Incentives</td><td style="padding: 10px 8px; text-align: right;">${settings.currency}${bonus.toFixed(2)}</td></tr>
-        </tbody>
-      </table>
-      <div style="border-top: 2px solid #091D26; padding: 14px 8px; display: flex; justify-content: space-between; align-items: center;">
-        <span style="font-size: 14px; font-weight: bold;">Total Net Remittance:</span>
-        <span style="font-size: 22px; font-weight: 900; color: #0D9488;">${settings.currency}${grossPay.toFixed(2)}</span>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+          <thead>
+            <tr style="border-bottom: 2px solid #091D26; background: #E6DFD3;">
+              <th style="padding: 8px 6px; text-align: left;">Earnings</th>
+              <th style="padding: 8px 6px; text-align: right;">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom: 1px solid #eee;">
+              <td style="padding: 8px 6px;">Basic Salary</td>
+              <td style="padding: 8px 6px; text-align: right;">${settings.currency}${base.toFixed(2)}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #eee;">
+              <td style="padding: 8px 6px;">Fixed Allowances (Housing/Meals)</td>
+              <td style="padding: 8px 6px; text-align: right;">${settings.currency}${allowances.toFixed(2)}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #eee;">
+              <td style="padding: 8px 6px;">Service Charge Pool Share</td>
+              <td style="padding: 8px 6px; text-align: right;">${settings.currency}${serviceCharge.toFixed(2)}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #eee;">
+              <td style="padding: 8px 6px;">Performance / Attendance Bonus</td>
+              <td style="padding: 8px 6px; text-align: right;">${settings.currency}${bonus.toFixed(2)}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #eee;">
+              <td style="padding: 8px 6px;">Overtime / Holiday Pay</td>
+              <td style="padding: 8px 6px; text-align: right;">${settings.currency}${overtime.toFixed(2)}</td>
+            </tr>
+            <tr style="border-top: 2px solid #091D26; font-weight: bold; background: #FAF9F5;">
+              <td style="padding: 8px 6px;">Total Gross Earnings:</td>
+              <td style="padding: 8px 6px; text-align: right;">${settings.currency}${totalEarnings.toFixed(2)}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+          <thead>
+            <tr style="border-bottom: 2px solid #091D26; background: #FFE4E6;">
+              <th style="padding: 8px 6px; text-align: left; color: #9F1239;">Deductions</th>
+              <th style="padding: 8px 6px; text-align: right; color: #9F1239;">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom: 1px solid #eee;">
+              <td style="padding: 8px 6px;">EPF (Employee 8%)</td>
+              <td style="padding: 8px 6px; text-align: right;">${settings.currency}${epfEmployee.toFixed(2)}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #eee;">
+              <td style="padding: 8px 6px;">Tax / PAYE Withholding</td>
+              <td style="padding: 8px 6px; text-align: right;">${settings.currency}${taxWithholding.toFixed(2)}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #eee;">
+              <td style="padding: 8px 6px;">Salary Advance / Cash Loans</td>
+              <td style="padding: 8px 6px; text-align: right;">${settings.currency}${advances.toFixed(2)}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #eee;">
+              <td style="padding: 8px 6px; color: #888;">Other Miscellaneous</td>
+              <td style="padding: 8px 6px; text-align: right; color: #888;">${settings.currency}0.00</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #eee; height: 33px;">
+              <td style="padding: 8px 6px;"></td>
+              <td></td>
+            </tr>
+            <tr style="border-top: 2px solid #091D26; font-weight: bold; background: #FFF1F2; color: #9F1239;">
+              <td style="padding: 8px 6px;">Total Deductions:</td>
+              <td style="padding: 8px 6px; text-align: right;">${settings.currency}${totalDeductions.toFixed(2)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="border: 2px solid #091D26; background: #CCFBF1; padding: 14px 18px; margin: 18px 0; display: flex; justify-content: space-between; align-items: center; border-radius: 4px;">
+        <div>
+          <span style="font-size: 13px; font-weight: bold; text-transform: uppercase; color: #0F766E;">NET TAKE-HOME PAYABLE:</span>
+          <span style="display: block; font-size: 10px; color: #555;">(Gross Earnings - Total Deductions)</span>
+        </div>
+        <span style="font-size: 26px; font-weight: 900; color: #0D9488;">${settings.currency}${netPay.toFixed(2)}</span>
+      </div>
+
+      <div style="background: #F8FAFC; border: 1px dashed #94A3B8; padding: 10px 14px; margin: 16px 0; font-size: 11px; display: flex; justify-content: space-between;">
+        <span><b>Employer Statutory Contributions:</b></span>
+        <span>EPF (12%): <b>${settings.currency}${epfEmployer.toFixed(2)}</b></span>
+        <span>ETF (3%): <b>${settings.currency}${etfEmployer.toFixed(2)}</b></span>
+        <span>Total Company Contribution: <b>${settings.currency}${(epfEmployer + etfEmployer).toFixed(2)}</b></span>
+      </div>
+
+      <div style="margin-top: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; font-size: 11px;">
+        <div>
+          <p style="font-weight: bold; text-transform: uppercase; margin-bottom: 30px;">Employee Signature & Date:</p>
+          <div style="border-bottom: 1px solid #000; width: 85%;"></div>
+        </div>
+        <div style="text-align: right;">
+          <p style="font-weight: bold; text-transform: uppercase; margin-bottom: 30px;">Authorized General Manager / HR:</p>
+          <div style="border-bottom: 1px solid #000; width: 85%; margin-left: auto;"></div>
+        </div>
+      </div>
+
+      <div style="margin-top: 25px; text-align: center; font-size: 10px; color: #64748B; border-top: 1px solid #E2E8F0; padding-top: 8px;">
+        This document is system-generated by ${settings.hotelName} Payroll Operating System.
       </div>
     </div>
   `;
@@ -478,18 +594,16 @@ function buildDailyAttendanceHtml({ settings, staffList, dateStr }) {
 }
 
 // --- 3. DYNAMIC PRICING ENGINE ---
-// Computes active rate according to room tier strategy & occupancy
 function getDynamicRoomRate(room, allRooms = []) {
   if (!room) return 0;
   const baseRate = Number(room.rate) || 18000;
   const weekendRate = Number(room.weekendRate) || Math.round(baseRate * 1.2);
   const peakRate = Number(room.peakRate) || Math.round(baseRate * 1.4);
-  const strategy = room.rateStrategy || "standard"; // 'standard' | 'weekend' | 'peak' | 'auto'
+  const strategy = room.rateStrategy || "standard";
 
   if (strategy === "weekend") return weekendRate;
   if (strategy === "peak") return peakRate;
   if (strategy === "auto") {
-    // Dynamic surge based on live hotel occupancy
     const totalRooms = allRooms.length || 1;
     const occupiedCount = allRooms.filter(r => r.status === "occupied").length;
     const occupancyPercent = (occupiedCount / totalRooms) * 100;
@@ -584,7 +698,6 @@ export default function App() {
     stock: "20" 
   });
   
-  // Dedicated Edit Inventory Modal State
   const [editingInventoryItem, setEditingInventoryItem] = useState(null);
   const [editInventoryForm, setEditInventoryForm] = useState({ 
     name: "", 
@@ -607,6 +720,30 @@ export default function App() {
     allowances: "15000",
     serviceCharge: "35000",
     bonus: "8000",
+    overtimePay: "0",
+    epfDeduction: "6000",
+    taxDeduction: "0",
+    advanceDeduction: "0",
+    bankAccount: "",
+    phone: "",
+  });
+
+  // Dedicated Edit Staff Member Remuneration State
+  const [editingStaffMember, setEditingStaffMember] = useState(null);
+  const [editStaffForm, setEditStaffForm] = useState({
+    name: "",
+    role: "Front Desk",
+    pin: "",
+    type: "Full-Time",
+    baseSalary: "0",
+    allowances: "0",
+    serviceCharge: "0",
+    bonus: "0",
+    overtimePay: "0",
+    epfDeduction: "0",
+    taxDeduction: "0",
+    advanceDeduction: "0",
+    bankAccount: "",
     phone: "",
   });
 
@@ -726,7 +863,6 @@ export default function App() {
 
   // --- REALTIME DATABASE LISTENERS ---
   useEffect(() => {
-    // 1. Settings Listener
     const settingsRef = ref(rtdb, "hotel_config/profile");
     const unsubSettings = onValue(settingsRef, (snapshot) => {
       const data = snapshot.val();
@@ -739,7 +875,6 @@ export default function App() {
       }
     });
 
-    // 2. Rooms Listener with Dynamic Rates Initializer
     const roomsRef = ref(rtdb, "rooms");
     const unsubRooms = onValue(roomsRef, (snapshot) => {
       if (snapshot.exists()) {
@@ -768,7 +903,6 @@ export default function App() {
       }
     });
 
-    // 3. Inventory Listener
     const invRef = ref(rtdb, "inventory");
     const unsubInv = onValue(invRef, (snapshot) => {
       if (!snapshot.exists()) {
@@ -790,7 +924,6 @@ export default function App() {
       }
     });
 
-    // 4. Staff & Compensation Listener
     const staffRef = ref(rtdb, "staff");
     const unsubStaff = onValue(staffRef, (snapshot) => {
       if (!snapshot.exists()) {
@@ -806,6 +939,11 @@ export default function App() {
           allowances: Number(data[k].allowances) || 0,
           serviceCharge: Number(data[k].serviceCharge) || 0,
           bonus: Number(data[k].bonus) || 0,
+          overtimePay: Number(data[k].overtimePay) || 0,
+          epfDeduction: Number(data[k].epfDeduction) || Math.round((Number(data[k].baseSalary) || 65000) * 0.08),
+          taxDeduction: Number(data[k].taxDeduction) || 0,
+          advanceDeduction: Number(data[k].advanceDeduction) || 0,
+          bankAccount: data[k].bankAccount || "",
           paid: Boolean(data[k].paid)
         }));
         setStaff(staffList);
@@ -813,7 +951,6 @@ export default function App() {
       setLoading(false);
     });
 
-    // 5. Daily Attendance History Listener
     const attendanceRef = ref(rtdb, `attendance_history/${selectedDate}`);
     const unsubAttendance = onValue(attendanceRef, (snapshot) => {
       setDailyAttendance(snapshot.val() || {});
@@ -833,9 +970,12 @@ export default function App() {
   const calculateTotal = (room) => room?.orderItems?.reduce((acc, item) => acc + (Number(item.total) || 0), 0) || 0;
   const printTargetRoom = settleOrderRoom || currentRoom;
   const printTargetTotal = calculateTotal(printTargetRoom);
-  const calculateStaffGross = (s) => (Number(s.baseSalary) || 0) + (Number(s.allowances) || 0) + (Number(s.serviceCharge) || 0) + (Number(s.bonus) || 0);
 
-  // --- ACTIONS: DYNAMIC RATES CONFIGURATION ---
+  // Remuneration Calculation Helper (Gross & Net)
+  const calculateStaffGross = (s) => (Number(s.baseSalary) || 0) + (Number(s.allowances) || 0) + (Number(s.serviceCharge) || 0) + (Number(s.bonus) || 0) + (Number(s.overtimePay) || 0);
+  const calculateStaffDeductions = (s) => (Number(s.epfDeduction) || Math.round((Number(s.baseSalary) || 0) * 0.08)) + (Number(s.taxDeduction) || 0) + (Number(s.advanceDeduction) || 0);
+
+  // Dynamic Room Rates Management
   const handleStartEditDynamicRoom = (room) => {
     setEditingDynamicRoom(room);
     setEditRoomForm({
@@ -872,7 +1012,53 @@ export default function App() {
     update(ref(rtdb, `rooms/${room.id}`), { rateStrategy: nextStrategy });
   };
 
-  // --- ACTIONS: INVENTORY CREATE, EDIT, DELETE & STOCK ---
+  // Staff Remuneration Editor
+  const handleStartEditStaff = (member) => {
+    setEditingStaffMember(member);
+    setEditStaffForm({
+      name: member.name || "",
+      role: member.role || "Front Desk",
+      pin: member.pin || "1234",
+      type: member.type || "Full-Time",
+      baseSalary: String(member.baseSalary || 0),
+      allowances: String(member.allowances || 0),
+      serviceCharge: String(member.serviceCharge || 0),
+      bonus: String(member.bonus || 0),
+      overtimePay: String(member.overtimePay || 0),
+      epfDeduction: String(member.epfDeduction || Math.round((Number(member.baseSalary) || 0) * 0.08)),
+      taxDeduction: String(member.taxDeduction || 0),
+      advanceDeduction: String(member.advanceDeduction || 0),
+      bankAccount: member.bankAccount || "",
+      phone: member.phone || "",
+    });
+  };
+
+  const handleSaveStaffEdit = (e) => {
+    e.preventDefault();
+    if (!editingStaffMember) return;
+
+    const updated = {
+      name: editStaffForm.name.trim(),
+      role: editStaffForm.role,
+      pin: editStaffForm.pin,
+      type: editStaffForm.type,
+      baseSalary: parseFloat(editStaffForm.baseSalary) || 0,
+      allowances: parseFloat(editStaffForm.allowances) || 0,
+      serviceCharge: parseFloat(editStaffForm.serviceCharge) || 0,
+      bonus: parseFloat(editStaffForm.bonus) || 0,
+      overtimePay: parseFloat(editStaffForm.overtimePay) || 0,
+      epfDeduction: parseFloat(editStaffForm.epfDeduction) || 0,
+      taxDeduction: parseFloat(editStaffForm.taxDeduction) || 0,
+      advanceDeduction: parseFloat(editStaffForm.advanceDeduction) || 0,
+      bankAccount: editStaffForm.bankAccount,
+      phone: editStaffForm.phone,
+    };
+
+    update(ref(rtdb, `staff/${editingStaffMember.id}`), updated);
+    setEditingStaffMember(null);
+  };
+
+  // Inventory Management
   const handleCreateInventoryItem = (e) => {
     e.preventDefault();
     if (!newInventoryForm.name.trim()) return;
@@ -963,7 +1149,7 @@ export default function App() {
     if (item.stock > 0) handleUpdateStockLevel(item.id, -1);
   };
 
-  // --- ACTIONS: SETTINGS & BACKUP ---
+  // Settings & Database Backup
   const handleSaveAllSettings = () => {
     set(ref(rtdb, "hotel_config/profile"), settingsForm);
     setSaveSuccessMsg("Settings Saved Successfully! ✓");
@@ -1017,7 +1203,7 @@ export default function App() {
     }
   };
 
-  // Attendance Clock In / Out
+  // Time-Clock
   const formatTimeNow = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   const handleClockIn = (staffMember) => {
@@ -1098,7 +1284,7 @@ export default function App() {
   };
 
   const handlePrintPayslip = (staffMember) => {
-    const html = buildPayslipHtml({ settings, staffMember });
+    const html = buildPayslipHtml({ settings, staffMember, payPeriodStr: `${selectedDate.slice(0, 7)} Monthly Cycle` });
     printIsolatedDocument(html, "a4");
   };
 
@@ -1120,16 +1306,22 @@ export default function App() {
     e.preventDefault();
     if (!newStaffForm.name.trim()) return;
     const staffId = `stf_${Date.now()}`;
+    const base = parseFloat(newStaffForm.baseSalary) || 0;
     const newStaff = {
       id: staffId,
       name: newStaffForm.name.trim(),
       role: newStaffForm.role || "Front Desk",
       pin: newStaffForm.pin || "0000",
       type: newStaffForm.type || "Full-Time",
-      baseSalary: parseFloat(newStaffForm.baseSalary) || 0,
+      baseSalary: base,
       allowances: parseFloat(newStaffForm.allowances) || 0,
       serviceCharge: parseFloat(newStaffForm.serviceCharge) || 0,
       bonus: parseFloat(newStaffForm.bonus) || 0,
+      overtimePay: parseFloat(newStaffForm.overtimePay) || 0,
+      epfDeduction: parseFloat(newStaffForm.epfDeduction) || Math.round(base * 0.08),
+      taxDeduction: parseFloat(newStaffForm.taxDeduction) || 0,
+      advanceDeduction: parseFloat(newStaffForm.advanceDeduction) || 0,
+      bankAccount: newStaffForm.bankAccount || "",
       paid: false,
       phone: newStaffForm.phone || "",
     };
@@ -1145,9 +1337,10 @@ export default function App() {
   };
 
   const handleDeleteStaff = (member) => {
-    if (!window.confirm(`Permanently remove ${member.name}?`)) return;
-    setStaff((prev) => prev.filter((s) => s.id !== member.id));
-    remove(ref(rtdb, `staff/${member.id}`));
+    if (window.confirm(`Permanently remove ${member.name}?`)) {
+      setStaff((prev) => prev.filter((s) => s.id !== member.id));
+      remove(ref(rtdb, `staff/${member.id}`));
+    }
   };
 
   const updateRoomStatus = (roomId, status) => {
@@ -1164,8 +1357,6 @@ export default function App() {
     const now = new Date();
     const orderId = `ORD-${checkInModalRoom.number}-${Date.now().toString().slice(-4)}`;
     const itemId = `itm_${Date.now()}`;
-    
-    // Choose custom rate if entered, otherwise use dynamic rate
     const dynamicRate = parseFloat(guestForm.customRate) || getDynamicRoomRate(checkInModalRoom, rooms);
 
     const initialOrderItem = {
@@ -1277,11 +1468,8 @@ export default function App() {
   });
 
   const totalPayrollGross = staff.reduce((acc, s) => acc + calculateStaffGross(s), 0);
+  const totalPayrollNet = staff.reduce((acc, s) => acc + Math.max(0, calculateStaffGross(s) - calculateStaffDeductions(s)), 0);
   const totalServiceCharges = staff.reduce((acc, s) => acc + (Number(s.serviceCharge) || 0), 0);
-  const onDutyCount = staff.filter((s) => {
-    const record = dailyAttendance[s.id];
-    return record && record.isOnDuty;
-  }).length;
 
   const parsedTendered = parseFloat(cashTendered) || 0;
   const changeDue = Math.max(0, parsedTendered - printTargetTotal);
@@ -1452,7 +1640,6 @@ export default function App() {
               </div>
             </div>
           )}
-
         </div>
       </div>
     );
@@ -1495,7 +1682,7 @@ export default function App() {
             { id: "active-orders", label: "Active Bills & Tabs", icon: Receipt },
             { id: "inventory", label: "Stock & Minibar", icon: Boxes },
             { id: "room-admin", label: "Room Management", icon: SlidersHorizontal },
-            { id: "staff", label: "Staff & Attendance", icon: Users },
+            { id: "staff", label: "Staff & Payroll", icon: Users },
             { id: "settings", label: "Hotel Settings", icon: Settings },
           ].map(({ id, label, icon: Icon }) => {
             if (!canAccessTab(id)) return null;
@@ -1534,9 +1721,7 @@ export default function App() {
         </header>
 
         <main className="no-print flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
-          {/* =========================================================
-              TAB 1: FRONT DESK WITH LIVE DYNAMIC RATES
-              ========================================================= */}
+          {/* TAB 1: FRONT DESK WITH LIVE DYNAMIC RATES */}
           {activeTab === "frontdesk" && (
             <div className="max-w-7xl mx-auto space-y-6 pb-12">
               <div className="bg-gradient-to-r from-[#091D26] via-[#0F2D3C] to-[#0A3042] rounded-3xl p-6 sm:p-8 text-white shadow-xl border border-white/10 relative overflow-hidden">
@@ -1678,7 +1863,6 @@ export default function App() {
                             {room.type}
                           </p>
                           
-                          {/* Live Dynamic Rate Display with Pricing Tier Badge */}
                           <div className="flex items-center gap-2 mt-1">
                             <span className="text-sm font-black text-slate-800">
                               {settings.currency}{Number(activeDynamicRate).toLocaleString()}
@@ -1750,7 +1934,6 @@ export default function App() {
                           )}
                         </div>
 
-                        {/* Interactive Action Bar with Direct Settle Button */}
                         <div className="p-4 pt-0">
                           {isAvailable && (
                             <button
@@ -1902,7 +2085,6 @@ export default function App() {
                 )}
               </div>
 
-              {/* Table with Cost, Selling Price, Edit & Delete */}
               <div className="bg-white rounded-3xl border border-[#E6DFD3] overflow-hidden shadow-sm">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-[#F3EFE6] uppercase font-semibold text-slate-500 border-b border-[#E6DFD3]">
@@ -1990,9 +2172,7 @@ export default function App() {
             </div>
           )}
 
-          {/* =========================================================
-              TAB 4: ROOM MANAGEMENT (DYNAMIC RATES CONFIGURATION)
-              ========================================================= */}
+          {/* TAB 4: ROOM MANAGEMENT (DYNAMIC RATES CONFIGURATION) */}
           {activeTab === "room-admin" && isManager && (
             <div className="max-w-7xl mx-auto space-y-6">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -2013,7 +2193,6 @@ export default function App() {
                 </button>
               </div>
 
-              {/* Dynamic Rates Table */}
               <div className="bg-white rounded-3xl border border-[#E6DFD3] shadow-sm overflow-hidden">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-[#F3EFE6] border-b border-[#E6DFD3] uppercase font-semibold text-slate-500">
@@ -2036,8 +2215,6 @@ export default function App() {
                         <tr key={room.id} className="hover:bg-[#FAF9F5] transition-colors">
                           <td className="p-3.5 font-black text-base text-[#091D26]">#{room.number}</td>
                           <td className="p-3.5 font-medium text-slate-700">{room.type}</td>
-                          
-                          {/* Rate Tiers */}
                           <td className="p-3.5 text-right font-medium text-slate-600">
                             {settings.currency}{Number(room.rate).toLocaleString()}
                           </td>
@@ -2048,7 +2225,6 @@ export default function App() {
                             {settings.currency}{Number(room.peakRate || Math.round(room.rate * 1.4)).toLocaleString()}
                           </td>
 
-                          {/* Rate Strategy Selector */}
                           <td className="p-3.5 text-center">
                             <select
                               value={room.rateStrategy || "standard"}
@@ -2062,12 +2238,10 @@ export default function App() {
                             </select>
                           </td>
 
-                          {/* Calculated Live Rate */}
                           <td className="p-3.5 text-center font-black text-sm text-[#0D9488]">
                             {settings.currency}{Number(currentLiveRate).toLocaleString()}
                           </td>
 
-                          {/* Actions */}
                           <td className="p-3.5 text-center">
                             <div className="inline-flex items-center gap-1.5">
                               <button
@@ -2097,16 +2271,22 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 5: STAFF & ATTENDANCE */}
+          {/* =========================================================
+              TAB 5: COMPREHENSIVE PAYROLL, ROSTER & ATTENDANCE
+              ========================================================= */}
           {activeTab === "staff" && canAccessTab("staff") && (
-            <div className="max-w-7xl mx-auto space-y-6">
+            <div className="max-w-7xl mx-auto space-y-6 pb-16">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                  <h2 className="text-2xl font-bold">Daily Staff Attendance & Payroll</h2>
-                  <p className="text-sm text-slate-500">Attendance history is archived daily into cloud storage</p>
+                  <h2 className="text-2xl font-bold flex items-center gap-2">
+                    <Users className="w-6 h-6 text-[#14B8A6]" /> Staff, Attendance & Comprehensive Payroll
+                  </h2>
+                  <p className="text-sm text-slate-500">
+                    Manage monthly gross remuneration, deductions, taxes, daily shifts, and generate official A4 payslips.
+                  </p>
                 </div>
-                <div className="flex gap-2 items-center">
-                  <span className="text-xs font-semibold text-slate-500">Pick Date:</span>
+                <div className="flex flex-wrap gap-2 items-center">
+                  <span className="text-xs font-semibold text-slate-500">Date:</span>
                   <input
                     type="date"
                     value={selectedDate}
@@ -2116,51 +2296,88 @@ export default function App() {
                   <button
                     type="button"
                     onClick={handlePrintDailyAttendance}
-                    className="inline-flex items-center gap-2 bg-[#0F2D3C] text-white px-3 py-1.5 rounded-lg text-xs font-bold"
+                    className="inline-flex items-center gap-2 bg-[#0F2D3C] hover:bg-[#091D26] text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-sm"
                   >
-                    <FileSpreadsheet className="w-3.5 h-3.5 text-[#2DD4BF]" /> Print Attendance
+                    <FileSpreadsheet className="w-4 h-4 text-[#2DD4BF]" /> Attendance Log
                   </button>
                   {isManager && (
                     <button
                       type="button"
                       onClick={() => setShowAddStaffModal(true)}
-                      className="inline-flex items-center gap-2 bg-[#14B8A6] text-white px-3 py-1.5 rounded-lg text-xs font-bold"
+                      className="inline-flex items-center gap-2 bg-[#14B8A6] hover:bg-[#0D9488] text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-sm"
                     >
-                      <UserPlus className="w-3.5 h-3.5" /> Add Staff
+                      <UserPlus className="w-4 h-4" /> Add Employee
                     </button>
                   )}
                 </div>
               </div>
 
-              {/* View Switcher */}
-              <div className="flex bg-[#F3EFE6] p-1 rounded-lg border border-[#E6DFD3] w-fit">
-                <button
-                  type="button"
-                  onClick={() => setStaffViewSubTab("attendance")}
-                  className={`px-4 py-1.5 rounded-md text-xs font-bold flex items-center gap-1.5 transition-all ${
-                    staffViewSubTab === "attendance" ? "bg-[#0F2D3C] text-white shadow-sm" : "text-slate-600 hover:text-black"
-                  }`}
-                >
-                  <Clock className="w-3.5 h-3.5 text-[#2DD4BF]" /> Daily In/Out Attendance
-                </button>
-                {isManager && (
-                  <button
-                    type="button"
-                    onClick={() => setStaffViewSubTab("roster")}
-                    className={`px-4 py-1.5 rounded-md text-xs font-bold flex items-center gap-1.5 transition-all ${
-                      staffViewSubTab === "roster" ? "bg-[#0F2D3C] text-white shadow-sm" : "text-slate-600 hover:text-black"
-                    }`}
-                  >
-                    <Coins className="w-3.5 h-3.5 text-[#2DD4BF]" /> Salary, Allowances & Bonuses
-                  </button>
-                )}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="bg-white border border-[#E6DFD3] rounded-3xl p-4 shadow-sm">
+                  <p className="text-[11px] font-bold uppercase text-slate-400">Total Headcount</p>
+                  <p className="text-2xl font-black text-[#091D26] mt-1">{staff.length} Active</p>
+                </div>
+                <div className="bg-white border border-[#E6DFD3] rounded-3xl p-4 shadow-sm">
+                  <p className="text-[11px] font-bold uppercase text-[#0D9488]">Net Payable Payroll</p>
+                  <p className="text-2xl font-black text-[#0D9488] mt-1">
+                    {settings.currency}{totalPayrollNet.toLocaleString()}
+                  </p>
+                </div>
+                <div className="bg-white border border-[#E6DFD3] rounded-3xl p-4 shadow-sm">
+                  <p className="text-[11px] font-bold uppercase text-amber-700">Total Service Charge Pool</p>
+                  <p className="text-2xl font-black text-amber-700 mt-1">
+                    {settings.currency}{totalServiceCharges.toLocaleString()}
+                  </p>
+                </div>
+                <div className="bg-white border border-[#E6DFD3] rounded-3xl p-4 shadow-sm">
+                  <p className="text-[11px] font-bold uppercase text-rose-600">Pending Wage Payouts</p>
+                  <p className="text-2xl font-black text-rose-600 mt-1">
+                    {staff.filter((s) => !s.paid).length} Employees
+                  </p>
+                </div>
               </div>
 
-              {/* ATTENDANCE SHEET */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div className="flex bg-[#F3EFE6] p-1 rounded-2xl border border-[#E6DFD3] w-fit">
+                  <button
+                    type="button"
+                    onClick={() => setStaffViewSubTab("attendance")}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${
+                      staffViewSubTab === "attendance" ? "bg-[#0F2D3C] text-white shadow-sm" : "text-slate-600 hover:text-black"
+                    }`}
+                  >
+                    <Clock className="w-3.5 h-3.5 text-[#2DD4BF]" /> Daily In/Out Attendance
+                  </button>
+                  {isManager && (
+                    <button
+                      type="button"
+                      onClick={() => setStaffViewSubTab("roster")}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${
+                        staffViewSubTab === "roster" ? "bg-[#0F2D3C] text-white shadow-sm" : "text-slate-600 hover:text-black"
+                      }`}
+                    >
+                      <Coins className="w-3.5 h-3.5 text-[#2DD4BF]" /> Payroll & Payslips
+                    </button>
+                  )}
+                </div>
+
+                <div className="relative w-full sm:w-72">
+                  <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search staff by name or role..."
+                    value={staffSearchQuery}
+                    onChange={(e) => setStaffSearchQuery(e.target.value)}
+                    className="w-full bg-white border border-[#E6DFD3] rounded-xl pl-9 pr-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
+                  />
+                </div>
+              </div>
+
+              {/* ATTENDANCE SHEET VIEW */}
               {staffViewSubTab === "attendance" && (
-                <div className="bg-white rounded-xl border border-[#E6DFD3] overflow-hidden">
+                <div className="bg-white rounded-3xl border border-[#E6DFD3] overflow-hidden shadow-sm">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-[#F3EFE6] uppercase font-semibold text-slate-500">
+                    <thead className="bg-[#F3EFE6] uppercase font-semibold text-slate-500 border-b border-[#E6DFD3]">
                       <tr>
                         <th className="p-3.5">Employee Name</th>
                         <th className="p-3.5">Role</th>
@@ -2171,7 +2388,7 @@ export default function App() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#F3EFE6]">
-                      {staff.map((m) => {
+                      {filteredStaff.map((m) => {
                         const record = dailyAttendance[m.id] || {};
                         const isClockedIn = record.isOnDuty;
 
@@ -2193,7 +2410,7 @@ export default function App() {
                                 <button
                                   type="button"
                                   onClick={() => handleClockIn(m)}
-                                  className="px-3 py-1 bg-[#0D9488] text-white rounded text-xs font-bold"
+                                  className="px-3 py-1 bg-[#0D9488] hover:bg-[#0F766E] text-white rounded-lg text-xs font-bold"
                                 >
                                   Clock In
                                 </button>
@@ -2201,7 +2418,7 @@ export default function App() {
                                 <button
                                   type="button"
                                   onClick={() => handleClockOut(m)}
-                                  className="px-3 py-1 bg-coral-500 text-white rounded text-xs font-bold"
+                                  className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold"
                                 >
                                   Clock Out
                                 </button>
@@ -2215,58 +2432,118 @@ export default function App() {
                 </div>
               )}
 
-              {/* SALARY VIEW */}
+              {/* PAYROLL & STATUTORY DEDUCTIONS VIEW */}
               {staffViewSubTab === "roster" && isManager && (
-                <div className="bg-white rounded-xl border border-[#E6DFD3] shadow-sm overflow-hidden">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-[#F3EFE6] border-b border-[#E6DFD3] uppercase font-semibold text-slate-500">
-                      <tr>
-                        <th className="p-3.5">Staff & Role</th>
-                        <th className="p-3.5 text-right">Base Monthly</th>
-                        <th className="p-3.5 text-right">Allowances</th>
-                        <th className="p-3.5 text-right">Service Charge</th>
-                        <th className="p-3.5 text-right">Bonus</th>
-                        <th className="p-3.5 text-right">Total Gross</th>
-                        <th className="p-3.5 text-center">Status</th>
-                        <th className="p-3.5 text-center">Slip</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#F3EFE6]">
-                      {filteredStaff.map((member) => (
-                        <tr key={member.id}>
-                          <td className="p-3.5 font-bold text-[#091D26]">
-                            {member.name}
-                            <div className="text-[10px] text-slate-400 font-mono">{member.role}</div>
-                          </td>
-                          <td className="p-3.5 text-right">{settings.currency}{Number(member.baseSalary).toFixed(2)}</td>
-                          <td className="p-3.5 text-right">{settings.currency}{Number(member.allowances).toFixed(2)}</td>
-                          <td className="p-3.5 text-right">{settings.currency}{Number(member.serviceCharge).toFixed(2)}</td>
-                          <td className="p-3.5 text-right">{settings.currency}{Number(member.bonus).toFixed(2)}</td>
-                          <td className="p-3.5 text-right font-black text-[#0D9488]">{settings.currency}{calculateStaffGross(member).toFixed(2)}</td>
-                          <td className="p-3.5 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handleToggleStaffPayout(member.id, member.paid)}
-                              className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                                member.paid ? "bg-[#CCFBF1] text-[#0F766E]" : "bg-[#FFE4E6] text-[#F43F5E]"
-                              }`}
-                            >
-                              {member.paid ? "Paid" : "Pending"}
-                            </button>
-                          </td>
-                          <td className="p-3.5 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handlePrintPayslip(member)}
-                              className="p-1 bg-[#0F2D3C] text-white rounded text-xs"
-                            >
-                              Slip
-                            </button>
-                          </td>
+                <div className="bg-white rounded-3xl border border-[#E6DFD3] shadow-sm overflow-hidden">
+                  <div className="p-4 border-b border-[#F3EFE6] flex justify-between items-center bg-[#FAF9F5]">
+                    <div>
+                      <h3 className="font-bold text-sm text-[#091D26]">Monthly Staff Payroll & Statutory Records</h3>
+                      <p className="text-[11px] text-slate-500">Gross Remuneration, EPF Deductions, Taxes, and Net Payable</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm("Disburse and mark all staff as paid for this cycle?")) {
+                          staff.forEach((s) => update(ref(rtdb, `staff/${s.id}`), { paid: true }));
+                        }
+                      }}
+                      className="px-3.5 py-1.5 bg-[#0D9488] text-white rounded-xl text-xs font-bold hover:bg-[#0F766E]"
+                    >
+                      Disburse All Pending
+                    </button>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-[#F3EFE6] border-b border-[#E6DFD3] uppercase font-semibold text-slate-500">
+                        <tr>
+                          <th className="p-3.5">Staff & Details</th>
+                          <th className="p-3.5 text-right">Basic Pay</th>
+                          <th className="p-3.5 text-right">Allowances</th>
+                          <th className="p-3.5 text-right">Service Pool</th>
+                          <th className="p-3.5 text-right">Gross Total</th>
+                          <th className="p-3.5 text-right text-rose-700">Deductions (EPF/Tax)</th>
+                          <th className="p-3.5 text-right text-emerald-700">Net Take-Home</th>
+                          <th className="p-3.5 text-center">Payout</th>
+                          <th className="p-3.5 text-center">Payslip</th>
+                          <th className="p-3.5 text-center">Edit</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-[#F3EFE6]">
+                        {filteredStaff.map((member) => {
+                          const gross = calculateStaffGross(member);
+                          const deductions = calculateStaffDeductions(member);
+                          const netPay = Math.max(0, gross - deductions);
+
+                          return (
+                            <tr key={member.id} className="hover:bg-[#FAF9F5] transition-colors">
+                              <td className="p-3.5 font-bold text-[#091D26]">
+                                <div>{member.name}</div>
+                                <div className="text-[10px] text-[#0F766E] font-medium">{member.role} ({member.type})</div>
+                                <div className="text-[9px] text-slate-400 font-mono">PIN: ****{member.pin.slice(-2)}</div>
+                              </td>
+
+                              <td className="p-3.5 text-right font-medium">
+                                {settings.currency}{Number(member.baseSalary || 0).toLocaleString()}
+                              </td>
+
+                              <td className="p-3.5 text-right font-medium">
+                                {settings.currency}{Number(member.allowances || 0).toLocaleString()}
+                              </td>
+
+                              <td className="p-3.5 text-right font-medium">
+                                {settings.currency}{Number(member.serviceCharge || 0).toLocaleString()}
+                              </td>
+
+                              <td className="p-3.5 text-right font-bold text-[#091D26]">
+                                {settings.currency}{gross.toLocaleString()}
+                              </td>
+
+                              <td className="p-3.5 text-right font-semibold text-rose-600">
+                                -{settings.currency}{deductions.toLocaleString()}
+                              </td>
+
+                              <td className="p-3.5 text-right font-black text-sm text-[#0D9488]">
+                                {settings.currency}{netPay.toLocaleString()}
+                              </td>
+
+                              <td className="p-3.5 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleStaffPayout(member.id, member.paid)}
+                                  className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                                    member.paid ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-700"
+                                  }`}
+                                >
+                                  {member.paid ? "Paid" : "Pending"}
+                                </button>
+                              </td>
+
+                              <td className="p-3.5 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handlePrintPayslip(member)}
+                                  className="px-2.5 py-1 bg-[#0F2D3C] hover:bg-[#091D26] text-white rounded-lg text-xs font-bold inline-flex items-center gap-1"
+                                >
+                                  <Printer className="w-3.5 h-3.5 text-[#2DD4BF]" /> Slip
+                                </button>
+                              </td>
+
+                              <td className="p-3.5 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartEditStaff(member)}
+                                  className="p-1.5 text-slate-400 hover:text-[#0D9488] rounded hover:bg-slate-100"
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
             </div>
@@ -2353,7 +2630,7 @@ export default function App() {
         </main>
       </div>
 
-      {/* MODAL: CHECK-IN WITH DYNAMIC NIGHTLY RATE OVERRIDE */}
+      {/* MODAL: CHECK-IN WITH CAMERA */}
       {checkInModalRoom && (
         <div className="fixed inset-0 bg-[#06151E]/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-[#E6DFD3] my-8">
@@ -2441,7 +2718,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Dynamic Nightly Rate Selection & Override */}
               <div className="bg-[#FAF9F5] p-3 rounded-xl border border-[#E6DFD3] space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="font-bold text-[11px] text-slate-700">Nightly Rate Applied:</span>
@@ -2459,7 +2735,6 @@ export default function App() {
                     className="w-full border rounded-lg p-2 font-bold text-sm bg-white"
                   />
                 </div>
-                <span className="text-[10px] text-slate-400">Calculated automatically via active rate strategy. Staff can modify if required.</span>
               </div>
 
               <button type="submit" className="w-full bg-[#14B8A6] hover:bg-[#0D9488] text-white font-bold py-3 rounded-xl shadow">
@@ -2567,7 +2842,176 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: EDIT DYNAMIC ROOM RATES (NEW) */}
+      {/* MODAL: EDIT STAFF MEMBER & REMUNERATION ARCHITECTURE */}
+      {editingStaffMember && isManager && (
+        <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border my-8">
+            <div className="flex justify-between items-center mb-4 pb-2 border-b">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-[#0F766E]">Remuneration & Deductions Setup</span>
+                <h3 className="font-bold text-lg text-[#091D26]">Edit Payroll: {editingStaffMember.name}</h3>
+              </div>
+              <button type="button" onClick={() => setEditingStaffMember(null)} className="text-slate-400">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveStaffEdit} className="space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1">Employee Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={editStaffForm.name}
+                    onChange={(e) => setEditStaffForm({ ...editStaffForm, name: e.target.value })}
+                    className="w-full border rounded-xl p-2.5"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Role / Designation</label>
+                  <select
+                    value={editStaffForm.role}
+                    onChange={(e) => setEditStaffForm({ ...editStaffForm, role: e.target.value })}
+                    className="w-full border rounded-xl p-2.5 bg-white font-semibold"
+                  >
+                    <option value="General Manager">General Manager</option>
+                    <option value="Front Desk Supervisor">Front Desk Supervisor</option>
+                    <option value="Front Desk Agent">Front Desk Agent</option>
+                    <option value="Housekeeping Lead">Housekeeping Lead</option>
+                    <option value="Housekeeping Staff">Housekeeping Staff</option>
+                    <option value="Maintenance Technician">Maintenance Technician</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Earnings Breakdown */}
+              <div className="bg-[#FAF9F5] p-3.5 rounded-2xl border space-y-2">
+                <span className="font-bold text-[11px] uppercase text-[#0D9488] block">Gross Earnings ({settings.currency})</span>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-semibold mb-1">Basic Salary</label>
+                    <input
+                      type="number"
+                      value={editStaffForm.baseSalary}
+                      onChange={(e) => setEditStaffForm({ ...editStaffForm, baseSalary: e.target.value })}
+                      className="w-full border rounded-lg p-2 font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold mb-1">Allowances</label>
+                    <input
+                      type="number"
+                      value={editStaffForm.allowances}
+                      onChange={(e) => setEditStaffForm({ ...editStaffForm, allowances: e.target.value })}
+                      className="w-full border rounded-lg p-2 font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold mb-1">Service Pool</label>
+                    <input
+                      type="number"
+                      value={editStaffForm.serviceCharge}
+                      onChange={(e) => setEditStaffForm({ ...editStaffForm, serviceCharge: e.target.value })}
+                      className="w-full border rounded-lg p-2 font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold mb-1">Bonus</label>
+                    <input
+                      type="number"
+                      value={editStaffForm.bonus}
+                      onChange={(e) => setEditStaffForm({ ...editStaffForm, bonus: e.target.value })}
+                      className="w-full border rounded-lg p-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold mb-1">Overtime Pay</label>
+                    <input
+                      type="number"
+                      value={editStaffForm.overtimePay}
+                      onChange={(e) => setEditStaffForm({ ...editStaffForm, overtimePay: e.target.value })}
+                      className="w-full border rounded-lg p-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold mb-1">Terminal PIN</label>
+                    <input
+                      type="text"
+                      value={editStaffForm.pin}
+                      onChange={(e) => setEditStaffForm({ ...editStaffForm, pin: e.target.value })}
+                      className="w-full border rounded-lg p-2 font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Deductions Breakdown */}
+              <div className="bg-rose-50/60 p-3.5 rounded-2xl border border-rose-200 space-y-2">
+                <span className="font-bold text-[11px] uppercase text-rose-700 block">Deductions & Taxes ({settings.currency})</span>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-semibold mb-1">EPF (Employee 8%)</label>
+                    <input
+                      type="number"
+                      value={editStaffForm.epfDeduction}
+                      onChange={(e) => setEditStaffForm({ ...editStaffForm, epfDeduction: e.target.value })}
+                      className="w-full border border-rose-200 rounded-lg p-2 font-bold text-rose-700 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold mb-1">Tax / PAYE</label>
+                    <input
+                      type="number"
+                      value={editStaffForm.taxDeduction}
+                      onChange={(e) => setEditStaffForm({ ...editStaffForm, taxDeduction: e.target.value })}
+                      className="w-full border border-rose-200 rounded-lg p-2 font-bold text-rose-700 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold mb-1">Advance / Loans</label>
+                    <input
+                      type="number"
+                      value={editStaffForm.advanceDeduction}
+                      onChange={(e) => setEditStaffForm({ ...editStaffForm, advanceDeduction: e.target.value })}
+                      className="w-full border border-rose-200 rounded-lg p-2 font-bold text-rose-700 bg-white"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1">Bank Account / Transfer Details</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Commercial Bank - 8009234123"
+                  value={editStaffForm.bankAccount}
+                  onChange={(e) => setEditStaffForm({ ...editStaffForm, bankAccount: e.target.value })}
+                  className="w-full border rounded-xl p-2.5 font-mono"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingStaffMember(null)}
+                  className="flex-1 bg-slate-100 py-3 rounded-xl font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-[#0D9488] hover:bg-[#0F766E] text-white py-3 rounded-xl font-bold"
+                >
+                  Save Remuneration Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EDIT DYNAMIC ROOM RATES */}
       {editingDynamicRoom && isManager && (
         <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border">
