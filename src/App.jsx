@@ -53,7 +53,10 @@ import {
   VolumeX,
   RefreshCw,
   Sparkles,
-  Tag
+  Tag,
+  TrendingUp,
+  Percent,
+  CalendarCheck
 } from "lucide-react";
 
 // --- 1. FIREBASE CONFIGURATION (REALTIME DATABASE) ---
@@ -71,7 +74,6 @@ const firebaseConfig = {
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const rtdb = getDatabase(app);
 
-// Comprehensive settings schema matching your settings dashboard
 const DEFAULT_SETTINGS = {
   hotelName: "Linoli Cove Midigama",
   tagline: "RESTAURANT & BAR",
@@ -283,7 +285,7 @@ function buildThermalHtml({ settings, room, isTemporary, settlementMethod, total
             <span>${settings.currency}${Number(cashTendered).toFixed(2)}</span>
           </div>
           <div style="display: flex; justify-content: space-between; font-weight: bold; margin-top: 2px; font-size: 12px; border-top: 1px dotted #000; padding-top: 3px;">
-            <span>CHANGE DUE / RETURNED:</span>
+            <span>CHANGE RETURNED:</span>
             <span>${settings.currency}${Number(changeDue).toFixed(2)}</span>
           </div>
         ` : ""}
@@ -351,6 +353,7 @@ function buildA4Html({ settings, room, isTemporary, settlementMethod, total, cas
         </tbody>
       </table>
 
+      <!-- Financial Totals Section -->
       <div style="border-top: 2px solid #091D26; border-bottom: 2px solid #091D26; padding: 12px 4px; margin: 24px 0;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <span style="font-size: 14px; font-weight: bold;">Total Bill Amount:</span>
@@ -375,6 +378,62 @@ function buildA4Html({ settings, room, isTemporary, settlementMethod, total, cas
 
       <div style="margin-top: 50px; text-align: center; font-size: 11px; border-top: 1px solid #ddd; padding-top: 12px;">
         <p style="margin: 0; font-weight: 500;">${settings.footerNote}</p>
+      </div>
+    </div>
+  `;
+}
+
+// Built-in Official A4 Payslip Generator
+function buildPayslipHtml({ settings, staffMember }) {
+  const base = Number(staffMember.baseSalary) || 0;
+  const allowances = Number(staffMember.allowances) || 0;
+  const serviceCharge = Number(staffMember.serviceCharge) || 0;
+  const bonus = Number(staffMember.bonus) || 0;
+  const grossPay = base + allowances + serviceCharge + bonus;
+
+  return `
+    <div class="a4-container">
+      <div style="border-bottom: 3px double #091D26; padding-bottom: 16px; display: flex; justify-content: space-between;">
+        <div>
+          <h1 style="font-size: 24px; font-weight: 900; text-transform: uppercase; margin: 0; color: #091D26;">${settings.hotelName}</h1>
+          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; color: #555;">Monthly Remuneration Statement</p>
+        </div>
+        <div style="text-align: right;">
+          <div style="display: inline-block; border: 2px solid #091D26; padding: 6px 14px; font-weight: bold; font-size: 12px;">
+            OFFICIAL PAYSLIP
+          </div>
+          <p style="margin: 8px 0 0 0; font-size: 12px;"><b>Date:</b> ${new Date().toLocaleDateString()}</p>
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 20px 0; padding: 12px 16px; border: 1px solid #091D26; border-radius: 4px;">
+        <div>
+          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Employee</p>
+          <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold;">${staffMember.name}</p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;">Role: <b>${staffMember.role}</b></p>
+        </div>
+        <div style="text-align: right;">
+          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Status</p>
+          <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold;">${staffMember.type}</p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;">Payout: <b>${staffMember.paid ? "PAID" : "PENDING"}</b></p>
+        </div>
+      </div>
+      <table style="margin: 20px 0; font-size: 12px;">
+        <thead>
+          <tr style="border-bottom: 2px solid #091D26; background: #F3EFE6;">
+            <th style="padding: 10px 8px; text-align: left;">Earnings Component</th>
+            <th style="padding: 10px 8px; text-align: right;">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom: 1px solid #ddd;"><td style="padding: 10px 8px;">Base Monthly Salary</td><td style="padding: 10px 8px; text-align: right;">${settings.currency}${base.toFixed(2)}</td></tr>
+          <tr style="border-bottom: 1px solid #ddd;"><td style="padding: 10px 8px;">Allowances (Housing/Meals)</td><td style="padding: 10px 8px; text-align: right;">${settings.currency}${allowances.toFixed(2)}</td></tr>
+          <tr style="border-bottom: 1px solid #ddd;"><td style="padding: 10px 8px;">Service Charge Pool</td><td style="padding: 10px 8px; text-align: right;">${settings.currency}${serviceCharge.toFixed(2)}</td></tr>
+          <tr style="border-bottom: 1px solid #ddd;"><td style="padding: 10px 8px;">Bonus & Incentives</td><td style="padding: 10px 8px; text-align: right;">${settings.currency}${bonus.toFixed(2)}</td></tr>
+        </tbody>
+      </table>
+      <div style="border-top: 2px solid #091D26; padding: 14px 8px; display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 14px; font-weight: bold;">Total Net Remittance:</span>
+        <span style="font-size: 22px; font-weight: 900; color: #0D9488;">${settings.currency}${grossPay.toFixed(2)}</span>
       </div>
     </div>
   `;
@@ -418,7 +477,31 @@ function buildDailyAttendanceHtml({ settings, staffList, dateStr }) {
   `;
 }
 
-// --- 3. MAIN COMPONENT ---
+// --- 3. DYNAMIC PRICING ENGINE ---
+// Computes active rate according to room tier strategy & occupancy
+function getDynamicRoomRate(room, allRooms = []) {
+  if (!room) return 0;
+  const baseRate = Number(room.rate) || 18000;
+  const weekendRate = Number(room.weekendRate) || Math.round(baseRate * 1.2);
+  const peakRate = Number(room.peakRate) || Math.round(baseRate * 1.4);
+  const strategy = room.rateStrategy || "standard"; // 'standard' | 'weekend' | 'peak' | 'auto'
+
+  if (strategy === "weekend") return weekendRate;
+  if (strategy === "peak") return peakRate;
+  if (strategy === "auto") {
+    // Dynamic surge based on live hotel occupancy
+    const totalRooms = allRooms.length || 1;
+    const occupiedCount = allRooms.filter(r => r.status === "occupied").length;
+    const occupancyPercent = (occupiedCount / totalRooms) * 100;
+
+    if (occupancyPercent >= 75) return peakRate;
+    if (occupancyPercent >= 50) return weekendRate;
+    return baseRate;
+  }
+  return baseRate;
+}
+
+// --- 4. MAIN COMPONENT ---
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [pinInput, setPinInput] = useState("");
@@ -449,7 +532,7 @@ export default function App() {
   const [settleOrderRoom, setSettleOrderRoom] = useState(null);
   const [settlementMethod, setSettlementMethod] = useState("Credit Card");
   const [cashTendered, setCashTendered] = useState("");
-  const [guestForm, setGuestForm] = useState({ name: "", phone: "", nights: 1 });
+  const [guestForm, setGuestForm] = useState({ name: "", phone: "", nights: 1, customRate: "" });
   const [guestPhoto, setGuestPhoto] = useState(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
 
@@ -468,10 +551,27 @@ export default function App() {
   const [settingsForm, setSettingsForm] = useState(DEFAULT_SETTINGS);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState("");
 
-  // Room / Stock Modals & Edit States
+  // Room / Stock Modals & Dynamic Rate Edit States
   const [showAddRoomModal, setShowAddRoomModal] = useState(false);
-  const [newRoomForm, setNewRoomForm] = useState({ number: "", type: "Ocean Breeze King", rate: 18000, status: "available" });
-  
+  const [newRoomForm, setNewRoomForm] = useState({ 
+    number: "", 
+    type: "Ocean Breeze King", 
+    rate: 18000, 
+    weekendRate: 22000, 
+    peakRate: 26000, 
+    rateStrategy: "standard", 
+    status: "available" 
+  });
+  const [editingDynamicRoom, setEditingDynamicRoom] = useState(null);
+  const [editRoomForm, setEditRoomForm] = useState({
+    number: "",
+    type: "Ocean Breeze King",
+    rate: 18000,
+    weekendRate: 22000,
+    peakRate: 26000,
+    rateStrategy: "standard"
+  });
+
   // Inventory Form with Cost Price
   const [showAddInventoryModal, setShowAddInventoryModal] = useState(false);
   const [inventorySearchQuery, setInventorySearchQuery] = useState("");
@@ -639,7 +739,7 @@ export default function App() {
       }
     });
 
-    // 2. Rooms Listener
+    // 2. Rooms Listener with Dynamic Rates Initializer
     const roomsRef = ref(rtdb, "rooms");
     const unsubRooms = onValue(roomsRef, (snapshot) => {
       if (snapshot.exists()) {
@@ -650,7 +750,15 @@ export default function App() {
           const orderItemsArray = Array.isArray(rawItems)
             ? rawItems
             : Object.keys(rawItems).map((k) => ({ ...rawItems[k], id: k }));
-          return { ...roomObj, id: key, orderItems: orderItemsArray };
+          return {
+            ...roomObj,
+            id: key,
+            rate: Number(roomObj.rate) || 18000,
+            weekendRate: Number(roomObj.weekendRate) || Math.round((Number(roomObj.rate) || 18000) * 1.2),
+            peakRate: Number(roomObj.peakRate) || Math.round((Number(roomObj.rate) || 18000) * 1.4),
+            rateStrategy: roomObj.rateStrategy || "standard",
+            orderItems: orderItemsArray 
+          };
         });
         setRooms(loadedRooms.sort((a, b) => String(a.number).localeCompare(String(b.number))));
         if (!selectedRoomId && loadedRooms.length > 0) {
@@ -660,7 +768,7 @@ export default function App() {
       }
     });
 
-    // 3. Inventory Listener (Tracks Cost & Selling Price)
+    // 3. Inventory Listener
     const invRef = ref(rtdb, "inventory");
     const unsubInv = onValue(invRef, (snapshot) => {
       if (!snapshot.exists()) {
@@ -726,6 +834,43 @@ export default function App() {
   const printTargetRoom = settleOrderRoom || currentRoom;
   const printTargetTotal = calculateTotal(printTargetRoom);
   const calculateStaffGross = (s) => (Number(s.baseSalary) || 0) + (Number(s.allowances) || 0) + (Number(s.serviceCharge) || 0) + (Number(s.bonus) || 0);
+
+  // --- ACTIONS: DYNAMIC RATES CONFIGURATION ---
+  const handleStartEditDynamicRoom = (room) => {
+    setEditingDynamicRoom(room);
+    setEditRoomForm({
+      number: room.number,
+      type: room.type,
+      rate: Number(room.rate) || 18000,
+      weekendRate: Number(room.weekendRate) || Math.round((Number(room.rate) || 18000) * 1.2),
+      peakRate: Number(room.peakRate) || Math.round((Number(room.rate) || 18000) * 1.4),
+      rateStrategy: room.rateStrategy || "standard"
+    });
+  };
+
+  const handleSaveDynamicRoomRates = (e) => {
+    e.preventDefault();
+    if (!editingDynamicRoom) return;
+
+    const baseVal = parseFloat(editRoomForm.rate) || 18000;
+    const weekendVal = parseFloat(editRoomForm.weekendRate) || Math.round(baseVal * 1.2);
+    const peakVal = parseFloat(editRoomForm.peakRate) || Math.round(baseVal * 1.4);
+
+    const updated = {
+      type: editRoomForm.type,
+      rate: baseVal,
+      weekendRate: weekendVal,
+      peakRate: peakVal,
+      rateStrategy: editRoomForm.rateStrategy
+    };
+
+    update(ref(rtdb, `rooms/${editingDynamicRoom.id}`), updated);
+    setEditingDynamicRoom(null);
+  };
+
+  const handleQuickToggleStrategy = (room, nextStrategy) => {
+    update(ref(rtdb, `rooms/${room.id}`), { rateStrategy: nextStrategy });
+  };
 
   // --- ACTIONS: INVENTORY CREATE, EDIT, DELETE & STOCK ---
   const handleCreateInventoryItem = (e) => {
@@ -872,7 +1017,7 @@ export default function App() {
     }
   };
 
-  // Attendance Clock In / Out Actions
+  // Attendance Clock In / Out
   const formatTimeNow = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   const handleClockIn = (staffMember) => {
@@ -952,6 +1097,11 @@ export default function App() {
     setCashTendered("");
   };
 
+  const handlePrintPayslip = (staffMember) => {
+    const html = buildPayslipHtml({ settings, staffMember });
+    printIsolatedDocument(html, "a4");
+  };
+
   const handlePrintDailyAttendance = () => {
     const combinedList = staff.map(m => {
       const record = dailyAttendance[m.id] || {};
@@ -1004,6 +1154,7 @@ export default function App() {
     update(ref(rtdb, `rooms/${roomId}`), { status });
   };
 
+  // CHECK-IN WITH DYNAMIC NIGHTLY RATE CALCULATION
   const handleOpenOrderAndCheckIn = (e) => {
     e.preventDefault();
     if (!checkInModalRoom || !guestForm.name) return;
@@ -1013,12 +1164,16 @@ export default function App() {
     const now = new Date();
     const orderId = `ORD-${checkInModalRoom.number}-${Date.now().toString().slice(-4)}`;
     const itemId = `itm_${Date.now()}`;
+    
+    // Choose custom rate if entered, otherwise use dynamic rate
+    const dynamicRate = parseFloat(guestForm.customRate) || getDynamicRoomRate(checkInModalRoom, rooms);
+
     const initialOrderItem = {
       id: itemId,
-      description: `Room Stay (${nights} Night${nights > 1 ? "s" : ""})`,
+      description: `Room Stay (${nights} Night${nights > 1 ? "s" : ""} @ ${checkInModalRoom.rateStrategy?.toUpperCase() || "STANDARD"} Rate)`,
       quantity: nights,
-      unitPrice: checkInModalRoom.rate,
-      total: checkInModalRoom.rate * nights,
+      unitPrice: dynamicRate,
+      total: dynamicRate * nights,
       timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
     };
     const roomPayload = {
@@ -1035,7 +1190,7 @@ export default function App() {
     update(ref(rtdb, `rooms/${checkInModalRoom.id}`), roomPayload);
     setGuestPhoto(null);
     setCheckInModalRoom(null);
-    setGuestForm({ name: "", phone: "", nights: 1 });
+    setGuestForm({ name: "", phone: "", nights: 1, customRate: "" });
   };
 
   const handleAddItemToOrder = (e) => {
@@ -1091,16 +1246,23 @@ export default function App() {
     e.preventDefault();
     if (!newRoomForm.number) return;
     const roomId = String(newRoomForm.number).trim();
+    const baseVal = Number(newRoomForm.rate) || 18000;
+    const wkndVal = Number(newRoomForm.weekendRate) || Math.round(baseVal * 1.2);
+    const peakVal = Number(newRoomForm.peakRate) || Math.round(baseVal * 1.4);
+
     const newRoomData = {
       id: roomId,
       number: roomId,
       type: newRoomForm.type,
-      rate: Number(newRoomForm.rate) || 18000,
+      rate: baseVal,
+      weekendRate: wkndVal,
+      peakRate: peakVal,
+      rateStrategy: newRoomForm.rateStrategy || "standard",
       status: newRoomForm.status,
     };
     set(ref(rtdb, `rooms/${roomId}`), newRoomData);
     setShowAddRoomModal(false);
-    setNewRoomForm({ number: "", type: "Ocean Breeze King", rate: 18000, status: "available" });
+    setNewRoomForm({ number: "", type: "Ocean Breeze King", rate: 18000, weekendRate: 22000, peakRate: 26000, rateStrategy: "standard", status: "available" });
   };
 
   const handleDeleteRoom = (roomId, roomNumber) => {
@@ -1108,13 +1270,6 @@ export default function App() {
       remove(ref(rtdb, `rooms/${roomId}`));
     }
   };
-
-  // Filtered queries
-  const filteredInventory = inventory.filter((item) => {
-    const matchesCategory = inventoryCategoryFilter === "all" || item.category === inventoryCategoryFilter;
-    const matchesSearch = (item.name || "").toLowerCase().includes(inventorySearchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
 
   const filteredStaff = staff.filter((s) => {
     const q = staffSearchQuery.toLowerCase();
@@ -1380,23 +1535,21 @@ export default function App() {
 
         <main className="no-print flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           {/* =========================================================
-              TAB 1: FRONT DESK & LIVE STATUS WITH DIRECT SETTLEMENT
+              TAB 1: FRONT DESK WITH LIVE DYNAMIC RATES
               ========================================================= */}
           {activeTab === "frontdesk" && (
             <div className="max-w-7xl mx-auto space-y-6 pb-12">
-              {/* Executive Overview Banner */}
               <div className="bg-gradient-to-r from-[#091D26] via-[#0F2D3C] to-[#0A3042] rounded-3xl p-6 sm:p-8 text-white shadow-xl border border-white/10 relative overflow-hidden">
-                <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-[#14B8A6]/10 rounded-full blur-3xl pointer-events-none" />
                 <div className="relative z-10 flex flex-col lg:flex-row justify-between lg:items-center gap-6">
                   <div>
                     <span className="text-[11px] font-bold text-[#2DD4BF] uppercase tracking-widest flex items-center gap-1.5">
-                      <Waves className="w-3.5 h-3.5" /> Front Desk Executive Operations
+                      <Waves className="w-3.5 h-3.5" /> Front Desk Operations
                     </span>
                     <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white mt-1">
-                      Room Management & Direct Settlement
+                      Live Rooms & Dynamic Rates
                     </h2>
                     <p className="text-xs text-slate-300 mt-1 max-w-xl">
-                      Live guest folios, instant check-in with tablet camera identification, turnover status, and direct one-click settlement.
+                      Live night rates adjust automatically according to room strategy (Standard, Weekend, Peak, and Auto-Occupancy).
                     </p>
                   </div>
 
@@ -1449,9 +1602,7 @@ export default function App() {
                     >
                       <span>{filter.label}</span>
                       <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                        frontDeskFilter === filter.id
-                          ? "bg-white/20 text-white"
-                          : "bg-slate-100 text-slate-600"
+                        frontDeskFilter === filter.id ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
                       }`}>
                         {filter.count}
                       </span>
@@ -1479,6 +1630,7 @@ export default function App() {
                   })
                   .map((room) => {
                     const billTotal = calculateTotal(room);
+                    const activeDynamicRate = getDynamicRoomRate(room, rooms);
                     const isOccupied = room.status === "occupied";
                     const isAvailable = room.status === "available";
                     const isCleaning = room.status === "cleaning";
@@ -1525,9 +1677,22 @@ export default function App() {
                           <p className="text-[11px] font-bold text-[#0F766E] uppercase tracking-wider truncate">
                             {room.type}
                           </p>
-                          <p className="text-xs text-slate-500 font-medium">
-                            {settings.currency}{Number(room.rate).toLocaleString()} <span className="text-[10px] text-slate-400">/ night</span>
-                          </p>
+                          
+                          {/* Live Dynamic Rate Display with Pricing Tier Badge */}
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-sm font-black text-slate-800">
+                              {settings.currency}{Number(activeDynamicRate).toLocaleString()}
+                              <span className="text-[10px] text-slate-400 font-normal"> / night</span>
+                            </span>
+                            <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
+                              room.rateStrategy === "peak" ? "bg-rose-100 text-rose-700" :
+                              room.rateStrategy === "weekend" ? "bg-amber-100 text-amber-800" :
+                              room.rateStrategy === "auto" ? "bg-purple-100 text-purple-700" :
+                              "bg-slate-100 text-slate-600"
+                            }`}>
+                              {room.rateStrategy || "standard"}
+                            </span>
+                          </div>
 
                           {isOccupied && (
                             <div className="mt-4 p-3.5 bg-gradient-to-br from-[#FAF9F5] to-[#F4EFE6] rounded-2xl border border-[#E6DFD3] space-y-2.5 shadow-inner">
@@ -1593,6 +1758,7 @@ export default function App() {
                               onClick={() => {
                                 setCheckInModalRoom(room);
                                 setGuestPhoto(null);
+                                setGuestForm({ name: "", phone: "", nights: 1, customRate: String(activeDynamicRate) });
                               }}
                               className="w-full bg-[#14B8A6] hover:bg-[#0D9488] active:scale-[0.98] text-white py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all"
                             >
@@ -1717,9 +1883,7 @@ export default function App() {
             </div>
           )}
 
-          {/* =========================================================
-              TAB 3: INVENTORY (WITH COST PRICE, EDIT, DELETE & STOCK)
-              ========================================================= */}
+          {/* TAB 3: INVENTORY */}
           {activeTab === "inventory" && canAccessTab("inventory") && (
             <div className="max-w-7xl mx-auto space-y-6">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -1738,37 +1902,6 @@ export default function App() {
                 )}
               </div>
 
-              {/* Filters & Search */}
-              <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
-                <div className="flex gap-1.5 overflow-x-auto w-full sm:w-auto pb-1">
-                  {["all", "minibar", "beverage", "snack", "amenity", "linen"].map((cat) => (
-                    <button
-                      key={cat}
-                      type="button"
-                      onClick={() => setInventoryCategoryFilter(cat)}
-                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold capitalize whitespace-nowrap transition-all ${
-                        inventoryCategoryFilter === cat
-                          ? "bg-[#091D26] text-white shadow-sm"
-                          : "bg-white border border-[#E6DFD3] text-slate-600 hover:bg-[#FAF9F5]"
-                      }`}
-                    >
-                      {cat}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="relative w-full sm:w-72">
-                  <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Search stock item..."
-                    value={inventorySearchQuery}
-                    onChange={(e) => setInventorySearchQuery(e.target.value)}
-                    className="w-full bg-white border border-[#E6DFD3] rounded-xl pl-9 pr-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
-                  />
-                </div>
-              </div>
-
               {/* Table with Cost, Selling Price, Edit & Delete */}
               <div className="bg-white rounded-3xl border border-[#E6DFD3] overflow-hidden shadow-sm">
                 <table className="w-full text-left text-xs">
@@ -1785,23 +1918,14 @@ export default function App() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#F3EFE6]">
-                    {filteredInventory.map((item) => {
+                    {inventory.map((item) => {
                       const cost = Number(item.cost) || 0;
                       const price = Number(item.price) || 0;
                       const margin = price - cost;
 
                       return (
                         <tr key={item.id} className="hover:bg-[#FAF9F5] transition-colors">
-                          <td className="p-3.5 font-bold text-[#091D26]">
-                            <div className="flex items-center gap-2">
-                              <span>{item.name}</span>
-                              {item.stock < 10 && (
-                                <span className="flex items-center gap-0.5 text-[9px] bg-rose-50 text-rose-600 border border-rose-200 px-1.5 py-0.5 rounded font-bold">
-                                  Low Stock
-                                </span>
-                              )}
-                            </div>
-                          </td>
+                          <td className="p-3.5 font-bold text-[#091D26]">{item.name}</td>
                           <td className="p-3.5">
                             <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase">
                               {item.category}
@@ -1818,11 +1942,7 @@ export default function App() {
                               {settings.currency}{margin.toFixed(2)}
                             </span>
                           </td>
-                          <td className="p-3.5 text-center font-bold text-sm">
-                            <span className={item.stock < 10 ? "text-rose-600" : "text-slate-800"}>
-                              {item.stock}
-                            </span>
-                          </td>
+                          <td className="p-3.5 text-center font-bold text-sm">{item.stock}</td>
                           <td className="p-3.5 text-center">
                             <div className="inline-flex items-center gap-1">
                               <button
@@ -1848,7 +1968,6 @@ export default function App() {
                                   type="button"
                                   onClick={() => handleStartEditInventory(item)}
                                   className="p-1.5 text-slate-400 hover:text-[#0D9488] rounded hover:bg-slate-100"
-                                  title="Edit Item"
                                 >
                                   <Edit2 className="w-4 h-4" />
                                 </button>
@@ -1856,7 +1975,6 @@ export default function App() {
                                   type="button"
                                   onClick={() => handleDeleteInventoryItem(item)}
                                   className="p-1.5 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50"
-                                  title="Delete Item"
                                 >
                                   <Trash2 className="w-4 h-4" />
                                 </button>
@@ -1872,31 +1990,114 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 4: ROOM ADMIN */}
+          {/* =========================================================
+              TAB 4: ROOM MANAGEMENT (DYNAMIC RATES CONFIGURATION)
+              ========================================================= */}
           {activeTab === "room-admin" && isManager && (
             <div className="max-w-7xl mx-auto space-y-6">
-              <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold">Room Inventory Setup</h2>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                  <h2 className="text-2xl font-bold flex items-center gap-2">
+                    <TrendingUp className="w-6 h-6 text-[#14B8A6]" /> Dynamic Room Rates & Catalog
+                  </h2>
+                  <p className="text-sm text-slate-500">
+                    Configure Base Weekday, Weekend, and Peak Season pricing tiers for intelligent revenue management.
+                  </p>
+                </div>
                 <button
                   type="button"
                   onClick={() => setShowAddRoomModal(true)}
-                  className="bg-[#14B8A6] text-white px-4 py-2 rounded-lg text-xs font-bold"
+                  className="inline-flex items-center gap-2 bg-[#14B8A6] hover:bg-[#0D9488] text-white px-4 py-2 rounded-xl text-xs font-bold shadow-sm"
                 >
-                  + Add Room
+                  <Plus className="w-4 h-4" /> Add Room Unit
                 </button>
               </div>
-              <div className="bg-white rounded-xl border border-[#E6DFD3] p-4">
-                {rooms.map((r) => (
-                  <div key={r.id} className="flex justify-between items-center py-2 border-b last:border-none text-xs">
-                    <span className="font-bold">Room #{r.number} - {r.type}</span>
-                    <span>{settings.currency}{r.rate} / night</span>
-                  </div>
-                ))}
+
+              {/* Dynamic Rates Table */}
+              <div className="bg-white rounded-3xl border border-[#E6DFD3] shadow-sm overflow-hidden">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#F3EFE6] border-b border-[#E6DFD3] uppercase font-semibold text-slate-500">
+                    <tr>
+                      <th className="p-3.5">Room #</th>
+                      <th className="p-3.5">Category</th>
+                      <th className="p-3.5 text-right">Base Rate</th>
+                      <th className="p-3.5 text-right">Weekend Rate</th>
+                      <th className="p-3.5 text-right">Peak Rate</th>
+                      <th className="p-3.5 text-center">Active Strategy</th>
+                      <th className="p-3.5 text-center">Current Live Rate</th>
+                      <th className="p-3.5 text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#F3EFE6]">
+                    {rooms.map((room) => {
+                      const currentLiveRate = getDynamicRoomRate(room, rooms);
+
+                      return (
+                        <tr key={room.id} className="hover:bg-[#FAF9F5] transition-colors">
+                          <td className="p-3.5 font-black text-base text-[#091D26]">#{room.number}</td>
+                          <td className="p-3.5 font-medium text-slate-700">{room.type}</td>
+                          
+                          {/* Rate Tiers */}
+                          <td className="p-3.5 text-right font-medium text-slate-600">
+                            {settings.currency}{Number(room.rate).toLocaleString()}
+                          </td>
+                          <td className="p-3.5 text-right font-medium text-amber-700">
+                            {settings.currency}{Number(room.weekendRate || Math.round(room.rate * 1.2)).toLocaleString()}
+                          </td>
+                          <td className="p-3.5 text-right font-medium text-rose-700">
+                            {settings.currency}{Number(room.peakRate || Math.round(room.rate * 1.4)).toLocaleString()}
+                          </td>
+
+                          {/* Rate Strategy Selector */}
+                          <td className="p-3.5 text-center">
+                            <select
+                              value={room.rateStrategy || "standard"}
+                              onChange={(e) => handleQuickToggleStrategy(room, e.target.value)}
+                              className="border border-[#D3C8B7] rounded-lg px-2 py-1 text-xs bg-white font-bold"
+                            >
+                              <option value="standard">Standard (Base)</option>
+                              <option value="weekend">Weekend (+20%)</option>
+                              <option value="peak">Peak Season (+40%)</option>
+                              <option value="auto">Auto Occupancy Surge</option>
+                            </select>
+                          </td>
+
+                          {/* Calculated Live Rate */}
+                          <td className="p-3.5 text-center font-black text-sm text-[#0D9488]">
+                            {settings.currency}{Number(currentLiveRate).toLocaleString()}
+                          </td>
+
+                          {/* Actions */}
+                          <td className="p-3.5 text-center">
+                            <div className="inline-flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleStartEditDynamicRoom(room)}
+                                className="p-1.5 text-slate-400 hover:text-[#0D9488] rounded hover:bg-slate-100"
+                                title="Edit Rates"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteRoom(room.id, room.number)}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50"
+                                title="Delete Room"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
 
-          {/* TAB 5: STAFF & ATTENDANCE WITH DAILY PERSISTENCE & SALARY */}
+          {/* TAB 5: STAFF & ATTENDANCE */}
           {activeTab === "staff" && canAccessTab("staff") && (
             <div className="max-w-7xl mx-auto space-y-6">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -2014,7 +2215,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* SALARY & COMPENSATION VIEW (MANAGER ONLY) */}
+              {/* SALARY VIEW */}
               {staffViewSubTab === "roster" && isManager && (
                 <div className="bg-white rounded-xl border border-[#E6DFD3] shadow-sm overflow-hidden">
                   <table className="w-full text-left text-xs">
@@ -2071,30 +2272,28 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 6: COMPLETE SETTINGS MODULE */}
+          {/* TAB 6: SETTINGS */}
           {activeTab === "settings" && isManager && (
             <div className="max-w-6xl mx-auto space-y-8 pb-16">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-[#E6DFD3] pb-4">
                 <div>
                   <h2 className="text-2xl font-bold flex items-center gap-2">
-                    <Settings className="w-6 h-6 text-[#14B8A6]" /> System, Business & Peripheral Settings
+                    <Settings className="w-6 h-6 text-[#14B8A6]" /> System & Peripheral Settings
                   </h2>
-                  <p className="text-xs text-slate-500">
-                    Manage company identity, thermal printing options, automated cash drawer solenoid, and database backup files.
-                  </p>
+                  <p className="text-xs text-slate-500">Manage property details, thermal auto-print drivers, and backups.</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <button
                     type="button"
                     onClick={handleDownloadBackup}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[#D3C8B7] bg-white hover:bg-slate-50 text-xs font-bold shadow-sm"
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[#D3C8B7] bg-white text-xs font-bold shadow-sm"
                   >
-                    <Download className="w-4 h-4 text-slate-500" /> Download Backup
+                    <Download className="w-4 h-4" /> Download Backup
                   </button>
                   <button
                     type="button"
                     onClick={handleSaveAllSettings}
-                    className="flex items-center gap-1.5 px-5 py-2 rounded-lg bg-[#0D9488] hover:bg-[#0F766E] text-white text-xs font-bold shadow-md transition-all"
+                    className="flex items-center gap-1.5 px-5 py-2 rounded-lg bg-[#0D9488] text-white text-xs font-bold shadow-md"
                   >
                     <Save className="w-4 h-4" /> Save Changes
                   </button>
@@ -2107,133 +2306,44 @@ export default function App() {
                 </div>
               )}
 
-              {/* Company Information Card */}
+              {/* Company Information */}
               <div className="bg-white rounded-2xl border border-[#E6DFD3] p-6 shadow-sm space-y-4">
-                <div className="border-b border-slate-100 pb-2">
-                  <h3 className="font-bold text-sm text-[#091D26] uppercase tracking-wide flex items-center gap-2">
-                    <Building2 className="w-4 h-4 text-[#14B8A6]" /> Company & Business Information
-                  </h3>
-                </div>
-
+                <h3 className="font-bold text-sm text-[#091D26] uppercase">Company Information</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Trading / Brand Name</label>
+                    <label className="block font-semibold mb-1">Trading Name</label>
                     <input
                       type="text"
                       value={settingsForm.hotelName}
                       onChange={(e) => setSettingsForm({ ...settingsForm, hotelName: e.target.value })}
-                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
+                      className="w-full border rounded-lg p-2.5"
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Brand Tagline / Slogan</label>
-                    <input
-                      type="text"
-                      value={settingsForm.tagline}
-                      onChange={(e) => setSettingsForm({ ...settingsForm, tagline: e.target.value })}
-                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Registered Legal Entity Name</label>
-                    <input
-                      type="text"
-                      value={settingsForm.legalEntity}
-                      onChange={(e) => setSettingsForm({ ...settingsForm, legalEntity: e.target.value })}
-                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Business Registration No. (BRN)</label>
-                    <input
-                      type="text"
-                      value={settingsForm.companyRegNo}
-                      onChange={(e) => setSettingsForm({ ...settingsForm, companyRegNo: e.target.value })}
-                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Tax Identification / VAT No.</label>
+                    <label className="block font-semibold mb-1">Tax / VAT ID</label>
                     <input
                       type="text"
                       value={settingsForm.taxNumber}
                       onChange={(e) => setSettingsForm({ ...settingsForm, taxNumber: e.target.value })}
-                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
+                      className="w-full border rounded-lg p-2.5"
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Terminal Hardware Identifier</label>
-                    <input
-                      type="text"
-                      value={settingsForm.terminalId}
-                      onChange={(e) => setSettingsForm({ ...settingsForm, terminalId: e.target.value })}
-                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Contact Phone Number</label>
-                    <input
-                      type="text"
-                      value={settingsForm.phone}
-                      onChange={(e) => setSettingsForm({ ...settingsForm, phone: e.target.value })}
-                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Business Email Address</label>
-                    <input
-                      type="email"
-                      value={settingsForm.email}
-                      onChange={(e) => setSettingsForm({ ...settingsForm, email: e.target.value })}
-                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
-                    />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className="block font-semibold mb-1 text-slate-700">Full Physical Street Address</label>
-                    <input
-                      type="text"
-                      value={settingsForm.address}
-                      onChange={(e) => setSettingsForm({ ...settingsForm, address: e.target.value })}
-                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Currency & Tax Setup */}
-              <div className="bg-white rounded-2xl border border-[#E6DFD3] p-6 shadow-sm space-y-4">
-                <div className="border-b border-slate-100 pb-2">
-                  <h3 className="font-bold text-sm text-[#091D26] uppercase tracking-wide flex items-center gap-2">
-                    <DollarSign className="w-4 h-4 text-[#14B8A6]" /> Currency, Taxes & Surcharge Rates
-                  </h3>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-                  <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Currency Symbol</label>
+                    <label className="block font-semibold mb-1">Currency Symbol</label>
                     <input
                       type="text"
                       value={settingsForm.currency}
                       onChange={(e) => setSettingsForm({ ...settingsForm, currency: e.target.value })}
-                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
+                      className="w-full border rounded-lg p-2.5"
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Default Service Charge (%)</label>
+                    <label className="block font-semibold mb-1">Phone</label>
                     <input
-                      type="number"
-                      value={settingsForm.serviceChargeRate}
-                      onChange={(e) => setSettingsForm({ ...settingsForm, serviceChargeRate: parseFloat(e.target.value) || 0 })}
-                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Sales Tax / VAT (%)</label>
-                    <input
-                      type="number"
-                      value={settingsForm.vatRate}
-                      onChange={(e) => setSettingsForm({ ...settingsForm, vatRate: parseFloat(e.target.value) || 0 })}
-                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
+                      type="text"
+                      value={settingsForm.phone}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, phone: e.target.value })}
+                      className="w-full border rounded-lg p-2.5"
                     />
                   </div>
                 </div>
@@ -2243,12 +2353,15 @@ export default function App() {
         </main>
       </div>
 
-      {/* MODAL: CHECK-IN WITH CAMERA */}
+      {/* MODAL: CHECK-IN WITH DYNAMIC NIGHTLY RATE OVERRIDE */}
       {checkInModalRoom && (
         <div className="fixed inset-0 bg-[#06151E]/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-[#E6DFD3] my-8">
             <div className="flex justify-between items-center mb-4 pb-2 border-b">
-              <h3 className="font-bold text-lg">Check In - Room #{checkInModalRoom.number}</h3>
+              <div>
+                <span className="text-xs uppercase font-bold text-[#0F766E]">Guest Registration & Check-In</span>
+                <h3 className="font-bold text-lg">Room #{checkInModalRoom.number} ({checkInModalRoom.type})</h3>
+              </div>
               <button type="button" onClick={handleCloseCheckInModal} className="text-slate-400">
                 <X className="w-5 h-5" />
               </button>
@@ -2301,33 +2414,55 @@ export default function App() {
                   required
                   value={guestForm.name}
                   onChange={(e) => setGuestForm({ ...guestForm, name: e.target.value })}
-                  className="w-full border rounded-lg p-2"
+                  className="w-full border rounded-lg p-2.5"
                 />
               </div>
 
-              <div>
-                <label className="block font-semibold mb-1">Contact Phone</label>
-                <input
-                  type="tel"
-                  value={guestForm.phone}
-                  onChange={(e) => setGuestForm({ ...guestForm, phone: e.target.value })}
-                  className="w-full border rounded-lg p-2"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1">Contact Phone</label>
+                  <input
+                    type="tel"
+                    value={guestForm.phone}
+                    onChange={(e) => setGuestForm({ ...guestForm, phone: e.target.value })}
+                    className="w-full border rounded-lg p-2.5"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Nights Duration</label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={guestForm.nights}
+                    onChange={(e) => setGuestForm({ ...guestForm, nights: parseInt(e.target.value, 10) || 1 })}
+                    className="w-full border rounded-lg p-2.5"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block font-semibold mb-1">Nights Duration</label>
-                <input
-                  type="number"
-                  min="1"
-                  required
-                  value={guestForm.nights}
-                  onChange={(e) => setGuestForm({ ...guestForm, nights: parseInt(e.target.value, 10) || 1 })}
-                  className="w-full border rounded-lg p-2"
-                />
+              {/* Dynamic Nightly Rate Selection & Override */}
+              <div className="bg-[#FAF9F5] p-3 rounded-xl border border-[#E6DFD3] space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-[11px] text-slate-700">Nightly Rate Applied:</span>
+                  <span className="text-[10px] font-bold uppercase text-[#0F766E] bg-[#CCFBF1] px-2 py-0.5 rounded">
+                    Tier: {checkInModalRoom.rateStrategy || "Standard"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-slate-500">{settings.currency}</span>
+                  <input
+                    type="number"
+                    required
+                    value={guestForm.customRate}
+                    onChange={(e) => setGuestForm({ ...guestForm, customRate: e.target.value })}
+                    className="w-full border rounded-lg p-2 font-bold text-sm bg-white"
+                  />
+                </div>
+                <span className="text-[10px] text-slate-400">Calculated automatically via active rate strategy. Staff can modify if required.</span>
               </div>
 
-              <button type="submit" className="w-full bg-[#14B8A6] text-white font-bold py-3 rounded-xl shadow">
+              <button type="submit" className="w-full bg-[#14B8A6] hover:bg-[#0D9488] text-white font-bold py-3 rounded-xl shadow">
                 Complete Check In
               </button>
             </form>
@@ -2432,7 +2567,190 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: ADD INVENTORY ITEM (WITH COST & SELLING PRICE) */}
+      {/* MODAL: EDIT DYNAMIC ROOM RATES (NEW) */}
+      {editingDynamicRoom && isManager && (
+        <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border">
+            <div className="flex justify-between items-center mb-4 pb-2 border-b">
+              <div>
+                <span className="text-xs uppercase font-bold text-[#0F766E]">Dynamic Pricing Setup</span>
+                <h3 className="font-bold text-lg">Room #{editingDynamicRoom.number}</h3>
+              </div>
+              <button type="button" onClick={() => setEditingDynamicRoom(null)} className="text-slate-400">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveDynamicRoomRates} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold mb-1">Room Category</label>
+                <input
+                  type="text"
+                  required
+                  value={editRoomForm.type}
+                  onChange={(e) => setEditRoomForm({ ...editRoomForm, type: e.target.value })}
+                  className="w-full border rounded-xl p-2.5 bg-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block font-semibold mb-1">Base (Weekday)</label>
+                  <input
+                    type="number"
+                    required
+                    value={editRoomForm.rate}
+                    onChange={(e) => setEditRoomForm({ ...editRoomForm, rate: e.target.value })}
+                    className="w-full border rounded-xl p-2 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Weekend Tier</label>
+                  <input
+                    type="number"
+                    required
+                    value={editRoomForm.weekendRate}
+                    onChange={(e) => setEditRoomForm({ ...editRoomForm, weekendRate: e.target.value })}
+                    className="w-full border rounded-xl p-2 font-bold text-amber-700"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Peak Season</label>
+                  <input
+                    type="number"
+                    required
+                    value={editRoomForm.peakRate}
+                    onChange={(e) => setEditRoomForm({ ...editRoomForm, peakRate: e.target.value })}
+                    className="w-full border rounded-xl p-2 font-bold text-rose-700"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1">Active Pricing Strategy</label>
+                <select
+                  value={editRoomForm.rateStrategy}
+                  onChange={(e) => setEditRoomForm({ ...editRoomForm, rateStrategy: e.target.value })}
+                  className="w-full border rounded-xl p-2.5 bg-white font-bold"
+                >
+                  <option value="standard">Standard (Use Base Rate)</option>
+                  <option value="weekend">Weekend Surge Tier</option>
+                  <option value="peak">Peak Season Surge Tier</option>
+                  <option value="auto">Auto Occupancy-Based Dynamic Surge</option>
+                </select>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingDynamicRoom(null)}
+                  className="flex-1 bg-slate-100 py-3 rounded-xl font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-[#14B8A6] hover:bg-[#0D9488] text-white py-3 rounded-xl font-bold"
+                >
+                  Save Rates
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD ROOM WITH MULTI-TIER RATES */}
+      {showAddRoomModal && isManager && (
+        <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 border shadow-2xl">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-bold text-lg">Add Room & Dynamic Rates</h3>
+              <button type="button" onClick={() => setShowAddRoomModal(false)} className="text-slate-400">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleCreateRoom} className="space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1">Room Number</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. 301"
+                    value={newRoomForm.number}
+                    onChange={(e) => setNewRoomForm({ ...newRoomForm, number: e.target.value })}
+                    className="w-full border rounded-xl p-2.5"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Room Category</label>
+                  <input
+                    type="text"
+                    required
+                    value={newRoomForm.type}
+                    onChange={(e) => setNewRoomForm({ ...newRoomForm, type: e.target.value })}
+                    className="w-full border rounded-xl p-2.5"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block font-semibold mb-1">Base ({settings.currency})</label>
+                  <input
+                    type="number"
+                    required
+                    value={newRoomForm.rate}
+                    onChange={(e) => setNewRoomForm({ ...newRoomForm, rate: e.target.value })}
+                    className="w-full border rounded-xl p-2 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Weekend ({settings.currency})</label>
+                  <input
+                    type="number"
+                    required
+                    value={newRoomForm.weekendRate}
+                    onChange={(e) => setNewRoomForm({ ...newRoomForm, weekendRate: e.target.value })}
+                    className="w-full border rounded-xl p-2 font-bold text-amber-700"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Peak ({settings.currency})</label>
+                  <input
+                    type="number"
+                    required
+                    value={newRoomForm.peakRate}
+                    onChange={(e) => setNewRoomForm({ ...newRoomForm, peakRate: e.target.value })}
+                    className="w-full border rounded-xl p-2 font-bold text-rose-700"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1">Initial Pricing Strategy</label>
+                <select
+                  value={newRoomForm.rateStrategy}
+                  onChange={(e) => setNewRoomForm({ ...newRoomForm, rateStrategy: e.target.value })}
+                  className="w-full border rounded-xl p-2.5 bg-white font-bold"
+                >
+                  <option value="standard">Standard (Base Rate)</option>
+                  <option value="weekend">Weekend Surge Tier</option>
+                  <option value="peak">Peak Season Surge Tier</option>
+                  <option value="auto">Auto Occupancy-Based Dynamic Surge</option>
+                </select>
+              </div>
+
+              <button type="submit" className="w-full bg-[#14B8A6] text-white py-3 rounded-xl font-bold">
+                Register Room to Cloud
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD INVENTORY */}
       {showAddInventoryModal && isManager && (
         <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 border shadow-2xl">
@@ -2443,40 +2761,20 @@ export default function App() {
               </button>
             </div>
             <form onSubmit={handleCreateInventoryItem} className="space-y-4 text-xs">
-              <div>
-                <label className="block font-semibold mb-1">Product Name</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Artisanal Sparkling Water"
-                  required
-                  value={newInventoryForm.name}
-                  onChange={(e) => setNewInventoryForm({ ...newInventoryForm, name: e.target.value })}
-                  className="w-full border rounded-xl p-2.5"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold mb-1">Category</label>
-                <select
-                  value={newInventoryForm.category}
-                  onChange={(e) => setNewInventoryForm({ ...newInventoryForm, category: e.target.value })}
-                  className="w-full border rounded-xl p-2.5 bg-white"
-                >
-                  <option value="minibar">Minibar</option>
-                  <option value="beverage">Beverage</option>
-                  <option value="snack">Snack</option>
-                  <option value="amenity">Amenity</option>
-                  <option value="linen">Linen</option>
-                </select>
-              </div>
-
+              <input
+                type="text"
+                placeholder="Product Name"
+                required
+                value={newInventoryForm.name}
+                onChange={(e) => setNewInventoryForm({ ...newInventoryForm, name: e.target.value })}
+                className="w-full border rounded-xl p-2.5"
+              />
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold mb-1">Unit Cost Price ({settings.currency})</label>
+                  <label className="block font-semibold mb-1">Cost Price ({settings.currency})</label>
                   <input
                     type="number"
                     step="0.01"
-                    placeholder="Cost"
                     required
                     value={newInventoryForm.cost}
                     onChange={(e) => setNewInventoryForm({ ...newInventoryForm, cost: e.target.value })}
@@ -2488,7 +2786,6 @@ export default function App() {
                   <input
                     type="number"
                     step="0.01"
-                    placeholder="Retail Price"
                     required
                     value={newInventoryForm.price}
                     onChange={(e) => setNewInventoryForm({ ...newInventoryForm, price: e.target.value })}
@@ -2496,20 +2793,15 @@ export default function App() {
                   />
                 </div>
               </div>
-
-              <div>
-                <label className="block font-semibold mb-1">Initial Stock Units</label>
-                <input
-                  type="number"
-                  placeholder="Stock"
-                  required
-                  value={newInventoryForm.stock}
-                  onChange={(e) => setNewInventoryForm({ ...newInventoryForm, stock: e.target.value })}
-                  className="w-full border rounded-xl p-2.5"
-                />
-              </div>
-
-              <button type="submit" className="w-full bg-[#14B8A6] hover:bg-[#0D9488] text-white py-3 rounded-xl font-bold">
+              <input
+                type="number"
+                placeholder="Stock Units"
+                required
+                value={newInventoryForm.stock}
+                onChange={(e) => setNewInventoryForm({ ...newInventoryForm, stock: e.target.value })}
+                className="w-full border rounded-xl p-2.5"
+              />
+              <button type="submit" className="w-full bg-[#14B8A6] text-white py-3 rounded-xl font-bold">
                 Save Product
               </button>
             </form>
@@ -2517,132 +2809,53 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: EDIT INVENTORY ITEM (NEW) */}
+      {/* MODAL: EDIT INVENTORY */}
       {editingInventoryItem && isManager && (
         <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 border shadow-2xl">
             <div className="flex justify-between items-center mb-4">
-              <div>
-                <span className="text-[10px] uppercase font-bold text-[#0F766E]">Update Catalog Item</span>
-                <h3 className="font-bold text-lg">Edit {editingInventoryItem.name}</h3>
-              </div>
+              <h3 className="font-bold text-lg">Edit {editingInventoryItem.name}</h3>
               <button type="button" onClick={() => setEditingInventoryItem(null)} className="text-slate-400">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <form onSubmit={handleSaveInventoryEdit} className="space-y-4 text-xs">
-              <div>
-                <label className="block font-semibold mb-1">Product Name</label>
-                <input
-                  type="text"
-                  required
-                  value={editInventoryForm.name}
-                  onChange={(e) => setEditInventoryForm({ ...editInventoryForm, name: e.target.value })}
-                  className="w-full border rounded-xl p-2.5"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold mb-1">Category</label>
-                <select
-                  value={editInventoryForm.category}
-                  onChange={(e) => setEditInventoryForm({ ...editInventoryForm, category: e.target.value })}
-                  className="w-full border rounded-xl p-2.5 bg-white"
-                >
-                  <option value="minibar">Minibar</option>
-                  <option value="beverage">Beverage</option>
-                  <option value="snack">Snack</option>
-                  <option value="amenity">Amenity</option>
-                  <option value="linen">Linen</option>
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold mb-1">Unit Cost Price ({settings.currency})</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    value={editInventoryForm.cost}
-                    onChange={(e) => setEditInventoryForm({ ...editInventoryForm, cost: e.target.value })}
-                    className="w-full border rounded-xl p-2.5"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1">Selling Price ({settings.currency})</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    value={editInventoryForm.price}
-                    onChange={(e) => setEditInventoryForm({ ...editInventoryForm, price: e.target.value })}
-                    className="w-full border rounded-xl p-2.5"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold mb-1">Current Stock Units</label>
-                <input
-                  type="number"
-                  required
-                  value={editInventoryForm.stock}
-                  onChange={(e) => setEditInventoryForm({ ...editInventoryForm, stock: e.target.value })}
-                  className="w-full border rounded-xl p-2.5"
-                />
-              </div>
-
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setEditingInventoryItem(null)}
-                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-3 rounded-xl font-bold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 bg-[#0D9488] hover:bg-[#0F766E] text-white py-3 rounded-xl font-bold"
-                >
-                  Save Changes
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: ADD ROOM */}
-      {showAddRoomModal && isManager && (
-        <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 border shadow-2xl">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-lg">Add Hotel Room</h3>
-              <button type="button" onClick={() => setShowAddRoomModal(false)} className="text-slate-400">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <form onSubmit={handleCreateRoom} className="space-y-4 text-xs">
               <input
                 type="text"
-                placeholder="Room Number"
                 required
-                value={newRoomForm.number}
-                onChange={(e) => setNewRoomForm({ ...newRoomForm, number: e.target.value })}
-                className="w-full border rounded p-2"
+                value={editInventoryForm.name}
+                onChange={(e) => setEditInventoryForm({ ...editInventoryForm, name: e.target.value })}
+                className="w-full border rounded-xl p-2.5"
               />
+              <div className="grid grid-cols-2 gap-3">
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  value={editInventoryForm.cost}
+                  onChange={(e) => setEditInventoryForm({ ...editInventoryForm, cost: e.target.value })}
+                  className="w-full border rounded-xl p-2.5"
+                />
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  value={editInventoryForm.price}
+                  onChange={(e) => setEditInventoryForm({ ...editInventoryForm, price: e.target.value })}
+                  className="w-full border rounded-xl p-2.5"
+                />
+              </div>
               <input
                 type="number"
-                placeholder="Rate per night"
                 required
-                value={newRoomForm.rate}
-                onChange={(e) => setNewRoomForm({ ...newRoomForm, rate: e.target.value })}
-                className="w-full border rounded p-2"
+                value={editInventoryForm.stock}
+                onChange={(e) => setEditInventoryForm({ ...editInventoryForm, stock: e.target.value })}
+                className="w-full border rounded-xl p-2.5"
               />
-              <button type="submit" className="w-full bg-[#14B8A6] text-white py-2.5 rounded font-bold">
-                Save Room
-              </button>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setEditingInventoryItem(null)} className="flex-1 bg-slate-100 py-3 rounded-xl font-bold">Cancel</button>
+                <button type="submit" className="flex-1 bg-[#0D9488] text-white py-3 rounded-xl font-bold">Save Changes</button>
+              </div>
             </form>
           </div>
         </div>
