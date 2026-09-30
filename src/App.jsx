@@ -1103,52 +1103,181 @@ export default function App() {
     );
   }
 
-  // PIN TERMINAL LOCK SCREEN
+  // =========================================================
+  // PIN TERMINAL LOCK SCREEN (LUXURY RESORT EDITION)
+  // =========================================================
   if (!currentUser) {
+    const keypadButtons = [
+      { key: "1", sub: "" },
+      { key: "2", sub: "ABC" },
+      { key: "3", sub: "DEF" },
+      { key: "4", sub: "GHI" },
+      { key: "5", sub: "JKL" },
+      { key: "6", sub: "MNO" },
+      { key: "7", sub: "PQRS" },
+      { key: "8", sub: "TUV" },
+      { key: "9", sub: "WXYZ" },
+      { key: "Clear", sub: "" },
+      { key: "0", sub: "+" },
+      { key: "Del", sub: "" },
+    ];
+
     return (
-      <div className="flex min-h-screen bg-gradient-to-br from-[#06151E] via-[#091D26] to-[#0F2D3C] text-white items-center justify-center p-4">
-        <div className="w-full max-w-sm bg-white/5 backdrop-blur-md border border-white/10 rounded-3xl p-8 shadow-2xl flex flex-col items-center">
-          <div className="w-14 h-14 rounded-2xl bg-[#14B8A6] flex items-center justify-center text-white mb-4 shadow-lg shadow-[#14B8A6]/30">
-            <Waves className="w-8 h-8" />
-          </div>
-          <h1 className="text-xl font-bold tracking-tight text-center">{settings.hotelName}</h1>
-          <p className="text-xs text-[#2DD4BF] font-medium mt-0.5">{settings.tagline}</p>
+      <div className="relative min-h-screen w-full flex items-center justify-center p-4 sm:p-6 overflow-hidden bg-[#040D14] text-white select-none">
+        {/* Ambient Sea-Vibe Radiant Glow Orbs */}
+        <div className="absolute -top-32 -left-32 w-96 h-96 bg-[#0D9488]/20 rounded-full blur-[130px] pointer-events-none" />
+        <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-[#14B8A6]/15 rounded-full blur-[130px] pointer-events-none" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[550px] h-[550px] bg-[#0284C7]/10 rounded-full blur-[160px] pointer-events-none" />
 
-          <div className="my-6 flex flex-col items-center">
-            <div className="flex items-center gap-3 h-10">
-              {[0, 1, 2, 3].map((idx) => (
-                <div
-                  key={idx}
-                  className={`w-3.5 h-3.5 rounded-full transition-all ${
-                    pinInput.length > idx ? "bg-[#14B8A6] scale-125" : "border-2 border-white/20"
-                  }`}
-                />
-              ))}
+        {/* Floating Glassmorphic Terminal Card */}
+        <div className="relative z-10 w-full max-w-sm bg-white/[0.04] backdrop-blur-2xl border border-white/10 rounded-[32px] p-6 sm:p-8 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.7)] flex flex-col items-center">
+          
+          {/* Top Terminal Status Header */}
+          <div className="w-full flex items-center justify-between pb-4 mb-4 border-b border-white/[0.08] text-[11px] text-slate-400">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="font-mono tracking-wider text-slate-300">
+                {settings.terminalId || "TERMINAL-01"}
+              </span>
             </div>
-            {pinError && <span className="text-xs font-semibold text-[#F43F5E] mt-2">{pinError}</span>}
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-[#2DD4BF] bg-[#2DD4BF]/10 px-2 py-0.5 rounded-full border border-[#2DD4BF]/20">
+              System Ready
+            </span>
           </div>
 
-          <div className="grid grid-cols-3 gap-3 w-full max-w-[280px]">
-            {["1", "2", "3", "4", "5", "6", "7", "8", "9", "Clear", "0", "Del"].map((key) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => {
-                  if (key === "Clear") setPinInput("");
-                  else if (key === "Del") setPinInput((prev) => prev.slice(0, -1));
-                  else handlePinDigit(key);
-                }}
-                className="h-14 rounded-2xl bg-white/5 hover:bg-white/15 text-lg font-bold transition-all border border-white/5 flex items-center justify-center"
-              >
-                {key}
-              </button>
-            ))}
+          {/* Resort Crest Icon */}
+          <div className="relative mb-3 group">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#0F766E] to-[#2DD4BF] p-[2px] shadow-lg shadow-[#14B8A6]/25 transition-transform duration-300 group-hover:scale-105">
+              <div className="w-full h-full bg-[#071923] rounded-[14px] flex items-center justify-center">
+                <Waves className="w-8 h-8 text-[#2DD4BF]" />
+              </div>
+            </div>
           </div>
+
+          <h1 className="text-xl font-black tracking-tight text-white text-center">
+            {settings.hotelName || "Thalassa Resort"}
+          </h1>
+          <p className="text-[10px] font-bold text-[#2DD4BF] uppercase tracking-widest mt-0.5">
+            {settings.tagline || "Hospitality OS & POS"}
+          </p>
+
+          {/* Interactive PIN Indicators */}
+          <div className="my-6 flex flex-col items-center w-full">
+            <div className="flex items-center gap-3.5 h-10">
+              {[0, 1, 2, 3].map((idx) => {
+                const isFilled = pinInput.length > idx;
+                return (
+                  <div
+                    key={idx}
+                    className={`transition-all duration-200 rounded-full flex items-center justify-center ${
+                      isFilled
+                        ? "w-4 h-4 bg-[#14B8A6] shadow-[0_0_16px_#14B8A6] scale-125 border-none"
+                        : "w-3.5 h-3.5 border-2 border-white/20 bg-transparent"
+                    }`}
+                  />
+                );
+              })}
+            </div>
+
+            {/* Error or Help Text */}
+            <div className="h-5 flex items-center mt-2">
+              {pinError ? (
+                <span className="text-xs font-bold text-rose-400 flex items-center gap-1.5 animate-pulse">
+                  <AlertTriangle className="w-3.5 h-3.5" /> {pinError}
+                </span>
+              ) : (
+                <span className="text-[11px] text-slate-400 font-medium tracking-wide">
+                  Enter 4-Digit Staff Security PIN
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Alphanumeric Keypad Grid */}
+          <div className="grid grid-cols-3 gap-2.5 w-full max-w-[280px]">
+            {keypadButtons.map(({ key, sub }) => {
+              const isAction = key === "Clear" || key === "Del";
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => {
+                    if (key === "Clear") {
+                      setPinInput("");
+                      setPinError("");
+                    } else if (key === "Del") {
+                      setPinInput((prev) => prev.slice(0, -1));
+                      setPinError("");
+                    } else {
+                      handlePinDigit(key);
+                    }
+                  }}
+                  className={`h-15 rounded-2xl active:scale-95 transition-all flex flex-col items-center justify-center border shadow-sm ${
+                    isAction
+                      ? "bg-white/[0.03] hover:bg-white/[0.08] border-white/5 text-slate-400 hover:text-white"
+                      : "bg-white/[0.06] hover:bg-white/[0.14] active:bg-[#14B8A6]/20 border-white/10 hover:border-white/20 text-slate-100"
+                  }`}
+                >
+                  {key === "Del" ? (
+                    <Delete className="w-5 h-5 text-slate-300" />
+                  ) : (
+                    <>
+                      <span className={`font-bold ${isAction ? "text-xs uppercase tracking-wider text-rose-300" : "text-xl leading-none"}`}>
+                        {key}
+                      </span>
+                      {sub && (
+                        <span className="text-[8px] font-semibold tracking-widest text-slate-400 mt-1">
+                          {sub}
+                        </span>
+                      )}
+                    </>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Quick-Access Staff Badges */}
+          {staff && staff.length > 0 && (
+            <div className="mt-6 pt-4 border-t border-white/[0.08] w-full">
+              <div className="flex justify-between items-center mb-2 px-1">
+                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                  Quick Access Roster:
+                </span>
+                <span className="text-[10px] text-slate-500">Tap to test</span>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {staff.slice(0, 4).map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => {
+                      setPinInput(String(s.pin));
+                      verifyPin(s.pin);
+                    }}
+                    className="flex items-center gap-2 p-1.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-[#14B8A6]/40 transition-all text-left group"
+                  >
+                    <div className="w-6 h-6 rounded-lg bg-[#0F766E]/50 border border-[#2DD4BF]/30 flex items-center justify-center text-[10px] font-bold text-[#2DD4BF] shrink-0 group-hover:scale-105 transition-transform">
+                      {s.name.charAt(0)}
+                    </div>
+                    <div className="truncate">
+                      <div className="text-[10px] font-bold text-slate-200 truncate group-hover:text-white leading-tight">
+                        {s.name.split(" ")[0]}
+                      </div>
+                      <div className="text-[8px] text-[#2DD4BF] font-mono leading-none">
+                        PIN: {s.pin}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
         </div>
       </div>
     );
   }
-
   return (
     <div className="flex h-screen overflow-hidden bg-[#FAF9F5] text-[#091D26]">
       {/* DESKTOP SIDEBAR */}
