@@ -72,7 +72,6 @@ const rtdb = getDatabase(app);
 
 // Comprehensive settings schema matching your settings dashboard
 const DEFAULT_SETTINGS = {
-  // Company & Business Information
   hotelName: "Linoli Cove Midigama",
   tagline: "RESTAURANT & BAR",
   legalEntity: "Linoli Cove Leisure (Pvt) Ltd",
@@ -84,12 +83,10 @@ const DEFAULT_SETTINGS = {
   website: "www.linolicove.me",
   address: "502 A Matara Road, Midigama, 81700",
 
-  // Automated Email Dispatch
   emailRecipient: "linolicove@gmail.com",
   emailScheduleTime: "23:30",
   emailStatus: "Disabled (Manual trigger only)",
 
-  // Thermal Auto-Printer Configuration
   paperRollWidth: "80mm",
   receiptFontSize: "14px - Extra Bold & Large",
   receiptFontType: "Monospace (Classic ESC/POS)",
@@ -97,13 +94,11 @@ const DEFAULT_SETTINGS = {
   autoPrintKOT: "Yes - Print KOT & BOT Slips",
   autoPrintSettlement: "Yes - Print Final Tax Invoice",
 
-  // Automated Cash Drawer Solenoid
   autoDrawerKick: "Enabled (Auto-Pop on Payment)",
   drawerKickTrigger: "Cash Payments Only",
   drawerPinout: "Pin 2 / ESC p 0 (Epson, Rongta, Xprint)",
   drawerChime: true,
 
-  // Currency, Taxes & Surcharge Rates
   currency: "Rs.",
   serviceChargeRate: 10,
   vatRate: 0,
@@ -229,8 +224,11 @@ function printIsolatedDocument(htmlBody, mode = "thermal") {
   }, 250);
 }
 
-function buildThermalHtml({ settings, room, isTemporary, settlementMethod, total }) {
+// Built-in Thermal 80mm Letterhead & Receipt Generator
+function buildThermalHtml({ settings, room, isTemporary, settlementMethod, total, cashTendered = 0, changeDue = 0 }) {
   const items = room?.orderItems || [];
+  const isCash = !isTemporary && settlementMethod === "Cash" && Number(cashTendered) > 0;
+
   return `
     <div class="thermal-container">
       <div style="text-align: center; border-bottom: 1px dashed #000; padding-bottom: 8px;">
@@ -272,9 +270,21 @@ function buildThermalHtml({ settings, room, isTemporary, settlementMethod, total
           `).join("")}
         </tbody>
       </table>
-      <div style="border-top: 1px dashed #000; padding-top: 6px; font-size: 13px; font-weight: bold; display: flex; justify-content: space-between;">
-        <span>${isTemporary ? "TOTAL DUE:" : "TOTAL PAID:"}</span>
-        <span>${settings.currency}${Number(total).toFixed(2)}</span>
+      <div style="border-top: 1px dashed #000; padding-top: 6px; font-size: 12px;">
+        <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 13px;">
+          <span>${isTemporary ? "TOTAL DUE:" : "BILL TOTAL:"}</span>
+          <span>${settings.currency}${Number(total).toFixed(2)}</span>
+        </div>
+        ${isCash ? `
+          <div style="display: flex; justify-content: space-between; margin-top: 4px; font-size: 11px;">
+            <span>CASH GIVEN / TENDERED:</span>
+            <span>${settings.currency}${Number(cashTendered).toFixed(2)}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-top: 3px; font-weight: bold; font-size: 12px; border-top: 1px dotted #aaa; padding-top: 3px;">
+            <span>CHANGE / BALANCE PAID:</span>
+            <span>${settings.currency}${Number(changeDue).toFixed(2)}</span>
+          </div>
+        ` : ""}
       </div>
       <div style="text-align: center; margin-top: 14px; padding-top: 8px; border-top: 1px dashed #000; font-size: 10px;">
         <div>${settings.footerNote}</div>
@@ -283,8 +293,10 @@ function buildThermalHtml({ settings, room, isTemporary, settlementMethod, total
   `;
 }
 
-function buildA4Html({ settings, room, isTemporary, settlementMethod, total }) {
+function buildA4Html({ settings, room, isTemporary, settlementMethod, total, cashTendered = 0, changeDue = 0 }) {
   const items = room?.orderItems || [];
+  const isCash = !isTemporary && settlementMethod === "Cash" && Number(cashTendered) > 0;
+
   return `
     <div class="a4-container">
       <div style="border-bottom: 3px double #091D26; padding-bottom: 16px; display: flex; justify-content: space-between;">
@@ -307,7 +319,7 @@ function buildA4Html({ settings, room, isTemporary, settlementMethod, total }) {
           <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Guest Information</p>
           <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold;">${room?.guestName || "Unregistered Guest"}</p>
           <p style="margin: 2px 0 0 0; font-size: 12px;">Contact: ${room?.guestPhone || "No contact recorded"}</p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;">Settlement: <b>${isTemporary ? "Pending" : settlementMethod}</b></p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;">Payment Method: <b>${isTemporary ? "Pending" : settlementMethod}</b></p>
         </div>
         <div style="text-align: right;">
           <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Stay Details</p>
@@ -335,9 +347,21 @@ function buildA4Html({ settings, room, isTemporary, settlementMethod, total }) {
           `).join("")}
         </tbody>
       </table>
-      <div style="border-top: 2px solid #091D26; border-bottom: 2px solid #091D26; padding: 12px 4px; margin: 24px 0; display: flex; justify-content: space-between; align-items: center;">
-        <span style="font-size: 14px; font-weight: bold;">Total Paid (${settlementMethod}):</span>
-        <span style="font-size: 20px; font-weight: 900;">${settings.currency}${Number(total).toFixed(2)}</span>
+      <div style="border-top: 2px solid #091D26; border-bottom: 2px solid #091D26; padding: 12px 4px; margin: 24px 0;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 14px; font-weight: bold;">${isTemporary ? "Total Due / Balance:" : "Total Bill Amount:"}</span>
+          <span style="font-size: 20px; font-weight: 900;">${settings.currency}${Number(total).toFixed(2)}</span>
+        </div>
+        ${isCash ? `
+          <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #ccc; display: flex; justify-content: space-between; font-size: 12px;">
+            <span>Cash Tendered / Amount Given:</span>
+            <span style="font-weight: 600;">${settings.currency}${Number(cashTendered).toFixed(2)}</span>
+          </div>
+          <div style="margin-top: 4px; display: flex; justify-content: space-between; font-size: 13px; color: #0D9488; font-weight: bold;">
+            <span>Change Returned / Balance Paid Back:</span>
+            <span>${settings.currency}${Number(changeDue).toFixed(2)}</span>
+          </div>
+        ` : ""}
       </div>
       <div style="margin-top: 50px; text-align: center; font-size: 11px; border-top: 1px solid #ddd; padding-top: 12px;">
         <p style="margin: 0; font-weight: 500;">${settings.footerNote}</p>
@@ -346,6 +370,7 @@ function buildA4Html({ settings, room, isTemporary, settlementMethod, total }) {
   `;
 }
 
+// Built-in Official A4 Payslip Generator
 function buildPayslipHtml({ settings, staffMember }) {
   const base = Number(staffMember.baseSalary) || 0;
   const allowances = Number(staffMember.allowances) || 0;
@@ -643,7 +668,6 @@ export default function App() {
     // 2. Rooms Listener
     const roomsRef = ref(rtdb, "rooms");
     const unsubRooms = onValue(roomsRef, (snapshot) => {
-      const data = snapshot.val();
       if (!data) {
         const initialRooms = {
           "101": {
@@ -729,7 +753,7 @@ export default function App() {
       setLoading(false);
     });
 
-    // 5. Daily Attendance History Listener (Carried Forward Daily)
+    // 5. Daily Attendance History Listener
     const attendanceRef = ref(rtdb, `attendance_history/${selectedDate}`);
     const unsubAttendance = onValue(attendanceRef, (snapshot) => {
       setDailyAttendance(snapshot.val() || {});
@@ -751,7 +775,7 @@ export default function App() {
   const printTargetTotal = calculateTotal(printTargetRoom);
   const calculateStaffGross = (s) => (Number(s.baseSalary) || 0) + (Number(s.allowances) || 0) + (Number(s.serviceCharge) || 0) + (Number(s.bonus) || 0);
 
-  // --- ACTIONS: SETTINGS SAVE & BACKUP ---
+  // Settings Actions
   const handleSaveAllSettings = () => {
     set(ref(rtdb, "hotel_config/profile"), settingsForm);
     setSaveSuccessMsg("Settings Saved Successfully! ✓");
@@ -805,7 +829,7 @@ export default function App() {
     }
   };
 
-  // --- DAILY ATTENDANCE CLOCK IN / OUT ACTIONS ---
+  // Clock Actions
   const formatTimeNow = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   const handleClockIn = (staffMember) => {
@@ -832,7 +856,7 @@ export default function App() {
     });
   };
 
-  // Print Handlers
+  // Printing Handlers
   const handlePrintTemporaryBill = (room) => {
     setSelectedRoomId(room.id);
     const total = calculateTotal(room);
@@ -842,12 +866,33 @@ export default function App() {
     printIsolatedDocument(html, printFormat);
   };
 
+  // DIRECT SETTLEMENT WITH CASH TENDERED & CHANGE INVOICING
   const handleConfirmOrderSettlement = () => {
     if (!settleOrderRoom) return;
     const total = calculateTotal(settleOrderRoom);
+    const tenderedVal = settlementMethod === "Cash" ? (parseFloat(cashTendered) || total) : total;
+    const changeVal = Math.max(0, tenderedVal - total);
+
     const html = printFormat === "thermal"
-      ? buildThermalHtml({ settings, room: settleOrderRoom, isTemporary: false, settlementMethod, total })
-      : buildA4Html({ settings, room: settleOrderRoom, isTemporary: false, settlementMethod, total });
+      ? buildThermalHtml({ 
+          settings, 
+          room: settleOrderRoom, 
+          isTemporary: false, 
+          settlementMethod, 
+          total,
+          cashTendered: tenderedVal,
+          changeDue: changeVal
+        })
+      : buildA4Html({ 
+          settings, 
+          room: settleOrderRoom, 
+          isTemporary: false, 
+          settlementMethod, 
+          total,
+          cashTendered: tenderedVal,
+          changeDue: changeVal
+        });
+        
     printIsolatedDocument(html, printFormat);
 
     update(ref(rtdb, `rooms/${settleOrderRoom.id}`), {
@@ -883,7 +928,6 @@ export default function App() {
     printIsolatedDocument(html, "a4");
   };
 
-  // Staff & Room & Inventory Actions
   const handleUpdateStockLevel = (itemId, delta) => {
     if (!itemId) return;
     const target = inventory.find((i) => i.id === itemId);
@@ -1115,15 +1159,11 @@ export default function App() {
 
     return (
       <div className="relative min-h-screen w-full flex items-center justify-center p-4 sm:p-6 overflow-hidden bg-[#040D14] text-white select-none">
-        {/* Ambient Sea-Vibe Radiant Glow Orbs */}
         <div className="absolute -top-32 -left-32 w-96 h-96 bg-[#0D9488]/20 rounded-full blur-[130px] pointer-events-none" />
         <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-[#14B8A6]/15 rounded-full blur-[130px] pointer-events-none" />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[550px] h-[550px] bg-[#0284C7]/10 rounded-full blur-[160px] pointer-events-none" />
 
-        {/* Floating Glassmorphic Terminal Card */}
         <div className="relative z-10 w-full max-w-sm bg-white/[0.04] backdrop-blur-2xl border border-white/10 rounded-[32px] p-6 sm:p-8 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.7)] flex flex-col items-center">
-          
-          {/* Top Terminal Status Header */}
           <div className="w-full flex items-center justify-between pb-4 mb-4 border-b border-white/[0.08] text-[11px] text-slate-400">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
@@ -1136,7 +1176,6 @@ export default function App() {
             </span>
           </div>
 
-          {/* Resort Crest Icon */}
           <div className="relative mb-3 group">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#0F766E] to-[#2DD4BF] p-[2px] shadow-lg shadow-[#14B8A6]/25 transition-transform duration-300 group-hover:scale-105">
               <div className="w-full h-full bg-[#071923] rounded-[14px] flex items-center justify-center">
@@ -1152,7 +1191,6 @@ export default function App() {
             {settings.tagline || "Hospitality OS & POS"}
           </p>
 
-          {/* Interactive PIN Indicators */}
           <div className="my-6 flex flex-col items-center w-full">
             <div className="flex items-center gap-3.5 h-10">
               {[0, 1, 2, 3].map((idx) => {
@@ -1170,7 +1208,6 @@ export default function App() {
               })}
             </div>
 
-            {/* Error or Help Text */}
             <div className="h-5 flex items-center mt-2">
               {pinError ? (
                 <span className="text-xs font-bold text-rose-400 flex items-center gap-1.5 animate-pulse">
@@ -1184,7 +1221,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Alphanumeric Keypad Grid */}
           <div className="grid grid-cols-3 gap-2.5 w-full max-w-[280px]">
             {keypadButtons.map(({ key, sub }) => {
               const isAction = key === "Clear" || key === "Del";
@@ -1228,14 +1264,13 @@ export default function App() {
             })}
           </div>
 
-          {/* Quick-Access Staff Badges */}
           {staff && staff.length > 0 && (
             <div className="mt-6 pt-4 border-t border-white/[0.08] w-full">
               <div className="flex justify-between items-center mb-2 px-1">
                 <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
                   Quick Access Roster:
                 </span>
-                <span className="text-[10px] text-slate-500">Tap to test</span>
+                <span className="text-[10px] text-slate-500">Tap to fill</span>
               </div>
               <div className="grid grid-cols-2 gap-1.5">
                 {staff.slice(0, 4).map((s) => (
@@ -1264,7 +1299,6 @@ export default function App() {
               </div>
             </div>
           )}
-
         </div>
       </div>
     );
@@ -1327,7 +1361,7 @@ export default function App() {
         </nav>
       </aside>
 
-      {/* VIEWPORT */}
+      {/* MAIN VIEWPORT */}
       <div className="flex-1 flex flex-col h-full overflow-hidden w-full">
         {/* MOBILE TOPBAR */}
         <header className="no-print md:hidden flex items-center justify-between p-4 bg-[#091D26] text-white border-b border-[#0F2D3C]">
@@ -1347,7 +1381,7 @@ export default function App() {
 
         <main className="no-print flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           {/* =========================================================
-              TAB 1: FRONT DESK & LIVE STATUS (ENHANCED & ATTRACTIVE)
+              TAB 1: FRONT DESK & LIVE STATUS (ENHANCED SUITE)
               ========================================================= */}
           {activeTab === "frontdesk" && (
             <div className="max-w-7xl mx-auto space-y-6 pb-12">
@@ -1545,7 +1579,7 @@ export default function App() {
                           {isCleaning && (
                             <div className="mt-3 p-3 bg-amber-50/70 border border-amber-200/80 rounded-2xl text-[11px] text-amber-800 flex items-center gap-2">
                               <Clock className="w-4 h-4 text-amber-600 shrink-0" />
-                              <span>Housekeeping in progress. Needs linen change & minibar restock.</span>
+                              <span>Housekeeping in progress. Needs turnover cleaning & restock.</span>
                             </div>
                           )}
 
@@ -1558,7 +1592,7 @@ export default function App() {
                           )}
                         </div>
 
-                        {/* Interactive Action Bar with Direct Settle Button */}
+                        {/* Action Bar with Direct Settle Button */}
                         <div className="p-4 pt-0">
                           {isAvailable && (
                             <button
@@ -1931,10 +1965,9 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 6: COMPLETE SETTINGS MODULE */}
+          {/* TAB 6: SETTINGS (MANAGER ONLY) */}
           {activeTab === "settings" && isManager && (
             <div className="max-w-6xl mx-auto space-y-8 pb-16">
-              {/* Header Action Bar */}
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-[#E6DFD3] pb-4">
                 <div>
                   <h2 className="text-2xl font-bold flex items-center gap-2">
@@ -1974,7 +2007,6 @@ export default function App() {
                   <h3 className="font-bold text-sm text-[#091D26] uppercase tracking-wide flex items-center gap-2">
                     <Building2 className="w-4 h-4 text-[#14B8A6]" /> Company & Business Information[cite: 3]
                   </h3>
-                  <p className="text-[11px] text-slate-400">Printed on official receipts, tax invoices, and IT reports[cite: 3]</p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
@@ -2051,7 +2083,7 @@ export default function App() {
                     />
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="block font-semibold mb-1 text-slate-700">Official Website or Social Link[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Official Website[cite: 3]</label>
                     <input
                       type="text"
                       value={settingsForm.website}
@@ -2060,7 +2092,7 @@ export default function App() {
                     />
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="block font-semibold mb-1 text-slate-700">Full Physical Street Address[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Physical Street Address[cite: 3]</label>
                     <input
                       type="text"
                       value={settingsForm.address}
@@ -2077,7 +2109,6 @@ export default function App() {
                   <h3 className="font-bold text-sm text-[#091D26] uppercase tracking-wide flex items-center gap-2">
                     <Send className="w-4 h-4 text-[#14B8A6]" /> Automated Daily 11:30 PM Email Dispatch[cite: 3]
                   </h3>
-                  <p className="text-[11px] text-slate-400">Auto-dispatches complete end-of-day sales, collections, balances, and shift worksheets[cite: 3]</p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
@@ -2111,29 +2142,14 @@ export default function App() {
                     </select>
                   </div>
                 </div>
-
-                <div className="bg-[#FAF9F5] p-3.5 rounded-xl border border-[#E6DFD3] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                  <div className="text-[11px] text-slate-500">
-                    <b>What data is transmitted in the 11:30 PM package?</b><br />
-                    Gross revenue, net sales, taxes, service pool, room occupancy, minibar orders, cashier balance, and shift audits[cite: 3].
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => alert(`Email report package dispatched to ${settingsForm.emailRecipient}`)}
-                    className="px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-lg text-xs font-bold shrink-0 shadow-sm"
-                  >
-                    Send Daily Report Now[cite: 3]
-                  </button>
-                </div>
               </div>
 
-              {/* CARD 3: THERMAL AUTO-PRINTER CONFIGURATION */}
+              {/* CARD 3: THERMAL PRINTER CONFIG */}
               <div className="bg-white rounded-2xl border border-[#E6DFD3] p-6 shadow-sm space-y-4">
                 <div className="border-b border-slate-100 pb-2">
                   <h3 className="font-bold text-sm text-[#091D26] uppercase tracking-wide flex items-center gap-2">
                     <Printer className="w-4 h-4 text-[#14B8A6]" /> Thermal Auto-Printer Configuration[cite: 3]
                   </h3>
-                  <p className="text-[11px] text-slate-400">Hardwired direct slip generation for USB, LAN, or Bluetooth portable printers[cite: 3]</p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
@@ -2161,39 +2177,6 @@ export default function App() {
                     </select>
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Receipt Font Type[cite: 3]</label>
-                    <select
-                      value={settingsForm.receiptFontType}
-                      onChange={(e) => setSettingsForm({ ...settingsForm, receiptFontType: e.target.value })}
-                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white"
-                    >
-                      <option value="Monospace (Classic ESC/POS)">Monospace (Classic ESC/POS Receipt)[cite: 3]</option>
-                      <option value="Sans-Serif">Modern Sans-Serif</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Thermal Slip Margins[cite: 3]</label>
-                    <select
-                      value={settingsForm.slipMargins}
-                      onChange={(e) => setSettingsForm({ ...settingsForm, slipMargins: e.target.value })}
-                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white"
-                    >
-                      <option value="2mm - Standard Thermal Margin">2mm - Standard Thermal Margin[cite: 3]</option>
-                      <option value="0mm - Full Bleed Edge">0mm - Full Bleed Edge</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Auto-Print on Saved Order[cite: 3]</label>
-                    <select
-                      value={settingsForm.autoPrintKOT}
-                      onChange={(e) => setSettingsForm({ ...settingsForm, autoPrintKOT: e.target.value })}
-                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white"
-                    >
-                      <option value="Yes - Print KOT & BOT Slips">Yes - Print KOT & BOT Slips[cite: 3]</option>
-                      <option value="No - Manual Only">No - Manual Only</option>
-                    </select>
-                  </div>
-                  <div>
                     <label className="block font-semibold mb-1 text-slate-700">Auto-Print on Settlement[cite: 3]</label>
                     <select
                       value={settingsForm.autoPrintSettlement}
@@ -2205,29 +2188,14 @@ export default function App() {
                     </select>
                   </div>
                 </div>
-
-                <div className="flex gap-2 justify-end pt-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const dummyRoom = { number: "TEST", orderId: "TEST-01", orderItems: [{ description: "Thermal Test Print", quantity: 1, total: 0 }] };
-                      const html = buildThermalHtml({ settings: settingsForm, room: dummyRoom, isTemporary: true, settlementMethod: "TEST", total: 0 });
-                      printIsolatedDocument(html, "thermal");
-                    }}
-                    className="px-4 py-2 border border-[#D3C8B7] rounded-lg text-xs font-bold hover:bg-slate-50 flex items-center gap-1.5"
-                  >
-                    <Printer className="w-3.5 h-3.5" /> Test Slip[cite: 3]
-                  </button>
-                </div>
               </div>
 
-              {/* CARD 4: AUTOMATED CASH DRAWER SOLENOID */}
+              {/* CARD 4: CASH DRAWER SOLENOID */}
               <div className="bg-white rounded-2xl border border-[#E6DFD3] p-6 shadow-sm space-y-4">
                 <div className="border-b border-slate-100 pb-2">
                   <h3 className="font-bold text-sm text-[#091D26] uppercase tracking-wide flex items-center gap-2">
                     <Banknote className="w-4 h-4 text-[#14B8A6]" /> Automated Cash Drawer Solenoid[cite: 3]
                   </h3>
-                  <p className="text-[11px] text-slate-400">Triggers electrical RJ11/RJ12 drawer pulse via printer kick ports[cite: 3]</p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
@@ -2265,33 +2233,14 @@ export default function App() {
                     </select>
                   </div>
                 </div>
-
-                <div className="flex justify-between items-center pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setSettingsForm({ ...settingsForm, drawerChime: !settingsForm.drawerChime })}
-                    className="flex items-center gap-2 text-xs font-semibold text-slate-700"
-                  >
-                    {settingsForm.drawerChime ? <Volume2 className="w-4 h-4 text-[#14B8A6]" /> : <VolumeX className="w-4 h-4 text-slate-400" />}
-                    Register Chime Sound: <b>{settingsForm.drawerChime ? "Chime ON" : "Muted"}</b>[cite: 3]
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => alert("Solenoid pulse sent! Cash drawer kicked open.")}
-                    className="px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-lg text-xs font-bold shadow-sm"
-                  >
-                    Pop Drawer[cite: 3]
-                  </button>
-                </div>
               </div>
 
-              {/* CARD 5: CURRENCY, TAXES & SURCHARGE RATES */}
+              {/* CARD 5: CURRENCY & TAXES */}
               <div className="bg-white rounded-2xl border border-[#E6DFD3] p-6 shadow-sm space-y-4">
                 <div className="border-b border-slate-100 pb-2">
                   <h3 className="font-bold text-sm text-[#091D26] uppercase tracking-wide flex items-center gap-2">
                     <DollarSign className="w-4 h-4 text-[#14B8A6]" /> Currency, Taxes & Surcharge Rates[cite: 3]
                   </h3>
-                  <p className="text-[11px] text-slate-400">Default rates applied across folios and receipts[cite: 3]</p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
@@ -2322,34 +2271,15 @@ export default function App() {
                       className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
                     />
                   </div>
-                  <div className="sm:col-span-3">
-                    <label className="block font-semibold mb-1 text-slate-700">Thermal Receipt Header Notes[cite: 3]</label>
-                    <textarea
-                      rows={2}
-                      value={settingsForm.headerNote}
-                      onChange={(e) => setSettingsForm({ ...settingsForm, headerNote: e.target.value })}
-                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
-                    />
-                  </div>
-                  <div className="sm:col-span-3">
-                    <label className="block font-semibold mb-1 text-slate-700">Thermal Receipt Footer Message[cite: 3]</label>
-                    <textarea
-                      rows={2}
-                      value={settingsForm.footerNote}
-                      onChange={(e) => setSettingsForm({ ...settingsForm, footerNote: e.target.value })}
-                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
-                    />
-                  </div>
                 </div>
               </div>
 
-              {/* CARD 6: DATABASE BACKUP & DISASTER RECOVERY */}
+              {/* CARD 6: DATABASE BACKUP & RESTORE */}
               <div className="bg-white rounded-2xl border border-[#E6DFD3] p-6 shadow-sm space-y-4">
                 <div className="border-b border-slate-100 pb-2">
                   <h3 className="font-bold text-sm text-[#091D26] uppercase tracking-wide flex items-center gap-2">
                     <Download className="w-4 h-4 text-[#14B8A6]" /> System Database Backup & Disaster Recovery[cite: 3]
                   </h3>
-                  <p className="text-[11px] text-slate-400">Export or restore full state database (folios, staff, inventory, and shift logs)[cite: 3]</p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
@@ -2416,7 +2346,6 @@ export default function App() {
             <canvas ref={canvasRef} className="hidden" />
 
             <form onSubmit={handleOpenOrderAndCheckIn} className="space-y-4 text-xs">
-              {/* Photo Box */}
               <div className="bg-[#FAF9F5] p-3 rounded-xl border space-y-2">
                 <span className="font-bold text-[11px] block">Guest Photo / Passport</span>
                 {isCameraActive ? (
@@ -2496,7 +2425,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL 2: SETTLEMENT CONSOLE */}
+      {/* MODAL 2: DIRECT SETTLEMENT CONSOLE (CASH TENDERED & CHANGE CALCULATED) */}
       {settleOrderRoom && (
         <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-[#E6DFD3]">
@@ -2553,20 +2482,22 @@ export default function App() {
               </div>
             </div>
 
+            {/* Cash Given & Change Due Calculator */}
             {settlementMethod === "Cash" && (
-              <div className="bg-[#FAF9F5] p-3 rounded-2xl border border-[#E6DFD3] mb-4 flex items-center gap-3 text-xs">
+              <div className="bg-[#FAF9F5] p-3.5 rounded-2xl border border-[#E6DFD3] mb-4 flex items-center gap-3 text-xs">
                 <div className="flex-1">
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Cash Tendered:</label>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Cash Given / Tendered:</label>
                   <input
                     type="number"
                     placeholder="0.00"
                     value={cashTendered}
                     onChange={(e) => setCashTendered(e.target.value)}
                     className="w-full border border-[#D3C8B7] rounded-lg px-2.5 py-1.5 font-bold text-sm focus:outline-none"
+                    autoFocus
                   />
                 </div>
                 <div className="flex-1 text-right">
-                  <span className="block text-[11px] font-semibold text-slate-600">Change Due:</span>
+                  <span className="block text-[11px] font-semibold text-slate-600">Balance Paid Back / Change:</span>
                   <span className="text-base font-black text-[#0D9488]">
                     {settings.currency}{changeDue.toFixed(2)}
                   </span>
