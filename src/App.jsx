@@ -52,7 +52,8 @@ import {
   Volume2,
   VolumeX,
   RefreshCw,
-  Sparkles
+  Sparkles,
+  Tag
 } from "lucide-react";
 
 // --- 1. FIREBASE CONFIGURATION (REALTIME DATABASE) ---
@@ -72,7 +73,6 @@ const rtdb = getDatabase(app);
 
 // Comprehensive settings schema matching your settings dashboard
 const DEFAULT_SETTINGS = {
-  // Company & Business Information
   hotelName: "Linoli Cove Midigama",
   tagline: "RESTAURANT & BAR",
   legalEntity: "Linoli Cove Leisure (Pvt) Ltd",
@@ -84,12 +84,10 @@ const DEFAULT_SETTINGS = {
   website: "www.linolicove.me",
   address: "502 A Matara Road, Midigama, 81700",
 
-  // Automated Email Dispatch
   emailRecipient: "linolicove@gmail.com",
   emailScheduleTime: "23:30",
   emailStatus: "Disabled (Manual trigger only)",
 
-  // Thermal Auto-Printer Configuration
   paperRollWidth: "80mm",
   receiptFontSize: "14px - Extra Bold & Large",
   receiptFontType: "Monospace (Classic ESC/POS)",
@@ -97,13 +95,11 @@ const DEFAULT_SETTINGS = {
   autoPrintKOT: "Yes - Print KOT & BOT Slips",
   autoPrintSettlement: "Yes - Print Final Tax Invoice",
 
-  // Automated Cash Drawer Solenoid
   autoDrawerKick: "Enabled (Auto-Pop on Payment)",
   drawerKickTrigger: "Cash Payments Only",
   drawerPinout: "Pin 2 / ESC p 0 (Epson, Rongta, Xprint)",
   drawerChime: true,
 
-  // Currency, Taxes & Surcharge Rates
   currency: "Rs.",
   serviceChargeRate: 10,
   vatRate: 0,
@@ -111,13 +107,14 @@ const DEFAULT_SETTINGS = {
   footerNote: "Thank you for your visit!\nPlease come again.",
 };
 
+// Seed inventory with Unit Cost & Selling Price
 const INITIAL_INVENTORY_SEEDS = [
-  { id: "inv1", name: "Artisanal Sparkling Water", category: "minibar", price: 850, stock: 48 },
-  { id: "inv2", name: "Organic Coconut Chips", category: "minibar", price: 650, stock: 32 },
-  { id: "inv3", name: "Sea Salt Scrub Pack", category: "amenity", price: 1200, stock: 15 },
-  { id: "inv4", name: "Egyptian Cotton Bath Towel", category: "linen", price: 0, stock: 75 },
-  { id: "inv5", name: "Cold Brew Coconut Latte", category: "minibar", price: 950, stock: 18 },
-  { id: "inv6", name: "Local Lion Craft Beer", category: "beverage", price: 1100, stock: 24 }
+  { id: "inv1", name: "Artisanal Sparkling Water", category: "minibar", cost: 450, price: 850, stock: 48 },
+  { id: "inv2", name: "Organic Coconut Chips", category: "minibar", cost: 320, price: 650, stock: 32 },
+  { id: "inv3", name: "Sea Salt Scrub Pack", category: "amenity", cost: 600, price: 1200, stock: 15 },
+  { id: "inv4", name: "Egyptian Cotton Bath Towel", category: "linen", cost: 1800, price: 0, stock: 75 },
+  { id: "inv5", name: "Cold Brew Coconut Latte", category: "minibar", cost: 500, price: 950, stock: 18 },
+  { id: "inv6", name: "Local Lion Craft Beer", category: "beverage", cost: 650, price: 1100, stock: 24 }
 ];
 
 const INITIAL_STAFF_SEEDS = [
@@ -275,7 +272,6 @@ function buildThermalHtml({ settings, room, isTemporary, settlementMethod, total
         </tbody>
       </table>
 
-      <!-- Total & Payment Breakdown -->
       <div style="border-top: 1px dashed #000; padding-top: 6px; font-size: 12px;">
         <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 13px;">
           <span>${isTemporary ? "TOTAL DUE:" : "BILL TOTAL:"}</span>
@@ -355,7 +351,6 @@ function buildA4Html({ settings, room, isTemporary, settlementMethod, total, cas
         </tbody>
       </table>
 
-      <!-- Financial Totals Section -->
       <div style="border-top: 2px solid #091D26; border-bottom: 2px solid #091D26; padding: 12px 4px; margin: 24px 0;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <span style="font-size: 14px; font-weight: bold;">Total Bill Amount:</span>
@@ -380,61 +375,6 @@ function buildA4Html({ settings, room, isTemporary, settlementMethod, total, cas
 
       <div style="margin-top: 50px; text-align: center; font-size: 11px; border-top: 1px solid #ddd; padding-top: 12px;">
         <p style="margin: 0; font-weight: 500;">${settings.footerNote}</p>
-      </div>
-    </div>
-  `;
-}
-
-function buildPayslipHtml({ settings, staffMember }) {
-  const base = Number(staffMember.baseSalary) || 0;
-  const allowances = Number(staffMember.allowances) || 0;
-  const serviceCharge = Number(staffMember.serviceCharge) || 0;
-  const bonus = Number(staffMember.bonus) || 0;
-  const grossPay = base + allowances + serviceCharge + bonus;
-
-  return `
-    <div class="a4-container">
-      <div style="border-bottom: 3px double #091D26; padding-bottom: 16px; display: flex; justify-content: space-between;">
-        <div>
-          <h1 style="font-size: 24px; font-weight: 900; text-transform: uppercase; margin: 0; color: #091D26;">${settings.hotelName}</h1>
-          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; color: #555;">Monthly Remuneration Statement</p>
-        </div>
-        <div style="text-align: right;">
-          <div style="display: inline-block; border: 2px solid #091D26; padding: 6px 14px; font-weight: bold; font-size: 12px;">
-            OFFICIAL PAYSLIP
-          </div>
-          <p style="margin: 8px 0 0 0; font-size: 12px;"><b>Date:</b> ${new Date().toLocaleDateString()}</p>
-        </div>
-      </div>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 20px 0; padding: 12px 16px; border: 1px solid #091D26; border-radius: 4px;">
-        <div>
-          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Employee</p>
-          <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold;">${staffMember.name}</p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;">Role: <b>${staffMember.role}</b></p>
-        </div>
-        <div style="text-align: right;">
-          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Status</p>
-          <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold;">${staffMember.type}</p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;">Payout: <b>${staffMember.paid ? "PAID" : "PENDING"}</b></p>
-        </div>
-      </div>
-      <table style="margin: 20px 0; font-size: 12px;">
-        <thead>
-          <tr style="border-bottom: 2px solid #091D26; background: #F3EFE6;">
-            <th style="padding: 10px 8px; text-align: left;">Earnings Component</th>
-            <th style="padding: 10px 8px; text-align: right;">Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr style="border-bottom: 1px solid #ddd;"><td style="padding: 10px 8px;">Base Monthly Salary</td><td style="padding: 10px 8px; text-align: right;">${settings.currency}${base.toFixed(2)}</td></tr>
-          <tr style="border-bottom: 1px solid #ddd;"><td style="padding: 10px 8px;">Allowances (Housing/Meals)</td><td style="padding: 10px 8px; text-align: right;">${settings.currency}${allowances.toFixed(2)}</td></tr>
-          <tr style="border-bottom: 1px solid #ddd;"><td style="padding: 10px 8px;">Service Charge Pool</td><td style="padding: 10px 8px; text-align: right;">${settings.currency}${serviceCharge.toFixed(2)}</td></tr>
-          <tr style="border-bottom: 1px solid #ddd;"><td style="padding: 10px 8px;">Bonus & Incentives</td><td style="padding: 10px 8px; text-align: right;">${settings.currency}${bonus.toFixed(2)}</td></tr>
-        </tbody>
-      </table>
-      <div style="border-top: 2px solid #091D26; padding: 14px 8px; display: flex; justify-content: space-between; align-items: center;">
-        <span style="font-size: 14px; font-weight: bold;">Total Net Remittance:</span>
-        <span style="font-size: 22px; font-weight: 900; color: #0D9488;">${settings.currency}${grossPay.toFixed(2)}</span>
       </div>
     </div>
   `;
@@ -513,7 +453,7 @@ export default function App() {
   const [guestPhoto, setGuestPhoto] = useState(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
 
-  // Refs for WebCam streaming & Canvas snapshot
+  // Refs
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const mediaStreamRef = useRef(null);
@@ -528,11 +468,31 @@ export default function App() {
   const [settingsForm, setSettingsForm] = useState(DEFAULT_SETTINGS);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState("");
 
-  // Room / Stock Modals
+  // Room / Stock Modals & Edit States
   const [showAddRoomModal, setShowAddRoomModal] = useState(false);
   const [newRoomForm, setNewRoomForm] = useState({ number: "", type: "Ocean Breeze King", rate: 18000, status: "available" });
+  
+  // Inventory Form with Cost Price
   const [showAddInventoryModal, setShowAddInventoryModal] = useState(false);
-  const [newInventoryForm, setNewInventoryForm] = useState({ name: "", category: "minibar", price: "850", stock: "20" });
+  const [inventorySearchQuery, setInventorySearchQuery] = useState("");
+  const [inventoryCategoryFilter, setInventoryCategoryFilter] = useState("all");
+  const [newInventoryForm, setNewInventoryForm] = useState({ 
+    name: "", 
+    category: "minibar", 
+    cost: "450", 
+    price: "850", 
+    stock: "20" 
+  });
+  
+  // Dedicated Edit Inventory Modal State
+  const [editingInventoryItem, setEditingInventoryItem] = useState(null);
+  const [editInventoryForm, setEditInventoryForm] = useState({ 
+    name: "", 
+    category: "minibar", 
+    cost: "0", 
+    price: "0", 
+    stock: "0" 
+  });
 
   // Staff & Compensation Management State
   const [showAddStaffModal, setShowAddStaffModal] = useState(false);
@@ -682,32 +642,8 @@ export default function App() {
     // 2. Rooms Listener
     const roomsRef = ref(rtdb, "rooms");
     const unsubRooms = onValue(roomsRef, (snapshot) => {
-      const data = snapshot.val();
-      if (!data) {
-        const initialRooms = {
-          "101": {
-            id: "101",
-            number: "101",
-            type: "Ocean Breeze King",
-            rate: 22000,
-            status: "occupied",
-            orderId: "ORD-101-9281",
-            openedAt: "2026-09-28 14:30",
-            guestName: "Marina Sterling",
-            guestPhone: "+1 555-0143",
-            checkIn: "2026-09-28",
-            checkOut: "2026-10-02",
-            orderItems: {
-              "i1": { id: "i1", description: "Room Charge (2 Nights)", quantity: 2, unitPrice: 22000, total: 44000, timestamp: "Sep 28, 14:30" },
-              "i2": { id: "i2", description: "Minibar: Artisanal Water", quantity: 2, unitPrice: 850, total: 1700, timestamp: "Sep 29, 10:15" },
-            },
-          },
-          "102": { id: "102", number: "102", type: "Lagoon View Double", rate: 18000, status: "available" },
-          "201": { id: "201", number: "201", type: "Coral Penthouse Suite", rate: 45000, status: "cleaning" },
-          "202": { id: "202", number: "202", type: "Ocean Breeze King", rate: 22000, status: "maintenance" },
-        };
-        set(roomsRef, initialRooms);
-      } else {
+      if (snapshot.exists()) {
+        const data = snapshot.val();
         const loadedRooms = Object.keys(data).map((key) => {
           const roomObj = data[key];
           const rawItems = roomObj.orderItems || {};
@@ -724,7 +660,7 @@ export default function App() {
       }
     });
 
-    // 3. Inventory Listener
+    // 3. Inventory Listener (Tracks Cost & Selling Price)
     const invRef = ref(rtdb, "inventory");
     const unsubInv = onValue(invRef, (snapshot) => {
       if (!snapshot.exists()) {
@@ -736,8 +672,9 @@ export default function App() {
         const loaded = Object.keys(data).map((key) => ({
           ...data[key],
           id: key,
-          name: data[key].name || data[key].title || "Unnamed Item",
+          name: data[key].name || "Unnamed Item",
           category: data[key].category || "minibar",
+          cost: Number(data[key].cost) || 0,
           price: Number(data[key].price) || 0,
           stock: Number(data[key].stock) || 0,
         }));
@@ -768,7 +705,7 @@ export default function App() {
       setLoading(false);
     });
 
-    // 5. Daily Attendance History Listener (Carried Forward Daily)
+    // 5. Daily Attendance History Listener
     const attendanceRef = ref(rtdb, `attendance_history/${selectedDate}`);
     const unsubAttendance = onValue(attendanceRef, (snapshot) => {
       setDailyAttendance(snapshot.val() || {});
@@ -790,7 +727,98 @@ export default function App() {
   const printTargetTotal = calculateTotal(printTargetRoom);
   const calculateStaffGross = (s) => (Number(s.baseSalary) || 0) + (Number(s.allowances) || 0) + (Number(s.serviceCharge) || 0) + (Number(s.bonus) || 0);
 
-  // --- ACTIONS: SETTINGS SAVE & BACKUP ---
+  // --- ACTIONS: INVENTORY CREATE, EDIT, DELETE & STOCK ---
+  const handleCreateInventoryItem = (e) => {
+    e.preventDefault();
+    if (!newInventoryForm.name.trim()) return;
+
+    const itemId = `inv_${Date.now()}`;
+    const cleanCost = parseFloat(newInventoryForm.cost) || 0;
+    const cleanPrice = parseFloat(newInventoryForm.price) || 0;
+    const cleanStock = parseInt(newInventoryForm.stock, 10) || 0;
+
+    const newItem = {
+      id: itemId,
+      name: newInventoryForm.name.trim(),
+      category: newInventoryForm.category || "minibar",
+      cost: cleanCost,
+      price: cleanPrice,
+      stock: cleanStock,
+    };
+
+    setInventory((prev) => [...prev, newItem].sort((a, b) => a.name.localeCompare(b.name)));
+    setShowAddInventoryModal(false);
+    setNewInventoryForm({ name: "", category: "minibar", cost: "450", price: "850", stock: "20" });
+    set(ref(rtdb, `inventory/${itemId}`), newItem);
+  };
+
+  const handleStartEditInventory = (item) => {
+    setEditingInventoryItem(item);
+    setEditInventoryForm({
+      name: item.name || "",
+      category: item.category || "minibar",
+      cost: String(item.cost ?? 0),
+      price: String(item.price ?? 0),
+      stock: String(item.stock ?? 0),
+    });
+  };
+
+  const handleSaveInventoryEdit = (e) => {
+    e.preventDefault();
+    if (!editingInventoryItem || !editInventoryForm.name.trim()) return;
+
+    const cleanCost = parseFloat(editInventoryForm.cost) || 0;
+    const cleanPrice = parseFloat(editInventoryForm.price) || 0;
+    const cleanStock = parseInt(editInventoryForm.stock, 10) || 0;
+
+    const updated = {
+      name: editInventoryForm.name.trim(),
+      category: editInventoryForm.category || "minibar",
+      cost: cleanCost,
+      price: cleanPrice,
+      stock: cleanStock,
+    };
+
+    setInventory((prev) =>
+      prev.map((i) => (i.id === editingInventoryItem.id ? { ...i, ...updated } : i))
+    );
+    update(ref(rtdb, `inventory/${editingInventoryItem.id}`), updated);
+    setEditingInventoryItem(null);
+  };
+
+  const handleDeleteInventoryItem = (item) => {
+    if (window.confirm(`Permanently remove "${item.name}" from inventory?`)) {
+      setInventory((prev) => prev.filter((i) => i.id !== item.id));
+      remove(ref(rtdb, `inventory/${item.id}`));
+    }
+  };
+
+  const handleUpdateStockLevel = (itemId, delta) => {
+    if (!itemId) return;
+    const target = inventory.find((i) => i.id === itemId);
+    const currentStock = Number(target?.stock) || 0;
+    const newStock = Math.max(0, currentStock + delta);
+    setInventory((prev) => prev.map((item) => (item.id === itemId ? { ...item, stock: newStock } : item)));
+    update(ref(rtdb, `inventory/${itemId}`), { stock: newStock });
+  };
+
+  const handleQuickAddMinibar = (item) => {
+    if (!currentRoom) return;
+    const now = new Date();
+    const itemId = `itm_${Date.now()}`;
+    const newItem = {
+      id: itemId,
+      description: `Minibar: ${item.name}`,
+      quantity: 1,
+      unitPrice: item.price,
+      total: item.price,
+      timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
+    };
+    set(ref(rtdb, `rooms/${currentRoom.id}/orderItems/${itemId}`), newItem);
+    if (item.stock > 0) handleUpdateStockLevel(item.id, -1);
+  };
+
+  // --- ACTIONS: SETTINGS & BACKUP ---
   const handleSaveAllSettings = () => {
     set(ref(rtdb, "hotel_config/profile"), settingsForm);
     setSaveSuccessMsg("Settings Saved Successfully! ✓");
@@ -844,7 +872,7 @@ export default function App() {
     }
   };
 
-  // --- DAILY ATTENDANCE CLOCK IN / OUT ACTIONS ---
+  // Attendance Clock In / Out Actions
   const formatTimeNow = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   const handleClockIn = (staffMember) => {
@@ -924,11 +952,6 @@ export default function App() {
     setCashTendered("");
   };
 
-  const handlePrintPayslip = (staffMember) => {
-    const html = buildPayslipHtml({ settings, staffMember });
-    printIsolatedDocument(html, "a4");
-  };
-
   const handlePrintDailyAttendance = () => {
     const combinedList = staff.map(m => {
       const record = dailyAttendance[m.id] || {};
@@ -941,51 +964,6 @@ export default function App() {
     });
     const html = buildDailyAttendanceHtml({ settings, staffList: combinedList, dateStr: selectedDate });
     printIsolatedDocument(html, "a4");
-  };
-
-  // Staff & Room & Inventory Actions
-  const handleUpdateStockLevel = (itemId, delta) => {
-    if (!itemId) return;
-    const target = inventory.find((i) => i.id === itemId);
-    const currentStock = Number(target?.stock) || 0;
-    const newStock = Math.max(0, currentStock + delta);
-    setInventory((prev) => prev.map((item) => (item.id === itemId ? { ...item, stock: newStock } : item)));
-    update(ref(rtdb, `inventory/${itemId}`), { stock: newStock });
-  };
-
-  const handleCreateInventoryItem = (e) => {
-    e.preventDefault();
-    if (!newInventoryForm.name.trim()) return;
-    const itemId = `inv_${Date.now()}`;
-    const cleanPrice = parseFloat(newInventoryForm.price);
-    const cleanStock = parseInt(newInventoryForm.stock, 10);
-    const newItem = {
-      id: itemId,
-      name: newInventoryForm.name.trim(),
-      category: newInventoryForm.category || "minibar",
-      price: isNaN(cleanPrice) || cleanPrice < 0 ? 0 : cleanPrice,
-      stock: isNaN(cleanStock) || cleanStock < 0 ? 0 : cleanStock,
-    };
-    setInventory((prev) => [...prev, newItem].sort((a, b) => a.name.localeCompare(b.name)));
-    setShowAddInventoryModal(false);
-    setNewInventoryForm({ name: "", category: "minibar", price: "850", stock: "20" });
-    set(ref(rtdb, `inventory/${itemId}`), newItem);
-  };
-
-  const handleQuickAddMinibar = (item) => {
-    if (!currentRoom) return;
-    const now = new Date();
-    const itemId = `itm_${Date.now()}`;
-    const newItem = {
-      id: itemId,
-      description: `Minibar: ${item.name}`,
-      quantity: 1,
-      unitPrice: item.price,
-      total: item.price,
-      timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
-    };
-    set(ref(rtdb, `rooms/${currentRoom.id}/orderItems/${itemId}`), newItem);
-    if (item.stock > 0) handleUpdateStockLevel(item.id, -1);
   };
 
   const handleCreateStaff = (e) => {
@@ -1131,6 +1109,13 @@ export default function App() {
     }
   };
 
+  // Filtered queries
+  const filteredInventory = inventory.filter((item) => {
+    const matchesCategory = inventoryCategoryFilter === "all" || item.category === inventoryCategoryFilter;
+    const matchesSearch = (item.name || "").toLowerCase().includes(inventorySearchQuery.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
+
   const filteredStaff = staff.filter((s) => {
     const q = staffSearchQuery.toLowerCase();
     return s.name.toLowerCase().includes(q) || s.role.toLowerCase().includes(q);
@@ -1154,9 +1139,7 @@ export default function App() {
     );
   }
 
-  // =========================================================
-  // PIN TERMINAL LOCK SCREEN (LUXURY RESORT EDITION)
-  // =========================================================
+  // PIN TERMINAL LOCK SCREEN
   if (!currentUser) {
     const keypadButtons = [
       { key: "1", sub: "" },
@@ -1175,15 +1158,11 @@ export default function App() {
 
     return (
       <div className="relative min-h-screen w-full flex items-center justify-center p-4 sm:p-6 overflow-hidden bg-[#040D14] text-white select-none">
-        {/* Ambient Sea-Vibe Radiant Glow Orbs */}
         <div className="absolute -top-32 -left-32 w-96 h-96 bg-[#0D9488]/20 rounded-full blur-[130px] pointer-events-none" />
         <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-[#14B8A6]/15 rounded-full blur-[130px] pointer-events-none" />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[550px] h-[550px] bg-[#0284C7]/10 rounded-full blur-[160px] pointer-events-none" />
 
-        {/* Floating Glassmorphic Terminal Card */}
         <div className="relative z-10 w-full max-w-sm bg-white/[0.04] backdrop-blur-2xl border border-white/10 rounded-[32px] p-6 sm:p-8 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.7)] flex flex-col items-center">
-          
-          {/* Top Terminal Status Header */}
           <div className="w-full flex items-center justify-between pb-4 mb-4 border-b border-white/[0.08] text-[11px] text-slate-400">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
@@ -1196,7 +1175,6 @@ export default function App() {
             </span>
           </div>
 
-          {/* Resort Crest Icon */}
           <div className="relative mb-3 group">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#0F766E] to-[#2DD4BF] p-[2px] shadow-lg shadow-[#14B8A6]/25 transition-transform duration-300 group-hover:scale-105">
               <div className="w-full h-full bg-[#071923] rounded-[14px] flex items-center justify-center">
@@ -1212,7 +1190,6 @@ export default function App() {
             {settings.tagline || "Hospitality OS & POS"}
           </p>
 
-          {/* Interactive PIN Indicators */}
           <div className="my-6 flex flex-col items-center w-full">
             <div className="flex items-center gap-3.5 h-10">
               {[0, 1, 2, 3].map((idx) => {
@@ -1229,8 +1206,6 @@ export default function App() {
                 );
               })}
             </div>
-
-            {/* Error or Help Text */}
             <div className="h-5 flex items-center mt-2">
               {pinError ? (
                 <span className="text-xs font-bold text-rose-400 flex items-center gap-1.5 animate-pulse">
@@ -1244,7 +1219,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Alphanumeric Keypad Grid */}
           <div className="grid grid-cols-3 gap-2.5 w-full max-w-[280px]">
             {keypadButtons.map(({ key, sub }) => {
               const isAction = key === "Clear" || key === "Del";
@@ -1288,7 +1262,6 @@ export default function App() {
             })}
           </div>
 
-          {/* Quick-Access Staff Badges */}
           {staff && staff.length > 0 && (
             <div className="mt-6 pt-4 border-t border-white/[0.08] w-full">
               <div className="flex justify-between items-center mb-2 px-1">
@@ -1407,7 +1380,7 @@ export default function App() {
 
         <main className="no-print flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           {/* =========================================================
-              TAB 1: FRONT DESK & LIVE STATUS (ENHANCED & ATTRACTIVE)
+              TAB 1: FRONT DESK & LIVE STATUS WITH DIRECT SETTLEMENT
               ========================================================= */}
           {activeTab === "frontdesk" && (
             <div className="max-w-7xl mx-auto space-y-6 pb-12">
@@ -1427,7 +1400,6 @@ export default function App() {
                     </p>
                   </div>
 
-                  {/* Summary Metric Pills */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 shrink-0">
                     <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-3 text-center min-w-[90px]">
                       <span className="text-[10px] uppercase font-bold text-slate-400 block">Total</span>
@@ -1525,7 +1497,6 @@ export default function App() {
                             : "border-rose-200 hover:border-rose-400"
                         }`}
                       >
-                        {/* Top Card Details */}
                         <div className="p-5 pb-3">
                           <div className="flex justify-between items-start mb-2">
                             <div className="flex items-center gap-2">
@@ -1558,7 +1529,6 @@ export default function App() {
                             {settings.currency}{Number(room.rate).toLocaleString()} <span className="text-[10px] text-slate-400">/ night</span>
                           </p>
 
-                          {/* Occupied Stay Details with ID Snapshot */}
                           {isOccupied && (
                             <div className="mt-4 p-3.5 bg-gradient-to-br from-[#FAF9F5] to-[#F4EFE6] rounded-2xl border border-[#E6DFD3] space-y-2.5 shadow-inner">
                               <div className="flex items-center gap-3">
@@ -1586,7 +1556,6 @@ export default function App() {
                                 </div>
                               </div>
 
-                              {/* Outstanding Folio Balance */}
                               <div className="flex justify-between items-center pt-2 border-t border-slate-300/50">
                                 <div>
                                   <span className="text-[9px] uppercase font-bold text-slate-400 block leading-tight">Folio Bill</span>
@@ -1601,7 +1570,6 @@ export default function App() {
                             </div>
                           )}
 
-                          {/* Cleaning Turnover Placeholder */}
                           {isCleaning && (
                             <div className="mt-3 p-3 bg-amber-50/70 border border-amber-200/80 rounded-2xl text-[11px] text-amber-800 flex items-center gap-2">
                               <Clock className="w-4 h-4 text-amber-600 shrink-0" />
@@ -1609,7 +1577,6 @@ export default function App() {
                             </div>
                           )}
 
-                          {/* Maintenance Placeholder */}
                           {isMaintenance && (
                             <div className="mt-3 p-3 bg-rose-50 border border-rose-200 rounded-2xl text-[11px] text-rose-800 flex items-center gap-2">
                               <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
@@ -1635,7 +1602,6 @@ export default function App() {
 
                           {isOccupied && (
                             <div className="space-y-2 pt-2">
-                              {/* Direct Primary Bill Settlement Button */}
                               {(isManager || isFrontDesk) && (
                                 <button
                                   type="button"
@@ -1751,41 +1717,155 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 3: INVENTORY */}
+          {/* =========================================================
+              TAB 3: INVENTORY (WITH COST PRICE, EDIT, DELETE & STOCK)
+              ========================================================= */}
           {activeTab === "inventory" && canAccessTab("inventory") && (
             <div className="max-w-7xl mx-auto space-y-6">
-              <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold">Inventory & Minibar Stock</h2>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                  <h2 className="text-2xl font-bold">Inventory & Minibar Stock</h2>
+                  <p className="text-sm text-slate-500">Manage item wholesale cost, retail billable price, and stock levels.</p>
+                </div>
                 {isManager && (
                   <button
                     type="button"
                     onClick={() => setShowAddInventoryModal(true)}
-                    className="bg-[#14B8A6] text-white px-4 py-2 rounded-lg text-xs font-bold"
+                    className="inline-flex items-center gap-2 bg-[#14B8A6] hover:bg-[#0D9488] text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-sm transition-all"
                   >
-                    + Add Stock Item
+                    <PackagePlus className="w-4 h-4" /> Add Inventory Item
                   </button>
                 )}
               </div>
 
-              <div className="bg-white rounded-xl border border-[#E6DFD3] overflow-hidden">
+              {/* Filters & Search */}
+              <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
+                <div className="flex gap-1.5 overflow-x-auto w-full sm:w-auto pb-1">
+                  {["all", "minibar", "beverage", "snack", "amenity", "linen"].map((cat) => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setInventoryCategoryFilter(cat)}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold capitalize whitespace-nowrap transition-all ${
+                        inventoryCategoryFilter === cat
+                          ? "bg-[#091D26] text-white shadow-sm"
+                          : "bg-white border border-[#E6DFD3] text-slate-600 hover:bg-[#FAF9F5]"
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="relative w-full sm:w-72">
+                  <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search stock item..."
+                    value={inventorySearchQuery}
+                    onChange={(e) => setInventorySearchQuery(e.target.value)}
+                    className="w-full bg-white border border-[#E6DFD3] rounded-xl pl-9 pr-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
+                  />
+                </div>
+              </div>
+
+              {/* Table with Cost, Selling Price, Edit & Delete */}
+              <div className="bg-white rounded-3xl border border-[#E6DFD3] overflow-hidden shadow-sm">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-[#F3EFE6] uppercase font-semibold text-slate-500">
+                  <thead className="bg-[#F3EFE6] uppercase font-semibold text-slate-500 border-b border-[#E6DFD3]">
                     <tr>
-                      <th className="p-3.5">Product</th>
+                      <th className="p-3.5">Product Name</th>
                       <th className="p-3.5">Category</th>
-                      <th className="p-3.5 text-right">Price</th>
-                      <th className="p-3.5 text-center">Stock</th>
+                      <th className="p-3.5 text-right">Cost Price</th>
+                      <th className="p-3.5 text-right">Selling Price</th>
+                      <th className="p-3.5 text-right">Gross Margin</th>
+                      <th className="p-3.5 text-center">Stock Level</th>
+                      <th className="p-3.5 text-center">Quick Adjust</th>
+                      {isManager && <th className="p-3.5 text-center">Actions</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#F3EFE6]">
-                    {inventory.map((item) => (
-                      <tr key={item.id}>
-                        <td className="p-3.5 font-bold">{item.name}</td>
-                        <td className="p-3.5">{item.category}</td>
-                        <td className="p-3.5 text-right">{settings.currency}{Number(item.price).toFixed(2)}</td>
-                        <td className="p-3.5 text-center font-bold">{item.stock}</td>
-                      </tr>
-                    ))}
+                    {filteredInventory.map((item) => {
+                      const cost = Number(item.cost) || 0;
+                      const price = Number(item.price) || 0;
+                      const margin = price - cost;
+
+                      return (
+                        <tr key={item.id} className="hover:bg-[#FAF9F5] transition-colors">
+                          <td className="p-3.5 font-bold text-[#091D26]">
+                            <div className="flex items-center gap-2">
+                              <span>{item.name}</span>
+                              {item.stock < 10 && (
+                                <span className="flex items-center gap-0.5 text-[9px] bg-rose-50 text-rose-600 border border-rose-200 px-1.5 py-0.5 rounded font-bold">
+                                  Low Stock
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="p-3.5">
+                            <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase">
+                              {item.category}
+                            </span>
+                          </td>
+                          <td className="p-3.5 text-right font-medium text-slate-500">
+                            {settings.currency}{cost.toFixed(2)}
+                          </td>
+                          <td className="p-3.5 text-right font-bold text-[#091D26]">
+                            {price > 0 ? `${settings.currency}${price.toFixed(2)}` : "Complimentary"}
+                          </td>
+                          <td className="p-3.5 text-right font-bold">
+                            <span className={margin >= 0 ? "text-emerald-600" : "text-rose-600"}>
+                              {settings.currency}{margin.toFixed(2)}
+                            </span>
+                          </td>
+                          <td className="p-3.5 text-center font-bold text-sm">
+                            <span className={item.stock < 10 ? "text-rose-600" : "text-slate-800"}>
+                              {item.stock}
+                            </span>
+                          </td>
+                          <td className="p-3.5 text-center">
+                            <div className="inline-flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateStockLevel(item.id, -1)}
+                                className="px-2 py-0.5 border border-[#D3C8B7] rounded hover:bg-slate-100 text-xs font-bold"
+                              >
+                                -
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateStockLevel(item.id, 1)}
+                                className="px-2 py-0.5 border border-[#D3C8B7] rounded hover:bg-slate-100 text-xs font-bold"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </td>
+                          {isManager && (
+                            <td className="p-3.5 text-center">
+                              <div className="inline-flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartEditInventory(item)}
+                                  className="p-1.5 text-slate-400 hover:text-[#0D9488] rounded hover:bg-slate-100"
+                                  title="Edit Item"
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteInventoryItem(item)}
+                                  className="p-1.5 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50"
+                                  title="Delete Item"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1851,7 +1931,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* View Switcher: Daily Attendance vs Compensation Roster */}
+              {/* View Switcher */}
               <div className="flex bg-[#F3EFE6] p-1 rounded-lg border border-[#E6DFD3] w-fit">
                 <button
                   type="button"
@@ -1994,14 +2074,13 @@ export default function App() {
           {/* TAB 6: COMPLETE SETTINGS MODULE */}
           {activeTab === "settings" && isManager && (
             <div className="max-w-6xl mx-auto space-y-8 pb-16">
-              {/* Header Action Bar */}
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-[#E6DFD3] pb-4">
                 <div>
                   <h2 className="text-2xl font-bold flex items-center gap-2">
-                    <Settings className="w-6 h-6 text-[#14B8A6]" /> System, Business & Peripheral Settings[cite: 3]
+                    <Settings className="w-6 h-6 text-[#14B8A6]" /> System, Business & Peripheral Settings
                   </h2>
                   <p className="text-xs text-slate-500">
-                    Manage company identity, thermal printing options, automated cash drawer solenoid, and database backup files[cite: 3].
+                    Manage company identity, thermal printing options, automated cash drawer solenoid, and database backup files.
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -2010,14 +2089,14 @@ export default function App() {
                     onClick={handleDownloadBackup}
                     className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[#D3C8B7] bg-white hover:bg-slate-50 text-xs font-bold shadow-sm"
                   >
-                    <Download className="w-4 h-4 text-slate-500" /> Download Backup[cite: 3]
+                    <Download className="w-4 h-4 text-slate-500" /> Download Backup
                   </button>
                   <button
                     type="button"
                     onClick={handleSaveAllSettings}
                     className="flex items-center gap-1.5 px-5 py-2 rounded-lg bg-[#0D9488] hover:bg-[#0F766E] text-white text-xs font-bold shadow-md transition-all"
                   >
-                    <Save className="w-4 h-4" /> Save Changes[cite: 3]
+                    <Save className="w-4 h-4" /> Save Changes
                   </button>
                 </div>
               </div>
@@ -2028,18 +2107,17 @@ export default function App() {
                 </div>
               )}
 
-              {/* CARD 1: COMPANY & BUSINESS INFORMATION */}
+              {/* Company Information Card */}
               <div className="bg-white rounded-2xl border border-[#E6DFD3] p-6 shadow-sm space-y-4">
                 <div className="border-b border-slate-100 pb-2">
                   <h3 className="font-bold text-sm text-[#091D26] uppercase tracking-wide flex items-center gap-2">
-                    <Building2 className="w-4 h-4 text-[#14B8A6]" /> Company & Business Information[cite: 3]
+                    <Building2 className="w-4 h-4 text-[#14B8A6]" /> Company & Business Information
                   </h3>
-                  <p className="text-[11px] text-slate-400">Printed on official receipts, tax invoices, and IT reports[cite: 3]</p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Trading / Brand Name[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Trading / Brand Name</label>
                     <input
                       type="text"
                       value={settingsForm.hotelName}
@@ -2048,7 +2126,7 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Brand Tagline / Slogan[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Brand Tagline / Slogan</label>
                     <input
                       type="text"
                       value={settingsForm.tagline}
@@ -2057,7 +2135,7 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Registered Legal Entity Name[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Registered Legal Entity Name</label>
                     <input
                       type="text"
                       value={settingsForm.legalEntity}
@@ -2066,7 +2144,7 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Business Registration No. (BRN / Company ID)[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Business Registration No. (BRN)</label>
                     <input
                       type="text"
                       value={settingsForm.companyRegNo}
@@ -2075,7 +2153,7 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Tax Identification / VAT / GST No.[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Tax Identification / VAT No.</label>
                     <input
                       type="text"
                       value={settingsForm.taxNumber}
@@ -2084,7 +2162,7 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Terminal Hardware Identifier[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Terminal Hardware Identifier</label>
                     <input
                       type="text"
                       value={settingsForm.terminalId}
@@ -2093,7 +2171,7 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Contact Phone Number[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Contact Phone Number</label>
                     <input
                       type="text"
                       value={settingsForm.phone}
@@ -2102,7 +2180,7 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Business Email Address[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Business Email Address</label>
                     <input
                       type="email"
                       value={settingsForm.email}
@@ -2111,16 +2189,7 @@ export default function App() {
                     />
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="block font-semibold mb-1 text-slate-700">Official Website or Social Link[cite: 3]</label>
-                    <input
-                      type="text"
-                      value={settingsForm.website}
-                      onChange={(e) => setSettingsForm({ ...settingsForm, website: e.target.value })}
-                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
-                    />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className="block font-semibold mb-1 text-slate-700">Full Physical Street Address[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Full Physical Street Address</label>
                     <input
                       type="text"
                       value={settingsForm.address}
@@ -2131,232 +2200,17 @@ export default function App() {
                 </div>
               </div>
 
-              {/* CARD 2: AUTOMATED DAILY 11:30 PM EMAIL DISPATCH */}
+              {/* Currency & Tax Setup */}
               <div className="bg-white rounded-2xl border border-[#E6DFD3] p-6 shadow-sm space-y-4">
                 <div className="border-b border-slate-100 pb-2">
                   <h3 className="font-bold text-sm text-[#091D26] uppercase tracking-wide flex items-center gap-2">
-                    <Send className="w-4 h-4 text-[#14B8A6]" /> Automated Daily 11:30 PM Email Dispatch[cite: 3]
+                    <DollarSign className="w-4 h-4 text-[#14B8A6]" /> Currency, Taxes & Surcharge Rates
                   </h3>
-                  <p className="text-[11px] text-slate-400">Auto-dispatches complete end-of-day sales, collections, balances, and shift worksheets[cite: 3]</p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Target Recipient Email[cite: 3]</label>
-                    <input
-                      type="email"
-                      value={settingsForm.emailRecipient}
-                      onChange={(e) => setSettingsForm({ ...settingsForm, emailRecipient: e.target.value })}
-                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Scheduled Time (24h)[cite: 3]</label>
-                    <input
-                      type="text"
-                      value={settingsForm.emailScheduleTime}
-                      onChange={(e) => setSettingsForm({ ...settingsForm, emailScheduleTime: e.target.value })}
-                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Automation Status[cite: 3]</label>
-                    <select
-                      value={settingsForm.emailStatus}
-                      onChange={(e) => setSettingsForm({ ...settingsForm, emailStatus: e.target.value })}
-                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white"
-                    >
-                      <option value="Disabled (Manual trigger only)">Disabled (Manual trigger only)[cite: 3]</option>
-                      <option value="Enabled (Daily Auto Send)">Enabled (Daily Auto Send)</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="bg-[#FAF9F5] p-3.5 rounded-xl border border-[#E6DFD3] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                  <div className="text-[11px] text-slate-500">
-                    <b>What data is transmitted in the 11:30 PM package?</b><br />
-                    Gross revenue, net sales, taxes, service pool, room occupancy, minibar orders, cashier balance, and shift audits[cite: 3].
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => alert(`Email report package dispatched to ${settingsForm.emailRecipient}`)}
-                    className="px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-lg text-xs font-bold shrink-0 shadow-sm"
-                  >
-                    Send Daily Report Now[cite: 3]
-                  </button>
-                </div>
-              </div>
-
-              {/* CARD 3: THERMAL AUTO-PRINTER CONFIGURATION */}
-              <div className="bg-white rounded-2xl border border-[#E6DFD3] p-6 shadow-sm space-y-4">
-                <div className="border-b border-slate-100 pb-2">
-                  <h3 className="font-bold text-sm text-[#091D26] uppercase tracking-wide flex items-center gap-2">
-                    <Printer className="w-4 h-4 text-[#14B8A6]" /> Thermal Auto-Printer Configuration[cite: 3]
-                  </h3>
-                  <p className="text-[11px] text-slate-400">Hardwired direct slip generation for USB, LAN, or Bluetooth portable printers[cite: 3]</p>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-                  <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Paper Roll Width[cite: 3]</label>
-                    <select
-                      value={settingsForm.paperRollWidth}
-                      onChange={(e) => setSettingsForm({ ...settingsForm, paperRollWidth: e.target.value })}
-                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white"
-                    >
-                      <option value="80mm">80mm Thermal Paper (Standard POS)[cite: 3]</option>
-                      <option value="58mm">58mm Thermal Paper (Compact / Mobile)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Receipt Font Size[cite: 3]</label>
-                    <select
-                      value={settingsForm.receiptFontSize}
-                      onChange={(e) => setSettingsForm({ ...settingsForm, receiptFontSize: e.target.value })}
-                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white"
-                    >
-                      <option value="14px - Extra Bold & Large">14px - Extra Bold & Large[cite: 3]</option>
-                      <option value="12px - Standard POS">12px - Standard POS</option>
-                      <option value="10px - Compact Condense">10px - Compact Condense</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Receipt Font Type[cite: 3]</label>
-                    <select
-                      value={settingsForm.receiptFontType}
-                      onChange={(e) => setSettingsForm({ ...settingsForm, receiptFontType: e.target.value })}
-                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white"
-                    >
-                      <option value="Monospace (Classic ESC/POS)">Monospace (Classic ESC/POS Receipt)[cite: 3]</option>
-                      <option value="Sans-Serif">Modern Sans-Serif</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Thermal Slip Margins[cite: 3]</label>
-                    <select
-                      value={settingsForm.slipMargins}
-                      onChange={(e) => setSettingsForm({ ...settingsForm, slipMargins: e.target.value })}
-                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white"
-                    >
-                      <option value="2mm - Standard Thermal Margin">2mm - Standard Thermal Margin[cite: 3]</option>
-                      <option value="0mm - Full Bleed Edge">0mm - Full Bleed Edge</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Auto-Print on Saved Order[cite: 3]</label>
-                    <select
-                      value={settingsForm.autoPrintKOT}
-                      onChange={(e) => setSettingsForm({ ...settingsForm, autoPrintKOT: e.target.value })}
-                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white"
-                    >
-                      <option value="Yes - Print KOT & BOT Slips">Yes - Print KOT & BOT Slips[cite: 3]</option>
-                      <option value="No - Manual Only">No - Manual Only</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Auto-Print on Settlement[cite: 3]</label>
-                    <select
-                      value={settingsForm.autoPrintSettlement}
-                      onChange={(e) => setSettingsForm({ ...settingsForm, autoPrintSettlement: e.target.value })}
-                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white"
-                    >
-                      <option value="Yes - Print Final Tax Invoice">Yes - Print Final Tax Invoice[cite: 3]</option>
-                      <option value="No - Screen Only">No - Screen Only</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="flex gap-2 justify-end pt-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const dummyRoom = { number: "TEST", orderId: "TEST-01", orderItems: [{ description: "Thermal Test Print", quantity: 1, total: 0 }] };
-                      const html = buildThermalHtml({ settings: settingsForm, room: dummyRoom, isTemporary: true, settlementMethod: "TEST", total: 0 });
-                      printIsolatedDocument(html, "thermal");
-                    }}
-                    className="px-4 py-2 border border-[#D3C8B7] rounded-lg text-xs font-bold hover:bg-slate-50 flex items-center gap-1.5"
-                  >
-                    <Printer className="w-3.5 h-3.5" /> Test Slip[cite: 3]
-                  </button>
-                </div>
-              </div>
-
-              {/* CARD 4: AUTOMATED CASH DRAWER SOLENOID */}
-              <div className="bg-white rounded-2xl border border-[#E6DFD3] p-6 shadow-sm space-y-4">
-                <div className="border-b border-slate-100 pb-2">
-                  <h3 className="font-bold text-sm text-[#091D26] uppercase tracking-wide flex items-center gap-2">
-                    <Banknote className="w-4 h-4 text-[#14B8A6]" /> Automated Cash Drawer Solenoid[cite: 3]
-                  </h3>
-                  <p className="text-[11px] text-slate-400">Triggers electrical RJ11/RJ12 drawer pulse via printer kick ports[cite: 3]</p>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-                  <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Auto Drawer Kick[cite: 3]</label>
-                    <select
-                      value={settingsForm.autoDrawerKick}
-                      onChange={(e) => setSettingsForm({ ...settingsForm, autoDrawerKick: e.target.value })}
-                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white"
-                    >
-                      <option value="Enabled (Auto-Pop on Payment)">Enabled (Auto-Pop on Payment)[cite: 3]</option>
-                      <option value="Disabled">Disabled</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Drawer Kick Trigger[cite: 3]</label>
-                    <select
-                      value={settingsForm.drawerKickTrigger}
-                      onChange={(e) => setSettingsForm({ ...settingsForm, drawerKickTrigger: e.target.value })}
-                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white"
-                    >
-                      <option value="Cash Payments Only">Cash Payments Only[cite: 3]</option>
-                      <option value="All Settlement Tenders">All Settlement Tenders</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block font-semibold mb-1 text-slate-700">RJ11 / RJ12 Pinout[cite: 3]</label>
-                    <select
-                      value={settingsForm.drawerPinout}
-                      onChange={(e) => setSettingsForm({ ...settingsForm, drawerPinout: e.target.value })}
-                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white"
-                    >
-                      <option value="Pin 2 / ESC p 0 (Epson, Rongta, Xprint)">Pin 2 / ESC p 0 (Epson, Rongta, Xprint)[cite: 3]</option>
-                      <option value="Pin 5 / ESC p 1 (Star Micronics)">Pin 5 / ESC p 1 (Star Micronics)</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="flex justify-between items-center pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setSettingsForm({ ...settingsForm, drawerChime: !settingsForm.drawerChime })}
-                    className="flex items-center gap-2 text-xs font-semibold text-slate-700"
-                  >
-                    {settingsForm.drawerChime ? <Volume2 className="w-4 h-4 text-[#14B8A6]" /> : <VolumeX className="w-4 h-4 text-slate-400" />}
-                    Register Chime Sound: <b>{settingsForm.drawerChime ? "Chime ON" : "Muted"}</b>[cite: 3]
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => alert("Solenoid pulse sent! Cash drawer kicked open.")}
-                    className="px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-lg text-xs font-bold shadow-sm"
-                  >
-                    Pop Drawer[cite: 3]
-                  </button>
-                </div>
-              </div>
-
-              {/* CARD 5: CURRENCY, TAXES & SURCHARGE RATES */}
-              <div className="bg-white rounded-2xl border border-[#E6DFD3] p-6 shadow-sm space-y-4">
-                <div className="border-b border-slate-100 pb-2">
-                  <h3 className="font-bold text-sm text-[#091D26] uppercase tracking-wide flex items-center gap-2">
-                    <DollarSign className="w-4 h-4 text-[#14B8A6]" /> Currency, Taxes & Surcharge Rates[cite: 3]
-                  </h3>
-                  <p className="text-[11px] text-slate-400">Default rates applied across folios and receipts[cite: 3]</p>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-                  <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Currency Symbol / Code[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Currency Symbol</label>
                     <input
                       type="text"
                       value={settingsForm.currency}
@@ -2365,7 +2219,7 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Default Service Charge (%)[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Default Service Charge (%)</label>
                     <input
                       type="number"
                       value={settingsForm.serviceChargeRate}
@@ -2374,7 +2228,7 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-700">Sales Tax / VAT Rate (%)[cite: 3]</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Sales Tax / VAT (%)</label>
                     <input
                       type="number"
                       value={settingsForm.vatRate}
@@ -2382,88 +2236,14 @@ export default function App() {
                       className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
                     />
                   </div>
-                  <div className="sm:col-span-3">
-                    <label className="block font-semibold mb-1 text-slate-700">Thermal Receipt Header Notes[cite: 3]</label>
-                    <textarea
-                      rows={2}
-                      value={settingsForm.headerNote}
-                      onChange={(e) => setSettingsForm({ ...settingsForm, headerNote: e.target.value })}
-                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
-                    />
-                  </div>
-                  <div className="sm:col-span-3">
-                    <label className="block font-semibold mb-1 text-slate-700">Thermal Receipt Footer Message[cite: 3]</label>
-                    <textarea
-                      rows={2}
-                      value={settingsForm.footerNote}
-                      onChange={(e) => setSettingsForm({ ...settingsForm, footerNote: e.target.value })}
-                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
-                    />
-                  </div>
                 </div>
-              </div>
-
-              {/* CARD 6: DATABASE BACKUP & DISASTER RECOVERY */}
-              <div className="bg-white rounded-2xl border border-[#E6DFD3] p-6 shadow-sm space-y-4">
-                <div className="border-b border-slate-100 pb-2">
-                  <h3 className="font-bold text-sm text-[#091D26] uppercase tracking-wide flex items-center gap-2">
-                    <Download className="w-4 h-4 text-[#14B8A6]" /> System Database Backup & Disaster Recovery[cite: 3]
-                  </h3>
-                  <p className="text-[11px] text-slate-400">Export or restore full state database (folios, staff, inventory, and shift logs)[cite: 3]</p>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                  <div className="p-4 bg-[#FAF9F5] border border-[#E6DFD3] rounded-xl flex flex-col justify-between space-y-3">
-                    <div>
-                      <span className="font-bold block mb-1">Export JSON Database Backup[cite: 3]</span>
-                      <p className="text-slate-500">Download a complete snapshot of all active folios, staff records, and setup data[cite: 3].</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleDownloadBackup}
-                      className="w-full py-2.5 bg-[#091D26] text-white rounded-lg font-bold flex items-center justify-center gap-2"
-                    >
-                      <Download className="w-4 h-4" /> Download System Backup (json)[cite: 3]
-                    </button>
-                  </div>
-
-                  <div className="p-4 bg-[#FAF9F5] border border-[#E6DFD3] rounded-xl flex flex-col justify-between space-y-3">
-                    <div>
-                      <span className="font-bold block mb-1">Restore System from Backup File[cite: 3]</span>
-                      <p className="text-slate-500">Upload a previously exported .json file to restore system settings and history[cite: 3].</p>
-                    </div>
-                    <label className="w-full py-2.5 border border-[#D3C8B7] bg-white hover:bg-slate-50 rounded-lg font-bold flex items-center justify-center gap-2 cursor-pointer">
-                      <Upload className="w-4 h-4 text-slate-500" /> Select Backup File (json)[cite: 3]
-                      <input type="file" accept=".json" onChange={handleRestoreBackup} className="hidden" />
-                    </label>
-                  </div>
-                </div>
-              </div>
-
-              {/* CARD 7: ADMINISTRATOR PURGE */}
-              <div className="bg-red-50/50 rounded-2xl border border-red-200 p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                  <h4 className="font-bold text-xs text-red-900 uppercase flex items-center gap-1.5">
-                    <AlertTriangle className="w-4 h-4 text-red-600" /> Administrator Data Purge (Reset Test Data)[cite: 3]
-                  </h4>
-                  <p className="text-[11px] text-red-700 mt-0.5">
-                    Clear test transactions, reset all rooms to VACANT, and reset shift balance ledgers[cite: 3].
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handlePurgeTestData}
-                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold shrink-0 shadow-sm"
-                >
-                  Purge Test Records[cite: 3]
-                </button>
               </div>
             </div>
           )}
         </main>
       </div>
 
-      {/* MODAL 1: CHECK-IN WITH CAMERA */}
+      {/* MODAL: CHECK-IN WITH CAMERA */}
       {checkInModalRoom && (
         <div className="fixed inset-0 bg-[#06151E]/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-[#E6DFD3] my-8">
@@ -2555,7 +2335,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL 2: SETTLEMENT CONSOLE */}
+      {/* MODAL: DIRECT BILL SETTLEMENT CONSOLE */}
       {settleOrderRoom && (
         <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-[#E6DFD3]">
@@ -2587,7 +2367,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Tender Method Selection */}
             <div className="mb-4">
               <label className="block text-xs font-semibold text-slate-700 mb-2">Tender Method:</label>
               <div className="grid grid-cols-3 gap-2">
@@ -2653,10 +2432,10 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL 3: ADD INVENTORY */}
+      {/* MODAL: ADD INVENTORY ITEM (WITH COST & SELLING PRICE) */}
       {showAddInventoryModal && isManager && (
         <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 border shadow-2xl">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 border shadow-2xl">
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-bold text-lg">Add Inventory Item</h3>
               <button type="button" onClick={() => setShowAddInventoryModal(false)} className="text-slate-400">
@@ -2664,31 +2443,73 @@ export default function App() {
               </button>
             </div>
             <form onSubmit={handleCreateInventoryItem} className="space-y-4 text-xs">
-              <input
-                type="text"
-                placeholder="Product Name"
-                required
-                value={newInventoryForm.name}
-                onChange={(e) => setNewInventoryForm({ ...newInventoryForm, name: e.target.value })}
-                className="w-full border rounded p-2"
-              />
-              <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block font-semibold mb-1">Product Name</label>
                 <input
-                  type="number"
-                  placeholder="Price"
-                  value={newInventoryForm.price}
-                  onChange={(e) => setNewInventoryForm({ ...newInventoryForm, price: e.target.value })}
-                  className="w-full border rounded p-2"
+                  type="text"
+                  placeholder="e.g. Artisanal Sparkling Water"
+                  required
+                  value={newInventoryForm.name}
+                  onChange={(e) => setNewInventoryForm({ ...newInventoryForm, name: e.target.value })}
+                  className="w-full border rounded-xl p-2.5"
                 />
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1">Category</label>
+                <select
+                  value={newInventoryForm.category}
+                  onChange={(e) => setNewInventoryForm({ ...newInventoryForm, category: e.target.value })}
+                  className="w-full border rounded-xl p-2.5 bg-white"
+                >
+                  <option value="minibar">Minibar</option>
+                  <option value="beverage">Beverage</option>
+                  <option value="snack">Snack</option>
+                  <option value="amenity">Amenity</option>
+                  <option value="linen">Linen</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1">Unit Cost Price ({settings.currency})</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="Cost"
+                    required
+                    value={newInventoryForm.cost}
+                    onChange={(e) => setNewInventoryForm({ ...newInventoryForm, cost: e.target.value })}
+                    className="w-full border rounded-xl p-2.5"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Selling Price ({settings.currency})</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="Retail Price"
+                    required
+                    value={newInventoryForm.price}
+                    onChange={(e) => setNewInventoryForm({ ...newInventoryForm, price: e.target.value })}
+                    className="w-full border rounded-xl p-2.5"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1">Initial Stock Units</label>
                 <input
                   type="number"
                   placeholder="Stock"
+                  required
                   value={newInventoryForm.stock}
                   onChange={(e) => setNewInventoryForm({ ...newInventoryForm, stock: e.target.value })}
-                  className="w-full border rounded p-2"
+                  className="w-full border rounded-xl p-2.5"
                 />
               </div>
-              <button type="submit" className="w-full bg-[#14B8A6] text-white py-2.5 rounded font-bold">
+
+              <button type="submit" className="w-full bg-[#14B8A6] hover:bg-[#0D9488] text-white py-3 rounded-xl font-bold">
                 Save Product
               </button>
             </form>
@@ -2696,7 +2517,103 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL 4: ADD ROOM */}
+      {/* MODAL: EDIT INVENTORY ITEM (NEW) */}
+      {editingInventoryItem && isManager && (
+        <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 border shadow-2xl">
+            <div className="flex justify-between items-center mb-4">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-[#0F766E]">Update Catalog Item</span>
+                <h3 className="font-bold text-lg">Edit {editingInventoryItem.name}</h3>
+              </div>
+              <button type="button" onClick={() => setEditingInventoryItem(null)} className="text-slate-400">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveInventoryEdit} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold mb-1">Product Name</label>
+                <input
+                  type="text"
+                  required
+                  value={editInventoryForm.name}
+                  onChange={(e) => setEditInventoryForm({ ...editInventoryForm, name: e.target.value })}
+                  className="w-full border rounded-xl p-2.5"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1">Category</label>
+                <select
+                  value={editInventoryForm.category}
+                  onChange={(e) => setEditInventoryForm({ ...editInventoryForm, category: e.target.value })}
+                  className="w-full border rounded-xl p-2.5 bg-white"
+                >
+                  <option value="minibar">Minibar</option>
+                  <option value="beverage">Beverage</option>
+                  <option value="snack">Snack</option>
+                  <option value="amenity">Amenity</option>
+                  <option value="linen">Linen</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1">Unit Cost Price ({settings.currency})</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    value={editInventoryForm.cost}
+                    onChange={(e) => setEditInventoryForm({ ...editInventoryForm, cost: e.target.value })}
+                    className="w-full border rounded-xl p-2.5"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Selling Price ({settings.currency})</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    value={editInventoryForm.price}
+                    onChange={(e) => setEditInventoryForm({ ...editInventoryForm, price: e.target.value })}
+                    className="w-full border rounded-xl p-2.5"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1">Current Stock Units</label>
+                <input
+                  type="number"
+                  required
+                  value={editInventoryForm.stock}
+                  onChange={(e) => setEditInventoryForm({ ...editInventoryForm, stock: e.target.value })}
+                  className="w-full border rounded-xl p-2.5"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingInventoryItem(null)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-3 rounded-xl font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-[#0D9488] hover:bg-[#0F766E] text-white py-3 rounded-xl font-bold"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD ROOM */}
       {showAddRoomModal && isManager && (
         <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 border shadow-2xl">
@@ -2731,7 +2648,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL 5: ADD STAFF */}
+      {/* MODAL: ADD STAFF */}
       {showAddStaffModal && isManager && (
         <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-[#E6DFD3]">
