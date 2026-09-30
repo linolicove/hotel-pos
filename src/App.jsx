@@ -57,8 +57,8 @@ import {
   TrendingUp,
   Percent,
   CalendarCheck,
-  Filter,
-  BarChart3
+  BarChart3,
+  History
 } from "lucide-react";
 
 // --- 1. FIREBASE CONFIGURATION (REALTIME DATABASE) ---
@@ -179,6 +179,22 @@ const INITIAL_STAFF_SEEDS = [
 
 const getTodayKey = () => new Date().toISOString().split("T")[0];
 
+// Calculate Shift Length Between Time Strings
+function calculateShiftHours(inStr, outStr) {
+  if (!inStr || !outStr) return "--";
+  try {
+    const today = new Date().toISOString().split("T")[0];
+    const dIn = new Date(`${today} ${inStr}`);
+    const dOut = new Date(`${today} ${outStr}`);
+    const diffMs = dOut - dIn;
+    if (diffMs <= 0) return "--";
+    const hrs = diffMs / (1000 * 60 * 60);
+    return `${hrs.toFixed(1)} hrs`;
+  } catch (e) {
+    return "--";
+  }
+}
+
 // --- 2. PROGRAMMATIC ISOLATED PRINT ENGINE ---
 function printIsolatedDocument(htmlBody, mode = "thermal") {
   const existingFrame = document.getElementById("pos-print-frame");
@@ -289,6 +305,7 @@ function buildThermalHtml({ settings, room, isTemporary, settlementMethod, total
           `).join("")}
         </tbody>
       </table>
+
       <div style="border-top: 1px dashed #000; padding-top: 6px; font-size: 12px;">
         <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 13px;">
           <span>${isTemporary ? "TOTAL DUE:" : "BILL TOTAL:"}</span>
@@ -305,6 +322,7 @@ function buildThermalHtml({ settings, room, isTemporary, settlementMethod, total
           </div>
         ` : ""}
       </div>
+
       <div style="text-align: center; margin-top: 14px; padding-top: 8px; border-top: 1px dashed #000; font-size: 10px;">
         <div>${settings.footerNote}</div>
       </div>
@@ -366,6 +384,7 @@ function buildA4Html({ settings, room, isTemporary, settlementMethod, total, cas
           `).join("")}
         </tbody>
       </table>
+
       <div style="border-top: 2px solid #091D26; border-bottom: 2px solid #091D26; padding: 12px 4px; margin: 24px 0;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <span style="font-size: 14px; font-weight: bold;">Total Bill Amount:</span>
@@ -387,6 +406,7 @@ function buildA4Html({ settings, room, isTemporary, settlementMethod, total, cas
           </div>
         `}
       </div>
+
       <div style="margin-top: 50px; text-align: center; font-size: 11px; border-top: 1px solid #ddd; padding-top: 12px;">
         <p style="margin: 0; font-weight: 500;">${settings.footerNote}</p>
       </div>
@@ -413,14 +433,13 @@ function buildPayslipHtml({ settings, staffMember, payPeriodStr = "Current Pay P
 
   return `
     <div class="a4-container">
-      <div style="border-bottom: 3px double #091D26; padding-bottom: 16px; display: flex; justify-content: space-between; align-items: flex-start;">
+      <div style="border-bottom: 3px double #091D26; padding-bottom: 16px; display: flex; justify-content: space-between;">
         <div>
           <h1 style="font-size: 24px; font-weight: 900; text-transform: uppercase; margin: 0; color: #091D26;">${settings.hotelName}</h1>
-          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; text-transform: uppercase; color: #555;">${settings.tagline}</p>
-          <p style="margin: 4px 0 0 0; font-size: 11px; color: #333;">${settings.address} | Tel: ${settings.phone}</p>
+          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; text-transform: uppercase; color: #555;">Monthly Remuneration Statement</p>
         </div>
         <div style="text-align: right;">
-          <div style="display: inline-block; border: 2px solid #091D26; padding: 6px 14px; font-weight: bold; font-size: 12px; text-transform: uppercase; background: #F3EFE6;">
+          <div style="display: inline-block; border: 2px solid #091D26; padding: 6px 14px; font-weight: bold; font-size: 12px; background: #F3EFE6;">
             CONFIDENTIAL PAYSLIP
           </div>
           <p style="margin: 8px 0 0 0; font-size: 12px;"><b>Pay Cycle:</b> ${payPeriodStr}</p>
@@ -494,33 +513,21 @@ function buildPayslipHtml({ settings, staffMember, payPeriodStr = "Current Pay P
         <span>EPF (12%): <b>${settings.currency}${epfEmployer.toFixed(2)}</b></span>
         <span>ETF (3%): <b>${settings.currency}${etfEmployer.toFixed(2)}</b></span>
       </div>
-
-      <div style="margin-top: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; font-size: 11px;">
-        <div>
-          <p style="font-weight: bold; text-transform: uppercase; margin-bottom: 30px;">Employee Acknowledgment:</p>
-          <div style="border-bottom: 1px solid #000; width: 85%;"></div>
-        </div>
-        <div style="text-align: right;">
-          <p style="font-weight: bold; text-transform: uppercase; margin-bottom: 30px;">Authorized Management Sign-Off:</p>
-          <div style="border-bottom: 1px solid #000; width: 85%; margin-left: auto;"></div>
-        </div>
-      </div>
     </div>
   `;
 }
 
-// Built-in Comprehensive Daily Attendance Report Generator
 function buildDailyAttendanceReportHtml({ settings, reportList, titleStr }) {
   return `
     <div class="a4-container">
       <div style="border-bottom: 3px double #091D26; padding-bottom: 16px; display: flex; justify-content: space-between;">
         <div>
           <h1 style="font-size: 24px; font-weight: 900; text-transform: uppercase; margin: 0; color: #091D26;">${settings.hotelName}</h1>
-          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; color: #555;">Official Daily Attendance & Shift Audit Report</p>
+          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; color: #555;">Daily Staff Shift & Attendance Audit Sheet</p>
         </div>
         <div style="text-align: right;">
           <div style="display: inline-block; border: 2px solid #091D26; padding: 6px 14px; font-weight: bold; font-size: 12px; background: #F3EFE6;">
-            ATTENDANCE AUDIT
+            ATTENDANCE LOG
           </div>
           <p style="margin: 8px 0 0 0; font-size: 12px;"><b>Scope:</b> ${titleStr}</p>
         </div>
@@ -534,7 +541,7 @@ function buildDailyAttendanceReportHtml({ settings, reportList, titleStr }) {
             <th style="padding: 10px 6px; text-align: center;">In Time</th>
             <th style="padding: 10px 6px; text-align: center;">Out Time</th>
             <th style="padding: 10px 6px; text-align: center;">Shift Hours</th>
-            <th style="padding: 10px 6px; text-align: center;">Status</th>
+            <th style="padding: 10px 6px; text-align: center;">Duty Status</th>
           </tr>
         </thead>
         <tbody>
@@ -559,28 +566,12 @@ function buildDailyAttendanceReportHtml({ settings, reportList, titleStr }) {
           <div style="border-bottom: 1px solid #000; width: 85%;"></div>
         </div>
         <div style="text-align: right;">
-          <p style="font-weight: bold; text-transform: uppercase; margin-bottom: 30px;">Human Resources Sign-Off:</p>
+          <p style="font-weight: bold; text-transform: uppercase; margin-bottom: 30px;">Management Sign-Off:</p>
           <div style="border-bottom: 1px solid #000; width: 85%; margin-left: auto;"></div>
         </div>
       </div>
     </div>
   `;
-}
-
-// Helper: Calculate Hours Between Time Strings
-function calculateShiftHours(inStr, outStr) {
-  if (!inStr || !outStr) return "--";
-  try {
-    const today = new Date().toISOString().split("T")[0];
-    const dIn = new Date(`${today} ${inStr}`);
-    const dOut = new Date(`${today} ${outStr}`);
-    const diffMs = dOut - dIn;
-    if (diffMs <= 0) return "--";
-    const hrs = diffMs / (1000 * 60 * 60);
-    return `${hrs.toFixed(1)} hrs`;
-  } catch (e) {
-    return "--";
-  }
 }
 
 // --- 3. DYNAMIC PRICING ENGINE ---
@@ -856,7 +847,6 @@ export default function App() {
 
   // --- REALTIME DATABASE LISTENERS ---
   useEffect(() => {
-    // Settings Listener
     const settingsRef = ref(rtdb, "hotel_config/profile");
     const unsubSettings = onValue(settingsRef, (snapshot) => {
       const data = snapshot.val();
@@ -869,7 +859,6 @@ export default function App() {
       }
     });
 
-    // Rooms Listener
     const roomsRef = ref(rtdb, "rooms");
     const unsubRooms = onValue(roomsRef, (snapshot) => {
       if (snapshot.exists()) {
@@ -898,7 +887,6 @@ export default function App() {
       }
     });
 
-    // Inventory Listener
     const invRef = ref(rtdb, "inventory");
     const unsubInv = onValue(invRef, (snapshot) => {
       if (!snapshot.exists()) {
@@ -920,7 +908,6 @@ export default function App() {
       }
     });
 
-    // Staff Listener
     const staffRef = ref(rtdb, "staff");
     const unsubStaff = onValue(staffRef, (snapshot) => {
       if (!snapshot.exists()) {
@@ -948,7 +935,7 @@ export default function App() {
       setLoading(false);
     });
 
-    // Permanent Daily Attendance Records Archive Listener
+    // Permanent Daily Attendance Archive Listener
     const allAttendanceRef = ref(rtdb, "attendance_history");
     const unsubAllAttendance = onValue(allAttendanceRef, (snapshot) => {
       setAllAttendanceRecords(snapshot.val() || {});
@@ -1200,13 +1187,18 @@ export default function App() {
     }
   };
 
-  // --- PERSISTENT IN/OUT DAILY ATTENDANCE & SHIFT ENGINE ---
+  // --- PERMANENT IN/OUT DAILY ATTENDANCE & MULTI-SHIFT RECORDING ---
   const formatTimeNow = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
+  // Clock In: Creates a new timestamped shift session entry (Never overwrites)
   const handleClockIn = (staffMember) => {
     const timeStr = formatTimeNow();
     const day = getTodayKey();
-    const record = {
+    const nowMs = Date.now();
+    const shiftId = `${day}_${staffMember.id}_${nowMs}`;
+
+    const newShiftRecord = {
+      shiftId: shiftId,
       staffId: staffMember.id,
       name: staffMember.name,
       role: staffMember.role,
@@ -1215,24 +1207,47 @@ export default function App() {
       hoursLogged: "--",
       isOnDuty: true,
       date: day,
-      timestamp: Date.now()
+      timestamp: nowMs
     };
-    // Saves permanently under date key in Firebase RTDB
-    set(ref(rtdb, `attendance_history/${day}/${staffMember.id}`), record);
+
+    // 1. Permanently append shift session to shift archive
+    set(ref(rtdb, `attendance_records/${day}/${shiftId}`), newShiftRecord);
+
+    // 2. Update real-time live staff duty badge
+    update(ref(rtdb, `staff/${staffMember.id}`), {
+      clockIn: timeStr,
+      clockOut: "",
+      activeShiftId: shiftId,
+      isOnDuty: true
+    });
   };
 
+  // Clock Out: Closes the active shift session and records total duration
   const handleClockOut = (staffMember) => {
     const timeStr = formatTimeNow();
     const day = getTodayKey();
-    const existing = allAttendanceRecords[day]?.[staffMember.id] || {};
-    const computedHours = calculateShiftHours(existing.clockIn, timeStr);
+    const shiftId = staffMember.activeShiftId || `${day}_${staffMember.id}`;
 
-    update(ref(rtdb, `attendance_history/${day}/${staffMember.id}`), {
-      clockOut: timeStr,
-      hoursLogged: computedHours,
-      isOnDuty: false,
-      timestampOut: Date.now()
-    });
+    // Read the start time of the active shift session
+    onValue(ref(rtdb, `attendance_records/${day}/${shiftId}`), (snap) => {
+      const activeRecord = snap.val() || {};
+      const computedHours = calculateShiftHours(activeRecord.clockIn || staffMember.clockIn, timeStr);
+
+      // Permanently update shift record with departure time & computed duration
+      update(ref(rtdb, `attendance_records/${day}/${shiftId}`), {
+        clockOut: timeStr,
+        hoursLogged: computedHours,
+        isOnDuty: false,
+        timestampOut: Date.now()
+      });
+
+      // Update staff live status to off duty
+      update(ref(rtdb, `staff/${staffMember.id}`), {
+        clockOut: timeStr,
+        activeShiftId: null,
+        isOnDuty: false
+      });
+    }, { onlyOnce: true });
   };
 
   // Print Handlers
@@ -1294,24 +1309,20 @@ export default function App() {
   };
 
   const handlePrintDailyAttendanceReport = () => {
-    const selectedHistoryDay = allAttendanceRecords[selectedDate] || {};
-    const reportList = staff.map(m => {
-      const record = selectedHistoryDay[m.id] || {};
-      return {
-        date: selectedDate,
-        name: m.name,
-        role: m.role,
-        clockIn: record.clockIn || "--:--",
-        clockOut: record.clockOut || "--:--",
-        hoursLogged: record.hoursLogged || calculateShiftHours(record.clockIn, record.clockOut),
-        isOnDuty: Boolean(record.isOnDuty)
-      };
-    });
+    const reportList = filteredArchivedReports.map(rec => ({
+      date: rec.date,
+      name: rec.name,
+      role: rec.role,
+      clockIn: rec.clockIn || "--:--",
+      clockOut: rec.clockOut || "--:--",
+      hoursLogged: rec.hoursLogged || calculateShiftHours(rec.clockIn, rec.clockOut),
+      isOnDuty: Boolean(rec.isOnDuty)
+    }));
 
     const html = buildDailyAttendanceReportHtml({
       settings,
       reportList,
-      titleStr: `Date: ${selectedDate}`
+      titleStr: `Date: ${selectedDate} | Staff: ${attendanceStaffFilter === "all" ? "All Personnel" : attendanceStaffFilter}`
     });
     printIsolatedDocument(html, "a4");
   };
@@ -1361,6 +1372,7 @@ export default function App() {
     update(ref(rtdb, `rooms/${roomId}`), { status });
   };
 
+  // CHECK-IN WITH DYNAMIC NIGHTLY RATE CALCULATION
   const handleOpenOrderAndCheckIn = (e) => {
     e.preventDefault();
     if (!checkInModalRoom || !guestForm.name) return;
@@ -1484,15 +1496,15 @@ export default function App() {
   const totalPayrollNet = staff.reduce((acc, s) => acc + Math.max(0, calculateStaffGross(s) - calculateStaffDeductions(s)), 0);
   const totalServiceCharges = staff.reduce((acc, s) => acc + (Number(s.serviceCharge) || 0), 0);
 
-  // Monitor Reports Array (Synthesized from permanent RTDB archive)
+  // Monitor Reports Array (Synthesized from permanent RTDB archive of all daily shifts)
   const allArchivedReports = Object.keys(allAttendanceRecords).flatMap((dateKey) => {
     const dayRecords = allAttendanceRecords[dateKey] || {};
-    return Object.keys(dayRecords).map((staffId) => {
-      const rec = dayRecords[staffId];
+    return Object.keys(dayRecords).map((shiftKey) => {
+      const rec = dayRecords[shiftKey];
       return {
-        id: `${dateKey}_${staffId}`,
+        id: shiftKey,
         date: dateKey,
-        staffId: staffId,
+        staffId: rec.staffId,
         name: rec.name || "Staff",
         role: rec.role || "Staff",
         clockIn: rec.clockIn || "--:--",
@@ -1501,7 +1513,7 @@ export default function App() {
         isOnDuty: Boolean(rec.isOnDuty)
       };
     });
-  }).sort((a, b) => b.date.localeCompare(a.date));
+  }).sort((a, b) => (b.date + b.id).localeCompare(a.date + a.id));
 
   const filteredArchivedReports = allArchivedReports.filter((item) => {
     const matchesStaff = attendanceStaffFilter === "all" || item.staffId === attendanceStaffFilter;
@@ -2352,7 +2364,7 @@ export default function App() {
                 <div className="bg-white border border-[#E6DFD3] rounded-3xl p-4 shadow-sm">
                   <p className="text-[11px] font-bold uppercase text-[#0D9488]">Currently On Duty</p>
                   <p className="text-2xl font-black text-[#0D9488] mt-1">
-                    {Object.values(allAttendanceRecords[getTodayKey()] || {}).filter(r => r.isOnDuty).length} Active
+                    {staff.filter(s => s.isOnDuty).length} Active
                   </p>
                 </div>
                 <div className="bg-white border border-[#E6DFD3] rounded-3xl p-4 shadow-sm">
@@ -2414,7 +2426,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* VIEW 1: LIVE DAILY IN/OUT CLOCK (RECORDED & SAVED EVERY SINGLE DAY) */}
+              {/* VIEW 1: LIVE DAILY IN/OUT CLOCK (PERMANENT MULTI-SHIFT TRACKING) */}
               {staffViewSubTab === "attendance" && (
                 <div className="bg-white rounded-3xl border border-[#E6DFD3] overflow-hidden shadow-sm">
                   <div className="p-4 border-b border-[#F3EFE6] flex justify-between items-center bg-[#FAF9F5]">
@@ -2436,21 +2448,19 @@ export default function App() {
                     </thead>
                     <tbody className="divide-y divide-[#F3EFE6]">
                       {filteredStaff.map((m) => {
-                        const todayRecords = allAttendanceRecords[getTodayKey()] || {};
-                        const record = todayRecords[m.id] || {};
-                        const isClockedIn = record.isOnDuty;
+                        const isClockedIn = m.isOnDuty;
 
                         return (
                           <tr key={m.id} className="hover:bg-[#FAF9F5]">
                             <td className="p-3.5 font-bold">{m.name}</td>
                             <td className="p-3.5">{m.role}</td>
-                            <td className="p-3.5 text-center font-mono font-bold text-slate-800">{record.clockIn || "--:--"}</td>
-                            <td className="p-3.5 text-center font-mono font-bold text-slate-800">{record.clockOut || "--:--"}</td>
+                            <td className="p-3.5 text-center font-mono font-bold text-slate-800">{m.clockIn || "--:--"}</td>
+                            <td className="p-3.5 text-center font-mono font-bold text-slate-800">{m.clockOut || "--:--"}</td>
                             <td className="p-3.5 text-center">
                               <span className={`px-2.5 py-0.5 rounded-full font-bold uppercase text-[10px] ${
                                 isClockedIn ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"
                               }`}>
-                                {isClockedIn ? "On Duty" : record.clockOut ? "Completed" : "Off Duty"}
+                                {isClockedIn ? "On Duty" : m.clockOut ? "Completed" : "Off Duty"}
                               </span>
                             </td>
                             <td className="p-3.5 text-center">
