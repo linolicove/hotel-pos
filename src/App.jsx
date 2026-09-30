@@ -56,7 +56,9 @@ import {
   Tag,
   TrendingUp,
   Percent,
-  CalendarCheck
+  CalendarCheck,
+  Filter,
+  BarChart3
 } from "lucide-react";
 
 // --- 1. FIREBASE CONFIGURATION (REALTIME DATABASE) ---
@@ -287,7 +289,6 @@ function buildThermalHtml({ settings, room, isTemporary, settlementMethod, total
           `).join("")}
         </tbody>
       </table>
-
       <div style="border-top: 1px dashed #000; padding-top: 6px; font-size: 12px;">
         <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 13px;">
           <span>${isTemporary ? "TOTAL DUE:" : "BILL TOTAL:"}</span>
@@ -304,7 +305,6 @@ function buildThermalHtml({ settings, room, isTemporary, settlementMethod, total
           </div>
         ` : ""}
       </div>
-
       <div style="text-align: center; margin-top: 14px; padding-top: 8px; border-top: 1px dashed #000; font-size: 10px;">
         <div>${settings.footerNote}</div>
       </div>
@@ -366,7 +366,6 @@ function buildA4Html({ settings, room, isTemporary, settlementMethod, total, cas
           `).join("")}
         </tbody>
       </table>
-
       <div style="border-top: 2px solid #091D26; border-bottom: 2px solid #091D26; padding: 12px 4px; margin: 24px 0;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <span style="font-size: 14px; font-weight: bold;">Total Bill Amount:</span>
@@ -388,7 +387,6 @@ function buildA4Html({ settings, room, isTemporary, settlementMethod, total, cas
           </div>
         `}
       </div>
-
       <div style="margin-top: 50px; text-align: center; font-size: 11px; border-top: 1px solid #ddd; padding-top: 12px;">
         <p style="margin: 0; font-weight: 500;">${settings.footerNote}</p>
       </div>
@@ -396,7 +394,6 @@ function buildA4Html({ settings, room, isTemporary, settlementMethod, total, cas
   `;
 }
 
-// Built-in Official A4 Payslip Generator (Comprehensive Remuneration & Deductions)
 function buildPayslipHtml({ settings, staffMember, payPeriodStr = "Current Pay Period" }) {
   const base = Number(staffMember.baseSalary) || 0;
   const allowances = Number(staffMember.allowances) || 0;
@@ -411,7 +408,6 @@ function buildPayslipHtml({ settings, staffMember, payPeriodStr = "Current Pay P
   const totalDeductions = epfEmployee + taxWithholding + advances;
 
   const netPay = Math.max(0, totalEarnings - totalDeductions);
-
   const epfEmployer = Math.round(base * 0.12);
   const etfEmployer = Math.round(base * 0.03);
 
@@ -422,15 +418,13 @@ function buildPayslipHtml({ settings, staffMember, payPeriodStr = "Current Pay P
           <h1 style="font-size: 24px; font-weight: 900; text-transform: uppercase; margin: 0; color: #091D26;">${settings.hotelName}</h1>
           <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; text-transform: uppercase; color: #555;">${settings.tagline}</p>
           <p style="margin: 4px 0 0 0; font-size: 11px; color: #333;">${settings.address} | Tel: ${settings.phone}</p>
-          <p style="margin: 2px 0 0 0; font-size: 11px; color: #333;">Tax ID / VAT: ${settings.taxNumber} | BRN: ${settings.companyRegNo}</p>
         </div>
         <div style="text-align: right;">
           <div style="display: inline-block; border: 2px solid #091D26; padding: 6px 14px; font-weight: bold; font-size: 12px; text-transform: uppercase; background: #F3EFE6;">
             CONFIDENTIAL PAYSLIP
           </div>
           <p style="margin: 8px 0 0 0; font-size: 12px;"><b>Pay Cycle:</b> ${payPeriodStr}</p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;"><b>Date of Issue:</b> ${new Date().toLocaleDateString()}</p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;"><b>Ref:</b> PAY-${staffMember.id.toUpperCase()}</p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;"><b>Date:</b> ${new Date().toLocaleDateString()}</p>
         </div>
       </div>
 
@@ -439,13 +433,11 @@ function buildPayslipHtml({ settings, staffMember, payPeriodStr = "Current Pay P
           <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Employee Information</p>
           <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold; color: #091D26;">${staffMember.name}</p>
           <p style="margin: 2px 0 0 0; font-size: 12px;">Designation: <b>${staffMember.role}</b></p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;">Contact: ${staffMember.phone || "N/A"}</p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;">Bank A/C: <b>${staffMember.bankAccount || "Cash Payout / Check"}</b></p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;">Bank A/C: <b>${staffMember.bankAccount || "Cash Remittance"}</b></p>
         </div>
         <div style="text-align: right;">
-          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Employment Details</p>
+          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Employment Terms</p>
           <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold; color: #091D26;">${staffMember.type || "Full-Time"}</p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;">EPF / Social Security: <b>REG-${staffMember.id}</b></p>
           <p style="margin: 2px 0 0 0; font-size: 12px;">Payment Status: <b>${staffMember.paid ? "DISBURSED / PAID" : "PENDING DISBURSEMENT"}</b></p>
         </div>
       </div>
@@ -459,26 +451,11 @@ function buildPayslipHtml({ settings, staffMember, payPeriodStr = "Current Pay P
             </tr>
           </thead>
           <tbody>
-            <tr style="border-bottom: 1px solid #eee;">
-              <td style="padding: 8px 6px;">Basic Salary</td>
-              <td style="padding: 8px 6px; text-align: right;">${settings.currency}${base.toFixed(2)}</td>
-            </tr>
-            <tr style="border-bottom: 1px solid #eee;">
-              <td style="padding: 8px 6px;">Fixed Allowances (Housing/Meals)</td>
-              <td style="padding: 8px 6px; text-align: right;">${settings.currency}${allowances.toFixed(2)}</td>
-            </tr>
-            <tr style="border-bottom: 1px solid #eee;">
-              <td style="padding: 8px 6px;">Service Charge Pool Share</td>
-              <td style="padding: 8px 6px; text-align: right;">${settings.currency}${serviceCharge.toFixed(2)}</td>
-            </tr>
-            <tr style="border-bottom: 1px solid #eee;">
-              <td style="padding: 8px 6px;">Performance / Attendance Bonus</td>
-              <td style="padding: 8px 6px; text-align: right;">${settings.currency}${bonus.toFixed(2)}</td>
-            </tr>
-            <tr style="border-bottom: 1px solid #eee;">
-              <td style="padding: 8px 6px;">Overtime / Holiday Pay</td>
-              <td style="padding: 8px 6px; text-align: right;">${settings.currency}${overtime.toFixed(2)}</td>
-            </tr>
+            <tr style="border-bottom: 1px solid #eee;"><td style="padding: 8px 6px;">Basic Salary</td><td style="padding: 8px 6px; text-align: right;">${settings.currency}${base.toFixed(2)}</td></tr>
+            <tr style="border-bottom: 1px solid #eee;"><td style="padding: 8px 6px;">Fixed Allowances</td><td style="padding: 8px 6px; text-align: right;">${settings.currency}${allowances.toFixed(2)}</td></tr>
+            <tr style="border-bottom: 1px solid #eee;"><td style="padding: 8px 6px;">Service Charge Pool Share</td><td style="padding: 8px 6px; text-align: right;">${settings.currency}${serviceCharge.toFixed(2)}</td></tr>
+            <tr style="border-bottom: 1px solid #eee;"><td style="padding: 8px 6px;">Performance Bonus</td><td style="padding: 8px 6px; text-align: right;">${settings.currency}${bonus.toFixed(2)}</td></tr>
+            <tr style="border-bottom: 1px solid #eee;"><td style="padding: 8px 6px;">Overtime Pay</td><td style="padding: 8px 6px; text-align: right;">${settings.currency}${overtime.toFixed(2)}</td></tr>
             <tr style="border-top: 2px solid #091D26; font-weight: bold; background: #FAF9F5;">
               <td style="padding: 8px 6px;">Total Gross Earnings:</td>
               <td style="padding: 8px 6px; text-align: right;">${settings.currency}${totalEarnings.toFixed(2)}</td>
@@ -494,26 +471,11 @@ function buildPayslipHtml({ settings, staffMember, payPeriodStr = "Current Pay P
             </tr>
           </thead>
           <tbody>
-            <tr style="border-bottom: 1px solid #eee;">
-              <td style="padding: 8px 6px;">EPF (Employee 8%)</td>
-              <td style="padding: 8px 6px; text-align: right;">${settings.currency}${epfEmployee.toFixed(2)}</td>
-            </tr>
-            <tr style="border-bottom: 1px solid #eee;">
-              <td style="padding: 8px 6px;">Tax / PAYE Withholding</td>
-              <td style="padding: 8px 6px; text-align: right;">${settings.currency}${taxWithholding.toFixed(2)}</td>
-            </tr>
-            <tr style="border-bottom: 1px solid #eee;">
-              <td style="padding: 8px 6px;">Salary Advance / Cash Loans</td>
-              <td style="padding: 8px 6px; text-align: right;">${settings.currency}${advances.toFixed(2)}</td>
-            </tr>
-            <tr style="border-bottom: 1px solid #eee;">
-              <td style="padding: 8px 6px; color: #888;">Other Miscellaneous</td>
-              <td style="padding: 8px 6px; text-align: right; color: #888;">${settings.currency}0.00</td>
-            </tr>
-            <tr style="border-bottom: 1px solid #eee; height: 33px;">
-              <td style="padding: 8px 6px;"></td>
-              <td></td>
-            </tr>
+            <tr style="border-bottom: 1px solid #eee;"><td style="padding: 8px 6px;">EPF (Employee 8%)</td><td style="padding: 8px 6px; text-align: right;">${settings.currency}${epfEmployee.toFixed(2)}</td></tr>
+            <tr style="border-bottom: 1px solid #eee;"><td style="padding: 8px 6px;">Tax / PAYE Withholding</td><td style="padding: 8px 6px; text-align: right;">${settings.currency}${taxWithholding.toFixed(2)}</td></tr>
+            <tr style="border-bottom: 1px solid #eee;"><td style="padding: 8px 6px;">Salary Advance / Loans</td><td style="padding: 8px 6px; text-align: right;">${settings.currency}${advances.toFixed(2)}</td></tr>
+            <tr style="border-bottom: 1px solid #eee; height: 35px;"><td style="padding: 8px 6px;"></td><td></td></tr>
+            <tr style="border-bottom: 1px solid #eee; height: 35px;"><td style="padding: 8px 6px;"></td><td></td></tr>
             <tr style="border-top: 2px solid #091D26; font-weight: bold; background: #FFF1F2; color: #9F1239;">
               <td style="padding: 8px 6px;">Total Deductions:</td>
               <td style="padding: 8px 6px; text-align: right;">${settings.currency}${totalDeductions.toFixed(2)}</td>
@@ -523,74 +485,102 @@ function buildPayslipHtml({ settings, staffMember, payPeriodStr = "Current Pay P
       </div>
 
       <div style="border: 2px solid #091D26; background: #CCFBF1; padding: 14px 18px; margin: 18px 0; display: flex; justify-content: space-between; align-items: center; border-radius: 4px;">
-        <div>
-          <span style="font-size: 13px; font-weight: bold; text-transform: uppercase; color: #0F766E;">NET TAKE-HOME PAYABLE:</span>
-          <span style="display: block; font-size: 10px; color: #555;">(Gross Earnings - Total Deductions)</span>
-        </div>
+        <span style="font-size: 13px; font-weight: bold; text-transform: uppercase; color: #0F766E;">NET TAKE-HOME PAYABLE:</span>
         <span style="font-size: 26px; font-weight: 900; color: #0D9488;">${settings.currency}${netPay.toFixed(2)}</span>
       </div>
 
       <div style="background: #F8FAFC; border: 1px dashed #94A3B8; padding: 10px 14px; margin: 16px 0; font-size: 11px; display: flex; justify-content: space-between;">
-        <span><b>Employer Statutory Contributions:</b></span>
+        <span><b>Employer Statutory:</b></span>
         <span>EPF (12%): <b>${settings.currency}${epfEmployer.toFixed(2)}</b></span>
         <span>ETF (3%): <b>${settings.currency}${etfEmployer.toFixed(2)}</b></span>
-        <span>Total Company Contribution: <b>${settings.currency}${(epfEmployer + etfEmployer).toFixed(2)}</b></span>
       </div>
 
       <div style="margin-top: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; font-size: 11px;">
         <div>
-          <p style="font-weight: bold; text-transform: uppercase; margin-bottom: 30px;">Employee Signature & Date:</p>
+          <p style="font-weight: bold; text-transform: uppercase; margin-bottom: 30px;">Employee Acknowledgment:</p>
           <div style="border-bottom: 1px solid #000; width: 85%;"></div>
         </div>
         <div style="text-align: right;">
-          <p style="font-weight: bold; text-transform: uppercase; margin-bottom: 30px;">Authorized General Manager / HR:</p>
+          <p style="font-weight: bold; text-transform: uppercase; margin-bottom: 30px;">Authorized Management Sign-Off:</p>
           <div style="border-bottom: 1px solid #000; width: 85%; margin-left: auto;"></div>
         </div>
-      </div>
-
-      <div style="margin-top: 25px; text-align: center; font-size: 10px; color: #64748B; border-top: 1px solid #E2E8F0; padding-top: 8px;">
-        This document is system-generated by ${settings.hotelName} Payroll Operating System.
       </div>
     </div>
   `;
 }
 
-function buildDailyAttendanceHtml({ settings, staffList, dateStr }) {
+// Built-in Comprehensive Daily Attendance Report Generator
+function buildDailyAttendanceReportHtml({ settings, reportList, titleStr }) {
   return `
     <div class="a4-container">
       <div style="border-bottom: 3px double #091D26; padding-bottom: 16px; display: flex; justify-content: space-between;">
         <div>
           <h1 style="font-size: 24px; font-weight: 900; text-transform: uppercase; margin: 0; color: #091D26;">${settings.hotelName}</h1>
-          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; color: #555;">Daily Staff Shift & Attendance Sheet</p>
+          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; color: #555;">Official Daily Attendance & Shift Audit Report</p>
         </div>
         <div style="text-align: right;">
-          <p style="margin: 0; font-size: 12px;"><b>Date:</b> ${dateStr}</p>
+          <div style="display: inline-block; border: 2px solid #091D26; padding: 6px 14px; font-weight: bold; font-size: 12px; background: #F3EFE6;">
+            ATTENDANCE AUDIT
+          </div>
+          <p style="margin: 8px 0 0 0; font-size: 12px;"><b>Scope:</b> ${titleStr}</p>
         </div>
       </div>
       <table style="width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px;">
         <thead>
           <tr style="border-bottom: 2px solid #091D26; background: #F3EFE6;">
+            <th style="padding: 10px 6px; text-align: left;">Date</th>
             <th style="padding: 10px 6px; text-align: left;">Employee Name</th>
             <th style="padding: 10px 6px; text-align: left;">Role</th>
-            <th style="padding: 10px 6px; text-align: center;">In</th>
-            <th style="padding: 10px 6px; text-align: center;">Out</th>
-            <th style="padding: 10px 6px; text-align: center;">Duty Status</th>
+            <th style="padding: 10px 6px; text-align: center;">In Time</th>
+            <th style="padding: 10px 6px; text-align: center;">Out Time</th>
+            <th style="padding: 10px 6px; text-align: center;">Shift Hours</th>
+            <th style="padding: 10px 6px; text-align: center;">Status</th>
           </tr>
         </thead>
         <tbody>
-          ${staffList.map((m) => `
+          ${reportList.map((m) => `
             <tr style="border-bottom: 1px solid #ddd;">
+              <td style="padding: 10px 6px; font-family: monospace;">${m.date || "--"}</td>
               <td style="padding: 10px 6px; font-weight: bold;">${m.name}</td>
               <td style="padding: 10px 6px;">${m.role}</td>
-              <td style="padding: 10px 6px; text-align: center;">${m.clockIn || "--:--"}</td>
-              <td style="padding: 10px 6px; text-align: center;">${m.clockOut || "--:--"}</td>
-              <td style="padding: 10px 6px; text-align: center;">${m.isOnDuty ? "ON DUTY" : m.clockOut ? "COMPLETED" : "OFF DUTY"}</td>
+              <td style="padding: 10px 6px; text-align: center; font-family: monospace;">${m.clockIn || "--:--"}</td>
+              <td style="padding: 10px 6px; text-align: center; font-family: monospace;">${m.clockOut || "--:--"}</td>
+              <td style="padding: 10px 6px; text-align: center; font-weight: bold;">${m.hoursLogged || "--"}</td>
+              <td style="padding: 10px 6px; text-align: center; font-weight: bold; color: ${m.isOnDuty ? '#0D9488' : '#64748B'};">
+                ${m.isOnDuty ? "ON DUTY" : m.clockOut ? "COMPLETED" : "OFF DUTY"}
+              </td>
             </tr>
           `).join("")}
         </tbody>
       </table>
+      <div style="margin-top: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; font-size: 11px;">
+        <div>
+          <p style="font-weight: bold; text-transform: uppercase; margin-bottom: 30px;">Shift Supervisor Verified:</p>
+          <div style="border-bottom: 1px solid #000; width: 85%;"></div>
+        </div>
+        <div style="text-align: right;">
+          <p style="font-weight: bold; text-transform: uppercase; margin-bottom: 30px;">Human Resources Sign-Off:</p>
+          <div style="border-bottom: 1px solid #000; width: 85%; margin-left: auto;"></div>
+        </div>
+      </div>
     </div>
   `;
+}
+
+// Helper: Calculate Hours Between Time Strings
+function calculateShiftHours(inStr, outStr) {
+  if (!inStr || !outStr) return "--";
+  try {
+    const today = new Date().toISOString().split("T")[0];
+    const dIn = new Date(`${today} ${inStr}`);
+    const dOut = new Date(`${today} ${outStr}`);
+    const diffMs = dOut - dIn;
+    if (diffMs <= 0) return "--";
+    const hrs = diffMs / (1000 * 60 * 60);
+    return `${hrs.toFixed(1)} hrs`;
+  } catch (e) {
+    return "--";
+  }
 }
 
 // --- 3. DYNAMIC PRICING ENGINE ---
@@ -632,9 +622,12 @@ export default function App() {
   const [rooms, setRooms] = useState([]);
   const [inventory, setInventory] = useState(INITIAL_INVENTORY_SEEDS);
   const [staff, setStaff] = useState(INITIAL_STAFF_SEEDS);
-  const [dailyAttendance, setDailyAttendance] = useState({});
+  const [allAttendanceRecords, setAllAttendanceRecords] = useState({});
   const [selectedDate, setSelectedDate] = useState(getTodayKey());
   const [loading, setLoading] = useState(true);
+
+  // Attendance Monitor Filter State
+  const [attendanceStaffFilter, setAttendanceStaffFilter] = useState("all");
 
   // Active Selection & Print Mode State
   const [selectedRoomId, setSelectedRoomId] = useState("");
@@ -710,7 +703,7 @@ export default function App() {
   // Staff & Compensation Management State
   const [showAddStaffModal, setShowAddStaffModal] = useState(false);
   const [staffSearchQuery, setStaffSearchQuery] = useState("");
-  const [staffViewSubTab, setStaffViewSubTab] = useState("roster");
+  const [staffViewSubTab, setStaffViewSubTab] = useState("attendance"); // "attendance" | "report" | "roster"
   const [newStaffForm, setNewStaffForm] = useState({
     name: "",
     role: "Front Desk",
@@ -863,6 +856,7 @@ export default function App() {
 
   // --- REALTIME DATABASE LISTENERS ---
   useEffect(() => {
+    // Settings Listener
     const settingsRef = ref(rtdb, "hotel_config/profile");
     const unsubSettings = onValue(settingsRef, (snapshot) => {
       const data = snapshot.val();
@@ -875,6 +869,7 @@ export default function App() {
       }
     });
 
+    // Rooms Listener
     const roomsRef = ref(rtdb, "rooms");
     const unsubRooms = onValue(roomsRef, (snapshot) => {
       if (snapshot.exists()) {
@@ -903,6 +898,7 @@ export default function App() {
       }
     });
 
+    // Inventory Listener
     const invRef = ref(rtdb, "inventory");
     const unsubInv = onValue(invRef, (snapshot) => {
       if (!snapshot.exists()) {
@@ -924,6 +920,7 @@ export default function App() {
       }
     });
 
+    // Staff Listener
     const staffRef = ref(rtdb, "staff");
     const unsubStaff = onValue(staffRef, (snapshot) => {
       if (!snapshot.exists()) {
@@ -951,9 +948,10 @@ export default function App() {
       setLoading(false);
     });
 
-    const attendanceRef = ref(rtdb, `attendance_history/${selectedDate}`);
-    const unsubAttendance = onValue(attendanceRef, (snapshot) => {
-      setDailyAttendance(snapshot.val() || {});
+    // Permanent Daily Attendance Records Archive Listener
+    const allAttendanceRef = ref(rtdb, "attendance_history");
+    const unsubAllAttendance = onValue(allAttendanceRef, (snapshot) => {
+      setAllAttendanceRecords(snapshot.val() || {});
     });
 
     return () => {
@@ -961,17 +959,16 @@ export default function App() {
       unsubRooms();
       unsubInv();
       unsubStaff();
-      unsubAttendance();
+      unsubAllAttendance();
       stopCamera();
     };
-  }, [selectedRoomId, selectedDate]);
+  }, [selectedRoomId]);
 
   const currentRoom = rooms.find((r) => r.id === selectedRoomId) || rooms[0];
   const calculateTotal = (room) => room?.orderItems?.reduce((acc, item) => acc + (Number(item.total) || 0), 0) || 0;
   const printTargetRoom = settleOrderRoom || currentRoom;
   const printTargetTotal = calculateTotal(printTargetRoom);
 
-  // Remuneration Calculation Helper (Gross & Net)
   const calculateStaffGross = (s) => (Number(s.baseSalary) || 0) + (Number(s.allowances) || 0) + (Number(s.serviceCharge) || 0) + (Number(s.bonus) || 0) + (Number(s.overtimePay) || 0);
   const calculateStaffDeductions = (s) => (Number(s.epfDeduction) || Math.round((Number(s.baseSalary) || 0) * 0.08)) + (Number(s.taxDeduction) || 0) + (Number(s.advanceDeduction) || 0);
 
@@ -1203,7 +1200,7 @@ export default function App() {
     }
   };
 
-  // Time-Clock
+  // --- PERSISTENT IN/OUT DAILY ATTENDANCE & SHIFT ENGINE ---
   const formatTimeNow = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   const handleClockIn = (staffMember) => {
@@ -1215,18 +1212,26 @@ export default function App() {
       role: staffMember.role,
       clockIn: timeStr,
       clockOut: "",
+      hoursLogged: "--",
       isOnDuty: true,
-      date: day
+      date: day,
+      timestamp: Date.now()
     };
+    // Saves permanently under date key in Firebase RTDB
     set(ref(rtdb, `attendance_history/${day}/${staffMember.id}`), record);
   };
 
   const handleClockOut = (staffMember) => {
     const timeStr = formatTimeNow();
     const day = getTodayKey();
+    const existing = allAttendanceRecords[day]?.[staffMember.id] || {};
+    const computedHours = calculateShiftHours(existing.clockIn, timeStr);
+
     update(ref(rtdb, `attendance_history/${day}/${staffMember.id}`), {
       clockOut: timeStr,
-      isOnDuty: false
+      hoursLogged: computedHours,
+      isOnDuty: false,
+      timestampOut: Date.now()
     });
   };
 
@@ -1288,17 +1293,26 @@ export default function App() {
     printIsolatedDocument(html, "a4");
   };
 
-  const handlePrintDailyAttendance = () => {
-    const combinedList = staff.map(m => {
-      const record = dailyAttendance[m.id] || {};
+  const handlePrintDailyAttendanceReport = () => {
+    const selectedHistoryDay = allAttendanceRecords[selectedDate] || {};
+    const reportList = staff.map(m => {
+      const record = selectedHistoryDay[m.id] || {};
       return {
-        ...m,
-        clockIn: record.clockIn || "",
-        clockOut: record.clockOut || "",
+        date: selectedDate,
+        name: m.name,
+        role: m.role,
+        clockIn: record.clockIn || "--:--",
+        clockOut: record.clockOut || "--:--",
+        hoursLogged: record.hoursLogged || calculateShiftHours(record.clockIn, record.clockOut),
         isOnDuty: Boolean(record.isOnDuty)
       };
     });
-    const html = buildDailyAttendanceHtml({ settings, staffList: combinedList, dateStr: selectedDate });
+
+    const html = buildDailyAttendanceReportHtml({
+      settings,
+      reportList,
+      titleStr: `Date: ${selectedDate}`
+    });
     printIsolatedDocument(html, "a4");
   };
 
@@ -1347,7 +1361,6 @@ export default function App() {
     update(ref(rtdb, `rooms/${roomId}`), { status });
   };
 
-  // CHECK-IN WITH DYNAMIC NIGHTLY RATE CALCULATION
   const handleOpenOrderAndCheckIn = (e) => {
     e.preventDefault();
     if (!checkInModalRoom || !guestForm.name) return;
@@ -1470,6 +1483,31 @@ export default function App() {
   const totalPayrollGross = staff.reduce((acc, s) => acc + calculateStaffGross(s), 0);
   const totalPayrollNet = staff.reduce((acc, s) => acc + Math.max(0, calculateStaffGross(s) - calculateStaffDeductions(s)), 0);
   const totalServiceCharges = staff.reduce((acc, s) => acc + (Number(s.serviceCharge) || 0), 0);
+
+  // Monitor Reports Array (Synthesized from permanent RTDB archive)
+  const allArchivedReports = Object.keys(allAttendanceRecords).flatMap((dateKey) => {
+    const dayRecords = allAttendanceRecords[dateKey] || {};
+    return Object.keys(dayRecords).map((staffId) => {
+      const rec = dayRecords[staffId];
+      return {
+        id: `${dateKey}_${staffId}`,
+        date: dateKey,
+        staffId: staffId,
+        name: rec.name || "Staff",
+        role: rec.role || "Staff",
+        clockIn: rec.clockIn || "--:--",
+        clockOut: rec.clockOut || "--:--",
+        hoursLogged: rec.hoursLogged || calculateShiftHours(rec.clockIn, rec.clockOut),
+        isOnDuty: Boolean(rec.isOnDuty)
+      };
+    });
+  }).sort((a, b) => b.date.localeCompare(a.date));
+
+  const filteredArchivedReports = allArchivedReports.filter((item) => {
+    const matchesStaff = attendanceStaffFilter === "all" || item.staffId === attendanceStaffFilter;
+    const matchesDate = !selectedDate || item.date === selectedDate;
+    return matchesStaff && matchesDate;
+  });
 
   const parsedTendered = parseFloat(cashTendered) || 0;
   const changeDue = Math.max(0, parsedTendered - printTargetTotal);
@@ -1682,7 +1720,7 @@ export default function App() {
             { id: "active-orders", label: "Active Bills & Tabs", icon: Receipt },
             { id: "inventory", label: "Stock & Minibar", icon: Boxes },
             { id: "room-admin", label: "Room Management", icon: SlidersHorizontal },
-            { id: "staff", label: "Staff & Payroll", icon: Users },
+            { id: "staff", label: "Staff & Attendance", icon: Users },
             { id: "settings", label: "Hotel Settings", icon: Settings },
           ].map(({ id, label, icon: Icon }) => {
             if (!canAccessTab(id)) return null;
@@ -2172,7 +2210,7 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 4: ROOM MANAGEMENT (DYNAMIC RATES CONFIGURATION) */}
+          {/* TAB 4: ROOM ADMIN */}
           {activeTab === "room-admin" && isManager && (
             <div className="max-w-7xl mx-auto space-y-6">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -2272,33 +2310,26 @@ export default function App() {
           )}
 
           {/* =========================================================
-              TAB 5: COMPREHENSIVE PAYROLL, ROSTER & ATTENDANCE
+              TAB 5: COMPREHENSIVE PAYROLL, ATTENDANCE & SHIFT MONITOR
               ========================================================= */}
           {activeTab === "staff" && canAccessTab("staff") && (
             <div className="max-w-7xl mx-auto space-y-6 pb-16">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                   <h2 className="text-2xl font-bold flex items-center gap-2">
-                    <Users className="w-6 h-6 text-[#14B8A6]" /> Staff, Attendance & Comprehensive Payroll
+                    <Users className="w-6 h-6 text-[#14B8A6]" /> Staff, Attendance & Shift Record Monitor
                   </h2>
                   <p className="text-sm text-slate-500">
-                    Manage monthly gross remuneration, deductions, taxes, daily shifts, and generate official A4 payslips.
+                    Daily in/out shift records saved permanently every day, report monitoring, and official A4 payslips.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2 items-center">
-                  <span className="text-xs font-semibold text-slate-500">Date:</span>
-                  <input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    className="border border-[#D3C8B7] rounded-lg px-2.5 py-1 text-xs bg-white font-mono"
-                  />
                   <button
                     type="button"
-                    onClick={handlePrintDailyAttendance}
+                    onClick={handlePrintDailyAttendanceReport}
                     className="inline-flex items-center gap-2 bg-[#0F2D3C] hover:bg-[#091D26] text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-sm"
                   >
-                    <FileSpreadsheet className="w-4 h-4 text-[#2DD4BF]" /> Attendance Log
+                    <FileSpreadsheet className="w-4 h-4 text-[#2DD4BF]" /> Print Audit Report
                   </button>
                   {isManager && (
                     <button
@@ -2312,47 +2343,58 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Comprehensive Top KPI Metric Cards */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div className="bg-white border border-[#E6DFD3] rounded-3xl p-4 shadow-sm">
-                  <p className="text-[11px] font-bold uppercase text-slate-400">Total Headcount</p>
-                  <p className="text-2xl font-black text-[#091D26] mt-1">{staff.length} Active</p>
+                  <p className="text-[11px] font-bold uppercase text-slate-400">Total Staff Headcount</p>
+                  <p className="text-2xl font-black text-[#091D26] mt-1">{staff.length} Personnel</p>
                 </div>
                 <div className="bg-white border border-[#E6DFD3] rounded-3xl p-4 shadow-sm">
-                  <p className="text-[11px] font-bold uppercase text-[#0D9488]">Net Payable Payroll</p>
+                  <p className="text-[11px] font-bold uppercase text-[#0D9488]">Currently On Duty</p>
                   <p className="text-2xl font-black text-[#0D9488] mt-1">
+                    {Object.values(allAttendanceRecords[getTodayKey()] || {}).filter(r => r.isOnDuty).length} Active
+                  </p>
+                </div>
+                <div className="bg-white border border-[#E6DFD3] rounded-3xl p-4 shadow-sm">
+                  <p className="text-[11px] font-bold uppercase text-amber-700">Total Net Payroll</p>
+                  <p className="text-2xl font-black text-amber-700 mt-1">
                     {settings.currency}{totalPayrollNet.toLocaleString()}
                   </p>
                 </div>
                 <div className="bg-white border border-[#E6DFD3] rounded-3xl p-4 shadow-sm">
-                  <p className="text-[11px] font-bold uppercase text-amber-700">Total Service Charge Pool</p>
-                  <p className="text-2xl font-black text-amber-700 mt-1">
-                    {settings.currency}{totalServiceCharges.toLocaleString()}
-                  </p>
-                </div>
-                <div className="bg-white border border-[#E6DFD3] rounded-3xl p-4 shadow-sm">
-                  <p className="text-[11px] font-bold uppercase text-rose-600">Pending Wage Payouts</p>
-                  <p className="text-2xl font-black text-rose-600 mt-1">
-                    {staff.filter((s) => !s.paid).length} Employees
+                  <p className="text-[11px] font-bold uppercase text-purple-700">Total Shift Logs Archived</p>
+                  <p className="text-2xl font-black text-purple-700 mt-1">
+                    {allArchivedReports.length} Shifts
                   </p>
                 </div>
               </div>
 
+              {/* View Switcher: Daily Attendance vs Report Monitor vs Remuneration */}
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                <div className="flex bg-[#F3EFE6] p-1 rounded-2xl border border-[#E6DFD3] w-fit">
+                <div className="flex bg-[#F3EFE6] p-1 rounded-2xl border border-[#E6DFD3] overflow-x-auto">
                   <button
                     type="button"
                     onClick={() => setStaffViewSubTab("attendance")}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${
+                    className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
                       staffViewSubTab === "attendance" ? "bg-[#0F2D3C] text-white shadow-sm" : "text-slate-600 hover:text-black"
                     }`}
                   >
-                    <Clock className="w-3.5 h-3.5 text-[#2DD4BF]" /> Daily In/Out Attendance
+                    <Clock className="w-3.5 h-3.5 text-[#2DD4BF]" /> Live Daily In/Out
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStaffViewSubTab("report")}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
+                      staffViewSubTab === "report" ? "bg-[#0F2D3C] text-white shadow-sm" : "text-slate-600 hover:text-black"
+                    }`}
+                  >
+                    <BarChart3 className="w-3.5 h-3.5 text-[#2DD4BF]" /> Shift Records & Monitor Report
                   </button>
                   {isManager && (
                     <button
                       type="button"
                       onClick={() => setStaffViewSubTab("roster")}
-                      className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${
+                      className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
                         staffViewSubTab === "roster" ? "bg-[#0F2D3C] text-white shadow-sm" : "text-slate-600 hover:text-black"
                       }`}
                     >
@@ -2361,21 +2403,26 @@ export default function App() {
                   )}
                 </div>
 
-                <div className="relative w-full sm:w-72">
-                  <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <span className="text-xs font-semibold text-slate-500 shrink-0">Filter Date:</span>
                   <input
-                    type="text"
-                    placeholder="Search staff by name or role..."
-                    value={staffSearchQuery}
-                    onChange={(e) => setStaffSearchQuery(e.target.value)}
-                    className="w-full bg-white border border-[#E6DFD3] rounded-xl pl-9 pr-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="border border-[#D3C8B7] rounded-xl px-2.5 py-1.5 text-xs bg-white font-mono"
                   />
                 </div>
               </div>
 
-              {/* ATTENDANCE SHEET VIEW */}
+              {/* VIEW 1: LIVE DAILY IN/OUT CLOCK (RECORDED & SAVED EVERY SINGLE DAY) */}
               {staffViewSubTab === "attendance" && (
                 <div className="bg-white rounded-3xl border border-[#E6DFD3] overflow-hidden shadow-sm">
+                  <div className="p-4 border-b border-[#F3EFE6] flex justify-between items-center bg-[#FAF9F5]">
+                    <div>
+                      <h3 className="font-bold text-sm text-[#091D26]">Live Shift Terminal ({getTodayKey()})</h3>
+                      <p className="text-[11px] text-slate-500">Every single shift punch is automatically saved and archived to daily records</p>
+                    </div>
+                  </div>
                   <table className="w-full text-left text-xs">
                     <thead className="bg-[#F3EFE6] uppercase font-semibold text-slate-500 border-b border-[#E6DFD3]">
                       <tr>
@@ -2389,7 +2436,8 @@ export default function App() {
                     </thead>
                     <tbody className="divide-y divide-[#F3EFE6]">
                       {filteredStaff.map((m) => {
-                        const record = dailyAttendance[m.id] || {};
+                        const todayRecords = allAttendanceRecords[getTodayKey()] || {};
+                        const record = todayRecords[m.id] || {};
                         const isClockedIn = record.isOnDuty;
 
                         return (
@@ -2410,7 +2458,7 @@ export default function App() {
                                 <button
                                   type="button"
                                   onClick={() => handleClockIn(m)}
-                                  className="px-3 py-1 bg-[#0D9488] hover:bg-[#0F766E] text-white rounded-lg text-xs font-bold"
+                                  className="px-3.5 py-1.5 bg-[#0D9488] hover:bg-[#0F766E] text-white rounded-xl text-xs font-bold"
                                 >
                                   Clock In
                                 </button>
@@ -2418,7 +2466,7 @@ export default function App() {
                                 <button
                                   type="button"
                                   onClick={() => handleClockOut(m)}
-                                  className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold"
+                                  className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold"
                                 >
                                   Clock Out
                                 </button>
@@ -2432,7 +2480,74 @@ export default function App() {
                 </div>
               )}
 
-              {/* PAYROLL & STATUTORY DEDUCTIONS VIEW */}
+              {/* VIEW 2: DEDICATED ATTENDANCE RECORD MONITORING REPORT */}
+              {staffViewSubTab === "report" && (
+                <div className="bg-white rounded-3xl border border-[#E6DFD3] overflow-hidden shadow-sm space-y-4">
+                  <div className="p-4 border-b border-[#F3EFE6] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-[#FAF9F5]">
+                    <div>
+                      <h3 className="font-bold text-sm text-[#091D26]">Attendance & Shift Audit Monitor</h3>
+                      <p className="text-[11px] text-slate-500">Complete historical in/out records archived by date</p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={attendanceStaffFilter}
+                        onChange={(e) => setAttendanceStaffFilter(e.target.value)}
+                        className="border border-[#D3C8B7] rounded-xl px-2.5 py-1.5 text-xs bg-white font-bold"
+                      >
+                        <option value="all">All Personnel</option>
+                        {staff.map((s) => (
+                          <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-[#F3EFE6] border-b border-[#E6DFD3] uppercase font-semibold text-slate-500">
+                        <tr>
+                          <th className="p-3.5">Date</th>
+                          <th className="p-3.5">Employee Name</th>
+                          <th className="p-3.5">Role</th>
+                          <th className="p-3.5 text-center">Clock-In</th>
+                          <th className="p-3.5 text-center">Clock-Out</th>
+                          <th className="p-3.5 text-center">Shift Hours</th>
+                          <th className="p-3.5 text-center">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#F3EFE6]">
+                        {filteredArchivedReports.map((item) => (
+                          <tr key={item.id} className="hover:bg-[#FAF9F5] transition-colors">
+                            <td className="p-3.5 font-mono font-bold text-slate-700">{item.date}</td>
+                            <td className="p-3.5 font-bold text-[#091D26]">{item.name}</td>
+                            <td className="p-3.5 text-slate-600">{item.role}</td>
+                            <td className="p-3.5 text-center font-mono font-bold text-slate-800">{item.clockIn}</td>
+                            <td className="p-3.5 text-center font-mono font-bold text-slate-800">{item.clockOut}</td>
+                            <td className="p-3.5 text-center font-bold text-[#0F766E]">{item.hoursLogged}</td>
+                            <td className="p-3.5 text-center">
+                              <span className={`px-2.5 py-0.5 rounded-full font-bold uppercase text-[10px] ${
+                                item.isOnDuty ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"
+                              }`}>
+                                {item.isOnDuty ? "On Duty" : item.clockOut !== "--:--" ? "Completed" : "Off Duty"}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                        {filteredArchivedReports.length === 0 && (
+                          <tr>
+                            <td colSpan={7} className="p-8 text-center text-slate-400">
+                              No shift attendance records found for the selected criteria.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* VIEW 3: COMPREHENSIVE PAYROLL MANAGEMENT & PAYSLIPS */}
               {staffViewSubTab === "roster" && isManager && (
                 <div className="bg-white rounded-3xl border border-[#E6DFD3] shadow-sm overflow-hidden">
                   <div className="p-4 border-b border-[#F3EFE6] flex justify-between items-center bg-[#FAF9F5]">
@@ -3359,6 +3474,22 @@ export default function App() {
                   placeholder="Allowances"
                   value={newStaffForm.allowances}
                   onChange={(e) => setNewStaffForm({ ...newStaffForm, allowances: e.target.value })}
+                  className="w-full border rounded p-2"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="number"
+                  placeholder="Service Charge Pool Share"
+                  value={newStaffForm.serviceCharge}
+                  onChange={(e) => setNewStaffForm({ ...newStaffForm, serviceCharge: e.target.value })}
+                  className="w-full border rounded p-2"
+                />
+                <input
+                  type="number"
+                  placeholder="Performance Bonus"
+                  value={newStaffForm.bonus}
+                  onChange={(e) => setNewStaffForm({ ...newStaffForm, bonus: e.target.value })}
                   className="w-full border rounded p-2"
                 />
               </div>
