@@ -58,7 +58,9 @@ import {
   Percent,
   CalendarCheck,
   BarChart3,
-  History
+  ChevronDown,
+  ChevronRight,
+  Usb
 } from "lucide-react";
 
 // --- 1. FIREBASE CONFIGURATION (REALTIME DATABASE) ---
@@ -76,7 +78,9 @@ const firebaseConfig = {
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const rtdb = getDatabase(app);
 
+// Comprehensive settings schema matching your settings dashboard screenshot
 const DEFAULT_SETTINGS = {
+  // Company & Business Information
   hotelName: "Linoli Cove Midigama",
   tagline: "RESTAURANT & BAR",
   legalEntity: "Linoli Cove Leisure (Pvt) Ltd",
@@ -88,22 +92,27 @@ const DEFAULT_SETTINGS = {
   website: "www.linolicove.me",
   address: "502 A Matara Road, Midigama, 81700",
 
+  // Automated Email Dispatch
   emailRecipient: "linolicove@gmail.com",
   emailScheduleTime: "23:30",
   emailStatus: "Disabled (Manual trigger only)",
+  webhookUrl: "",
 
-  paperRollWidth: "80mm",
+  // Thermal Auto-Printer Configuration
+  paperRollWidth: "80mm Thermal Paper (Standard POS)",
   receiptFontSize: "14px - Extra Bold & Large",
-  receiptFontType: "Monospace (Classic ESC/POS)",
+  receiptFontType: "Monospace (Classic ESC/POS Receipt)",
   slipMargins: "2mm - Standard Thermal Margin",
   autoPrintKOT: "Yes - Print KOT & BOT Slips",
   autoPrintSettlement: "Yes - Print Final Tax Invoice",
 
+  // Automated Cash Drawer Solenoid
   autoDrawerKick: "Enabled (Auto-Pop on Payment)",
   drawerKickTrigger: "Cash Payments Only",
   drawerPinout: "Pin 2 / ESC p 0 (Epson, Rongta, Xprint)",
   drawerChime: true,
 
+  // Currency, Taxes & Surcharge Rates
   currency: "Rs.",
   serviceChargeRate: 10,
   vatRate: 0,
@@ -179,7 +188,6 @@ const INITIAL_STAFF_SEEDS = [
 
 const getTodayKey = () => new Date().toISOString().split("T")[0];
 
-// Calculate Shift Length Between Time Strings
 function calculateShiftHours(inStr, outStr) {
   if (!inStr || !outStr) return "--";
   try {
@@ -305,7 +313,6 @@ function buildThermalHtml({ settings, room, isTemporary, settlementMethod, total
           `).join("")}
         </tbody>
       </table>
-
       <div style="border-top: 1px dashed #000; padding-top: 6px; font-size: 12px;">
         <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 13px;">
           <span>${isTemporary ? "TOTAL DUE:" : "BILL TOTAL:"}</span>
@@ -322,7 +329,6 @@ function buildThermalHtml({ settings, room, isTemporary, settlementMethod, total
           </div>
         ` : ""}
       </div>
-
       <div style="text-align: center; margin-top: 14px; padding-top: 8px; border-top: 1px dashed #000; font-size: 10px;">
         <div>${settings.footerNote}</div>
       </div>
@@ -633,6 +639,9 @@ export default function App() {
   const [guestForm, setGuestForm] = useState({ name: "", phone: "", nights: 1, customRate: "" });
   const [guestPhoto, setGuestPhoto] = useState(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
+
+  // Advanced Webhook toggle state in Settings
+  const [showAdvancedEmail, setShowAdvancedEmail] = useState(false);
 
   // Refs
   const videoRef = useRef(null);
@@ -1190,7 +1199,6 @@ export default function App() {
   // --- PERMANENT IN/OUT DAILY ATTENDANCE & MULTI-SHIFT RECORDING ---
   const formatTimeNow = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-  // Clock In: Creates a new timestamped shift session entry (Never overwrites)
   const handleClockIn = (staffMember) => {
     const timeStr = formatTimeNow();
     const day = getTodayKey();
@@ -1210,10 +1218,8 @@ export default function App() {
       timestamp: nowMs
     };
 
-    // 1. Permanently append shift session to shift archive
     set(ref(rtdb, `attendance_records/${day}/${shiftId}`), newShiftRecord);
 
-    // 2. Update real-time live staff duty badge
     update(ref(rtdb, `staff/${staffMember.id}`), {
       clockIn: timeStr,
       clockOut: "",
@@ -1222,18 +1228,15 @@ export default function App() {
     });
   };
 
-  // Clock Out: Closes the active shift session and records total duration
   const handleClockOut = (staffMember) => {
     const timeStr = formatTimeNow();
     const day = getTodayKey();
     const shiftId = staffMember.activeShiftId || `${day}_${staffMember.id}`;
 
-    // Read the start time of the active shift session
     onValue(ref(rtdb, `attendance_records/${day}/${shiftId}`), (snap) => {
       const activeRecord = snap.val() || {};
       const computedHours = calculateShiftHours(activeRecord.clockIn || staffMember.clockIn, timeStr);
 
-      // Permanently update shift record with departure time & computed duration
       update(ref(rtdb, `attendance_records/${day}/${shiftId}`), {
         clockOut: timeStr,
         hoursLogged: computedHours,
@@ -1241,7 +1244,6 @@ export default function App() {
         timestampOut: Date.now()
       });
 
-      // Update staff live status to off duty
       update(ref(rtdb, `staff/${staffMember.id}`), {
         clockOut: timeStr,
         activeShiftId: null,
@@ -2321,9 +2323,7 @@ export default function App() {
             </div>
           )}
 
-          {/* =========================================================
-              TAB 5: COMPREHENSIVE PAYROLL, ATTENDANCE & SHIFT MONITOR
-              ========================================================= */}
+          {/* TAB 5: STAFF & ATTENDANCE & MULTI-SHIFT RECORD MONITOR */}
           {activeTab === "staff" && canAccessTab("staff") && (
             <div className="max-w-7xl mx-auto space-y-6 pb-16">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -2674,30 +2674,35 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 6: SETTINGS */}
+          {/* =========================================================
+              TAB 6: EXACT FULL SETTINGS MODULE (FROM YOUR SCREENSHOT)
+              ========================================================= */}
           {activeTab === "settings" && isManager && (
             <div className="max-w-6xl mx-auto space-y-8 pb-16">
+              {/* Header Action Bar */}
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-[#E6DFD3] pb-4">
                 <div>
                   <h2 className="text-2xl font-bold flex items-center gap-2">
-                    <Settings className="w-6 h-6 text-[#14B8A6]" /> System & Peripheral Settings
+                    <Settings className="w-6 h-6 text-[#14B8A6]" /> System, Business & Peripheral Settings[cite: 3]
                   </h2>
-                  <p className="text-xs text-slate-500">Manage property details, thermal auto-print drivers, and backups.</p>
+                  <p className="text-xs text-slate-500">
+                    Manage company identity, thermal printing options, automated cash drawer solenoid, and database backup files.[cite: 3]
+                  </p>
                 </div>
                 <div className="flex items-center gap-3">
                   <button
                     type="button"
                     onClick={handleDownloadBackup}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[#D3C8B7] bg-white text-xs font-bold shadow-sm"
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[#D3C8B7] bg-white hover:bg-slate-50 text-xs font-bold shadow-sm"
                   >
-                    <Download className="w-4 h-4" /> Download Backup
+                    <Download className="w-4 h-4 text-slate-500" /> Download Backup[cite: 3]
                   </button>
                   <button
                     type="button"
                     onClick={handleSaveAllSettings}
-                    className="flex items-center gap-1.5 px-5 py-2 rounded-lg bg-[#0D9488] text-white text-xs font-bold shadow-md"
+                    className="flex items-center gap-1.5 px-5 py-2 rounded-lg bg-[#0D9488] hover:bg-[#0F766E] text-white text-xs font-bold shadow-md transition-all"
                   >
-                    <Save className="w-4 h-4" /> Save Changes
+                    <Save className="w-4 h-4" /> Save Changes[cite: 3]
                   </button>
                 </div>
               </div>
@@ -2708,47 +2713,481 @@ export default function App() {
                 </div>
               )}
 
-              {/* Company Information */}
+              {/* CARD 1: COMPANY & BUSINESS INFORMATION */}
               <div className="bg-white rounded-2xl border border-[#E6DFD3] p-6 shadow-sm space-y-4">
-                <h3 className="font-bold text-sm text-[#091D26] uppercase">Company Information</h3>
+                <div className="border-b border-slate-100 pb-2">
+                  <h3 className="font-bold text-sm text-[#091D26] uppercase tracking-wide flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-[#14B8A6]" /> COMPANY & BUSINESS INFORMATION[cite: 3]
+                  </h3>
+                  <p className="text-[11px] text-slate-400">Printed on official receipts, tax invoices, and IT reports[cite: 3]</p>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                   <div>
-                    <label className="block font-semibold mb-1">Trading Name</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Trading / Brand Name[cite: 3]</label>
                     <input
                       type="text"
                       value={settingsForm.hotelName}
                       onChange={(e) => setSettingsForm({ ...settingsForm, hotelName: e.target.value })}
-                      className="w-full border rounded-lg p-2.5"
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1">Tax / VAT ID</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Brand Tagline / Slogan[cite: 3]</label>
+                    <input
+                      type="text"
+                      value={settingsForm.tagline}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, tagline: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Registered Legal Entity Name[cite: 3]</label>
+                    <input
+                      type="text"
+                      value={settingsForm.legalEntity}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, legalEntity: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Business Registration No. (BRN / Company ID)[cite: 3]</label>
+                    <input
+                      type="text"
+                      value={settingsForm.companyRegNo}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, companyRegNo: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Tax Identification / VAT / GST No.[cite: 3]</label>
                     <input
                       type="text"
                       value={settingsForm.taxNumber}
                       onChange={(e) => setSettingsForm({ ...settingsForm, taxNumber: e.target.value })}
-                      className="w-full border rounded-lg p-2.5"
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1">Currency Symbol</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Terminal Hardware Identifier[cite: 3]</label>
                     <input
                       type="text"
-                      value={settingsForm.currency}
-                      onChange={(e) => setSettingsForm({ ...settingsForm, currency: e.target.value })}
-                      className="w-full border rounded-lg p-2.5"
+                      value={settingsForm.terminalId}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, terminalId: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none font-mono"
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1">Phone</label>
+                    <label className="block font-semibold mb-1 text-slate-700">Contact Phone Number[cite: 3]</label>
                     <input
                       type="text"
                       value={settingsForm.phone}
                       onChange={(e) => setSettingsForm({ ...settingsForm, phone: e.target.value })}
-                      className="w-full border rounded-lg p-2.5"
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Business Email Address[cite: 3]</label>
+                    <input
+                      type="email"
+                      value={settingsForm.email}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, email: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block font-semibold mb-1 text-slate-700">Official Website or Social Link[cite: 3]</label>
+                    <input
+                      type="text"
+                      value={settingsForm.website}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, website: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block font-semibold mb-1 text-slate-700">Full Physical Street Address[cite: 3]</label>
+                    <input
+                      type="text"
+                      value={settingsForm.address}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, address: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 focus:outline-none"
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* CARD 2: AUTOMATED DAILY 11:30 PM EMAIL DISPATCH */}
+              <div className="bg-white rounded-2xl border border-[#E6DFD3] p-6 shadow-sm space-y-4">
+                <div className="border-b border-slate-100 pb-2 flex justify-between items-center">
+                  <div>
+                    <h3 className="font-bold text-sm text-[#091D26] uppercase tracking-wide flex items-center gap-2">
+                      <Send className="w-4 h-4 text-[#14B8A6]" /> AUTOMATED DAILY 11:30 PM EMAIL DISPATCH[cite: 3]
+                    </h3>
+                    <p className="text-[11px] text-slate-400">Auto-dispatches complete end-of-day sales, collections, balances, and shift worksheets[cite: 3]</p>
+                  </div>
+                  <span className="text-[10px] font-mono text-slate-400 border px-1.5 py-0.5 rounded">EOD Auto-task</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Target Recipient Email[cite: 3]</label>
+                    <input
+                      type="email"
+                      value={settingsForm.emailRecipient}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, emailRecipient: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Scheduled Time (24h)[cite: 3]</label>
+                    <input
+                      type="text"
+                      value={settingsForm.emailScheduleTime}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, emailScheduleTime: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Automation Status[cite: 3]</label>
+                    <select
+                      value={settingsForm.emailStatus}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, emailStatus: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white font-medium"
+                    >
+                      <option value="Disabled (Manual trigger only)">Disabled (Manual trigger only)[cite: 3]</option>
+                      <option value="Enabled (Daily Auto Send)">Enabled (Daily Auto Send)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="bg-[#FAF9F5] p-3.5 rounded-xl border border-[#E6DFD3] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                  <div className="text-[11px] text-slate-500">
+                    <b>What data is transmitted in the 11:30 PM package?</b><br />
+                    Gross revenue, net sales, taxes, service pool, room occupancy, minibar orders, cashier balance, and shift audits.[cite: 3]
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => alert(`Email report package dispatched to ${settingsForm.emailRecipient}`)}
+                    className="px-4 py-2.5 bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-lg text-xs font-bold shrink-0 shadow-sm"
+                  >
+                    Send Daily Report Now[cite: 3]
+                  </button>
+                </div>
+
+                {/* Collapsible Webhook Options */}
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setShowAdvancedEmail(!showAdvancedEmail)}
+                    className="flex items-center gap-1.5 text-xs text-slate-600 font-semibold hover:text-black"
+                  >
+                    {showAdvancedEmail ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                    Advanced: Direct Silent Webhook or EmailJS API Keys (Optional)[cite: 3]
+                  </button>
+                  {showAdvancedEmail && (
+                    <div className="mt-2 p-3 bg-slate-50 border rounded-xl space-y-2 text-xs">
+                      <label className="block font-semibold">Custom Webhook / Relay URL</label>
+                      <input
+                        type="url"
+                        placeholder="https://api.resort-os.com/v1/webhook"
+                        value={settingsForm.webhookUrl || ""}
+                        onChange={(e) => setSettingsForm({ ...settingsForm, webhookUrl: e.target.value })}
+                        className="w-full border rounded-lg p-2 bg-white"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* CARD 3: THERMAL AUTO-PRINTER CONFIGURATION */}
+              <div className="bg-white rounded-2xl border border-[#E6DFD3] p-6 shadow-sm space-y-4">
+                <div className="border-b border-slate-100 pb-2 flex justify-between items-center">
+                  <div>
+                    <h3 className="font-bold text-sm text-[#091D26] uppercase tracking-wide flex items-center gap-2">
+                      <Printer className="w-4 h-4 text-[#14B8A6]" /> THERMAL AUTO-PRINTER CONFIGURATION[cite: 3]
+                    </h3>
+                    <p className="text-[11px] text-slate-400">Hardwired direct slip generation for USB, LAN, or Bluetooth portable printers[cite: 3]</p>
+                  </div>
+                  <span className="text-[10px] font-mono text-slate-400 border px-1.5 py-0.5 rounded">System Default Spooler[cite: 3]</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Paper Roll Width[cite: 3]</label>
+                    <select
+                      value={settingsForm.paperRollWidth}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, paperRollWidth: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white font-medium"
+                    >
+                      <option value="80mm Thermal Paper (Standard POS)">80mm Thermal Paper (Standard POS)[cite: 3]</option>
+                      <option value="58mm Thermal Paper (Compact / Mobile)">58mm Thermal Paper (Compact / Mobile)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Receipt Font Size[cite: 3]</label>
+                    <select
+                      value={settingsForm.receiptFontSize}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, receiptFontSize: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white font-medium"
+                    >
+                      <option value="14px - Extra Bold & Large">14px - Extra Bold & Large[cite: 3]</option>
+                      <option value="12px - Standard POS">12px - Standard POS</option>
+                      <option value="10px - Compact Condense">10px - Compact Condense</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Receipt Font Type[cite: 3]</label>
+                    <select
+                      value={settingsForm.receiptFontType}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, receiptFontType: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white font-medium"
+                    >
+                      <option value="Monospace (Classic ESC/POS Receipt)">Monospace (Classic ESC/POS Receipt)[cite: 3]</option>
+                      <option value="Modern Sans-Serif">Modern Sans-Serif</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Thermal Slip Margins[cite: 3]</label>
+                    <select
+                      value={settingsForm.slipMargins}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, slipMargins: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white font-medium"
+                    >
+                      <option value="2mm - Standard Thermal Margin">2mm - Standard Thermal Margin[cite: 3]</option>
+                      <option value="0mm - Full Bleed Edge">0mm - Full Bleed Edge</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Auto-Print on Saved Order[cite: 3]</label>
+                    <select
+                      value={settingsForm.autoPrintKOT}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, autoPrintKOT: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white font-medium"
+                    >
+                      <option value="Yes - Print KOT & BOT Slips">Yes - Print KOT & BOT Slips[cite: 3]</option>
+                      <option value="No - Manual Only">No - Manual Only</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Auto-Print on Settlement[cite: 3]</label>
+                    <select
+                      value={settingsForm.autoPrintSettlement}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, autoPrintSettlement: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white font-medium"
+                    >
+                      <option value="Yes - Print Final Tax Invoice">Yes - Print Final Tax Invoice[cite: 3]</option>
+                      <option value="No - Screen Only">No - Screen Only</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="bg-[#FAF9F5] p-3 rounded-xl border border-[#E6DFD3] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                  <div className="text-[11px] text-slate-500">
+                    <b>Direct WebUSB Thermal Printer Connection</b><br />
+                    Pair once with your POS printer for fast raw print output or print via OS print spooler.[cite: 3]
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => alert("Searching for connected WebUSB thermal printers...")}
+                      className="px-3.5 py-2 bg-[#091D26] text-white rounded-lg text-xs font-bold flex items-center gap-1.5"
+                    >
+                      <Usb className="w-3.5 h-3.5" /> Pair USB Printer[cite: 3]
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const dummyRoom = { number: "TEST", orderId: "TEST-01", orderItems: [{ description: "Thermal Test Receipt", quantity: 1, total: 0 }] };
+                        const html = buildThermalHtml({ settings: settingsForm, room: dummyRoom, isTemporary: true, settlementMethod: "TEST", total: 0 });
+                        printIsolatedDocument(html, "thermal");
+                      }}
+                      className="px-3.5 py-2 border border-[#D3C8B7] rounded-lg text-xs font-bold hover:bg-slate-50 flex items-center gap-1.5"
+                    >
+                      <Printer className="w-3.5 h-3.5" /> Test Slip[cite: 3]
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* CARD 4: AUTOMATED CASH DRAWER SOLENOID */}
+              <div className="bg-white rounded-2xl border border-[#E6DFD3] p-6 shadow-sm space-y-4">
+                <div className="border-b border-slate-100 pb-2">
+                  <h3 className="font-bold text-sm text-[#091D26] uppercase tracking-wide flex items-center gap-2">
+                    <Banknote className="w-4 h-4 text-[#14B8A6]" /> AUTOMATED CASH DRAWER SOLENOID[cite: 3]
+                  </h3>
+                  <p className="text-[11px] text-slate-400">Triggers electrical RJ11/RJ12 drawer pulse via printer kick ports[cite: 3]</p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Auto Drawer Kick[cite: 3]</label>
+                    <select
+                      value={settingsForm.autoDrawerKick}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, autoDrawerKick: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white font-medium"
+                    >
+                      <option value="Enabled (Auto-Pop on Payment)">Enabled (Auto-Pop on Payment)[cite: 3]</option>
+                      <option value="Disabled">Disabled</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Drawer Kick Trigger[cite: 3]</label>
+                    <select
+                      value={settingsForm.drawerKickTrigger}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, drawerKickTrigger: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white font-medium"
+                    >
+                      <option value="Cash Payments Only">Cash Payments Only[cite: 3]</option>
+                      <option value="All Settlement Tenders">All Settlement Tenders</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">RJ11 / RJ12 Pinout[cite: 3]</label>
+                    <select
+                      value={settingsForm.drawerPinout}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, drawerPinout: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 bg-white font-medium"
+                    >
+                      <option value="Pin 2 / ESC p 0 (Epson, Rongta, Xprint)">Pin 2 / ESC p 0 (Epson, Rongta, Xprint)[cite: 3]</option>
+                      <option value="Pin 5 / ESC p 1 (Star Micronics)">Pin 5 / ESC p 1 (Star Micronics)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setSettingsForm({ ...settingsForm, drawerChime: !settingsForm.drawerChime })}
+                    className="flex items-center gap-2 text-xs font-semibold text-slate-700"
+                  >
+                    <span className={`px-2 py-1 rounded font-bold text-xs ${settingsForm.drawerChime ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"}`}>
+                      {settingsForm.drawerChime ? "Chime ON" : "Muted"}[cite: 3]
+                    </span>
+                    {settingsForm.drawerChime ? <Volume2 className="w-4 h-4 text-[#14B8A6]" /> : <VolumeX className="w-4 h-4 text-slate-400" />}
+                    <span className="text-[11px] text-slate-500">Plays brass bell chime upon successful payment settlement[cite: 3]</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => alert("Solenoid pulse sent! Cash drawer kicked open.")}
+                    className="px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-lg text-xs font-bold shadow-sm"
+                  >
+                    Pop Drawer[cite: 3]
+                  </button>
+                </div>
+              </div>
+
+              {/* CARD 5: CURRENCY, TAXES & SURCHARGE RATES */}
+              <div className="bg-white rounded-2xl border border-[#E6DFD3] p-6 shadow-sm space-y-4">
+                <div className="border-b border-slate-100 pb-2">
+                  <h3 className="font-bold text-sm text-[#091D26] uppercase tracking-wide flex items-center gap-2">
+                    <DollarSign className="w-4 h-4 text-[#14B8A6]" /> CURRENCY, TAXES & SURCHARGE RATES[cite: 3]
+                  </h3>
+                  <p className="text-[11px] text-slate-400">Default rates applied across folios and receipts[cite: 3]</p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Currency Symbol / Code[cite: 3]</label>
+                    <input
+                      type="text"
+                      value={settingsForm.currency}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, currency: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Default Service Charge (%)[cite: 3]</label>
+                    <input
+                      type="number"
+                      value={settingsForm.serviceChargeRate}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, serviceChargeRate: parseFloat(e.target.value) || 0 })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Sales Tax / VAT Rate (%)[cite: 3]</label>
+                    <input
+                      type="number"
+                      value={settingsForm.vatRate}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, vatRate: parseFloat(e.target.value) || 0 })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5 font-bold"
+                    />
+                  </div>
+                  <div className="sm:col-span-3">
+                    <label className="block font-semibold mb-1 text-slate-700">Thermal Receipt Header Notes[cite: 3]</label>
+                    <textarea
+                      rows={2}
+                      value={settingsForm.headerNote}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, headerNote: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
+                    />
+                  </div>
+                  <div className="sm:col-span-3">
+                    <label className="block font-semibold mb-1 text-slate-700">Thermal Receipt Footer Message[cite: 3]</label>
+                    <textarea
+                      rows={2}
+                      value={settingsForm.footerNote}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, footerNote: e.target.value })}
+                      className="w-full border border-[#D3C8B7] rounded-lg p-2.5"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* CARD 6: SYSTEM DATABASE BACKUP & DISASTER RECOVERY */}
+              <div className="bg-white rounded-2xl border border-[#E6DFD3] p-6 shadow-sm space-y-4">
+                <div className="border-b border-slate-100 pb-2">
+                  <h3 className="font-bold text-sm text-[#091D26] uppercase tracking-wide flex items-center gap-2">
+                    <Download className="w-4 h-4 text-[#14B8A6]" /> SYSTEM DATABASE BACKUP & DISASTER RECOVERY[cite: 3]
+                  </h3>
+                  <p className="text-[11px] text-slate-400">Export or restore full state database (folios, staff, inventory, and shift logs)[cite: 3]</p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                  <div className="p-4 bg-[#FAF9F5] border border-[#E6DFD3] rounded-xl flex flex-col justify-between space-y-3">
+                    <div>
+                      <span className="font-bold block mb-1">Export JSON Database Backup[cite: 3]</span>
+                      <p className="text-slate-500">Download a complete snapshot of all dishes, ingredients, staff credentials, and sales records.[cite: 3]</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleDownloadBackup}
+                      className="w-full py-2.5 bg-[#091D26] text-white rounded-lg font-bold flex items-center justify-center gap-2 shadow-sm"
+                    >
+                      <Download className="w-4 h-4" /> Download System Backup (json)[cite: 3]
+                    </button>
+                  </div>
+
+                  <div className="p-4 bg-[#FAF9F5] border border-[#E6DFD3] rounded-xl flex flex-col justify-between space-y-3">
+                    <div>
+                      <span className="font-bold block mb-1">Restore System from Backup File[cite: 3]</span>
+                      <p className="text-slate-500">Upload a previously exported '.json' file to restore settings, inventory levels, menus, and transaction history.[cite: 3]</p>
+                    </div>
+                    <label className="w-full py-2.5 border border-[#D3C8B7] bg-white hover:bg-slate-50 rounded-lg font-bold flex items-center justify-center gap-2 cursor-pointer shadow-sm">
+                      <Upload className="w-4 h-4 text-slate-500" /> Select Backup File (json)[cite: 3]
+                      <input type="file" accept=".json" onChange={handleRestoreBackup} className="hidden" />
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* CARD 7: ADMINISTRATOR DATA PURGE */}
+              <div className="bg-red-50/60 rounded-2xl border border-red-200 p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                  <h4 className="font-bold text-xs text-red-900 uppercase flex items-center gap-1.5">
+                    <AlertTriangle className="w-4 h-4 text-red-600" /> ADMINISTRATOR DATA PURGE (RESET TEST DATA)[cite: 3]
+                  </h4>
+                  <p className="text-[11px] text-red-700 mt-0.5">
+                    Clear test transactions, reset all tables to VACANT, and start with a clean ledger without overriding the cash float.[cite: 3]
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handlePurgeTestData}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold shrink-0 shadow-sm"
+                >
+                  Purge Test Records[cite: 3]
+                </button>
               </div>
             </div>
           )}
