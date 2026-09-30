@@ -453,6 +453,116 @@ function buildPayslipHtml({ settings, staffMember, payPeriodStr = "Current Pay P
   `;
 }
 
+function buildDailyAttendanceReportHtml({ settings, reportList, titleStr }) {
+  return `
+    <div class="a4-container">
+      <div style="border-bottom: 3px double #091D26; padding-bottom: 16px; display: flex; justify-content: space-between;">
+        <div>
+          <h1 style="font-size: 24px; font-weight: 900; text-transform: uppercase; margin: 0; color: #091D26;">${settings.hotelName}</h1>
+          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; color: #555;">Daily Staff Shift & Attendance Audit Sheet</p>
+        </div>
+        <div style="text-align: right;">
+          <div style="display: inline-block; border: 2px solid #091D26; padding: 6px 14px; font-weight: bold; font-size: 12px; background: #F3EFE6;">
+            ATTENDANCE LOG
+          </div>
+          <p style="margin: 8px 0 0 0; font-size: 12px;"><b>Scope:</b> ${titleStr}</p>
+        </div>
+      </div>
+      <table style="width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px;">
+        <thead>
+          <tr style="border-bottom: 2px solid #091D26; background: #F3EFE6;">
+            <th style="padding: 10px 6px; text-align: left;">Date</th>
+            <th style="padding: 10px 6px; text-align: left;">Employee Name</th>
+            <th style="padding: 10px 6px; text-align: left;">Role</th>
+            <th style="padding: 10px 6px; text-align: center;">In Time</th>
+            <th style="padding: 10px 6px; text-align: center;">Out Time</th>
+            <th style="padding: 10px 6px; text-align: center;">Shift Hours</th>
+            <th style="padding: 10px 6px; text-align: center;">Duty Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${reportList.map((m) => `
+            <tr style="border-bottom: 1px solid #ddd;">
+              <td style="padding: 10px 6px; font-family: monospace;">${m.date || "--"}</td>
+              <td style="padding: 10px 6px; font-weight: bold;">${m.name}</td>
+              <td style="padding: 10px 6px;">${m.role}</td>
+              <td style="padding: 10px 6px; text-align: center; font-family: monospace;">${m.clockIn || "--:--"}</td>
+              <td style="padding: 10px 6px; text-align: center; font-family: monospace;">${m.clockOut || "--:--"}</td>
+              <td style="padding: 10px 6px; text-align: center; font-weight: bold;">${m.hoursLogged || "--"}</td>
+              <td style="padding: 10px 6px; text-align: center; font-weight: bold; color: ${m.isOnDuty ? '#0D9488' : '#64748B'};">
+                ${m.isOnDuty ? "ON DUTY" : m.clockOut ? "COMPLETED" : "OFF DUTY"}
+              </td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function buildSalesReportHtml({ settings, salesList, prebookingsList, titleStr, totalSales }) {
+  return `
+    <div class="a4-container">
+      <div style="border-bottom: 3px double #091D26; padding-bottom: 16px; display: flex; justify-content: space-between;">
+        <div>
+          <h1 style="font-size: 24px; font-weight: 900; text-transform: uppercase; margin: 0; color: #091D26;">${settings.hotelName}</h1>
+          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; color: #555;">Executive Sales, Turnover & Prebooking Report</p>
+        </div>
+        <div style="text-align: right;">
+          <div style="display: inline-block; border: 2px solid #091D26; padding: 6px 14px; font-weight: bold; font-size: 12px; background: #F3EFE6;">
+            REVENUE AUDIT
+          </div>
+          <p style="margin: 8px 0 0 0; font-size: 12px;"><b>Scope:</b> ${titleStr}</p>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 20px 0;">
+        <div style="border: 1px solid #091D26; padding: 12px; background: #FAF9F5; border-radius: 4px;">
+          <div style="font-size: 10px; font-weight: bold; text-transform: uppercase; color: #555;">Gross Settled Revenue</div>
+          <div style="font-size: 20px; font-weight: 900; color: #0D9488; margin-top: 4px;">${settings.currency}${Number(totalSales).toLocaleString()}</div>
+        </div>
+        <div style="border: 1px solid #091D26; padding: 12px; background: #FAF9F5; border-radius: 4px;">
+          <div style="font-size: 10px; font-weight: bold; text-transform: uppercase; color: #555;">Settled Transactions</div>
+          <div style="font-size: 20px; font-weight: 900; color: #091D26; margin-top: 4px;">${salesList.length} Folios</div>
+        </div>
+        <div style="border: 1px solid #091D26; padding: 12px; background: #FAF9F5; border-radius: 4px;">
+          <div style="font-size: 10px; font-weight: bold; text-transform: uppercase; color: #555;">Pre-Bookings Manifest</div>
+          <div style="font-size: 20px; font-weight: 900; color: #6366F1; margin-top: 4px;">${prebookingsList.length} Stays</div>
+        </div>
+      </div>
+
+      <h3 style="font-size: 14px; font-weight: bold; text-transform: uppercase; margin-top: 24px; border-bottom: 2px solid #091D26; padding-bottom: 4px;">
+        1. Settled Revenue & Folios Ledger
+      </h3>
+      <table style="width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 11px;">
+        <thead>
+          <tr style="border-bottom: 2px solid #091D26; background: #F3EFE6;">
+            <th style="padding: 8px 6px; text-align: left;">Date & Time</th>
+            <th style="padding: 8px 6px; text-align: left;">Folio / Bill #</th>
+            <th style="padding: 8px 6px; text-align: left;">Room</th>
+            <th style="padding: 8px 6px; text-align: left;">Guest Name</th>
+            <th style="padding: 8px 6px; text-align: center;">Tender</th>
+            <th style="padding: 8px 6px; text-align: right;">Total Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${salesList.map((s) => `
+            <tr style="border-bottom: 1px solid #ddd;">
+              <td style="padding: 8px 6px; font-family: monospace;">${s.date} ${s.settledAt || ""}</td>
+              <td style="padding: 8px 6px; font-family: monospace; font-weight: bold;">${s.orderId}</td>
+              <td style="padding: 8px 6px;">#${s.roomNumber}</td>
+              <td style="padding: 8px 6px; font-weight: bold;">${s.guestName}</td>
+              <td style="padding: 8px 6px; text-align: center;">${s.settlementMethod}</td>
+              <td style="padding: 8px 6px; text-align: right; font-weight: bold;">${settings.currency}${Number(s.totalAmount).toLocaleString()}</td>
+            </tr>
+          `).join("")}
+          ${salesList.length === 0 ? `<tr><td colspan="6" style="padding: 16px; text-align: center; color: #888;">No sales records found for this period.</td></tr>` : ""}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
 // --- 3. DYNAMIC PRICING ENGINE ---
 function getDynamicRoomRate(room, allRooms = []) {
   if (!room) return 0;
@@ -641,20 +751,23 @@ export default function App() {
     phone: "",
   });
 
-  // Role Permissions: Managers AND Admins have staff modify/delete permissions
+  // STRICT ACCESS ROLES:
+  // General Manager & Admin have full authority (settings, room management, staff modification, deletion)
   const roleLower = (currentUser?.role || "").toLowerCase();
-  const isManagerOrAdmin = roleLower.includes("admin") || roleLower.includes("manager") || roleLower.includes("supervisor");
-  const isFrontDesk = roleLower.includes("front desk");
+  const isGeneralManager = roleLower.includes("admin") || roleLower.includes("general manager");
+  const isFrontDesk = roleLower.includes("front desk") || roleLower.includes("supervisor");
   const isHousekeeping = roleLower.includes("housekeeping");
 
+  // Front Desk Supervisor is NOT General Manager / Admin. They have operational access only.
   const canAccessTab = (tabId) => {
     if (!currentUser) return false;
-    if (isManagerOrAdmin) return true;
+    if (isGeneralManager) return true; // Full GM/Admin access
     if (tabId === "frontdesk") return true;
-    if (tabId === "active-orders" && (isFrontDesk || isManagerOrAdmin)) return true;
-    if (tabId === "inventory" && (isFrontDesk || isManagerOrAdmin || isHousekeeping)) return true;
-    if (tabId === "reports" && (isFrontDesk || isManagerOrAdmin)) return true;
-    if (tabId === "staff") return true;
+    if (tabId === "active-orders" && (isFrontDesk || isGeneralManager)) return true;
+    if (tabId === "inventory" && (isFrontDesk || isGeneralManager || isHousekeeping)) return true;
+    if (tabId === "reports" && isGeneralManager) return true;
+    if (tabId === "staff") return true; // View daily shift attendance
+    // Room-Admin and Settings are strictly restricted to isGeneralManager
     return false;
   };
 
@@ -846,7 +959,7 @@ export default function App() {
       }
     });
 
-    // Staff Listener (Reliable mapping and state update)
+    // Staff Listener
     const staffRef = ref(rtdb, "staff");
     const unsubStaff = onValue(staffRef, (snapshot) => {
       if (snapshot.exists()) {
@@ -918,10 +1031,10 @@ export default function App() {
   const calculateStaffGross = (s) => (Number(s.baseSalary) || 0) + (Number(s.allowances) || 0) + (Number(s.serviceCharge) || 0) + (Number(s.bonus) || 0) + (Number(s.overtimePay) || 0);
   const calculateStaffDeductions = (s) => (Number(s.epfDeduction) || Math.round((Number(s.baseSalary) || 0) * 0.08)) + (Number(s.taxDeduction) || 0) + (Number(s.advanceDeduction) || 0);
 
-  // Dynamic Room Rates Management
+  // Dynamic Room Rates Management (Restricted to General Manager)
   const handleStartEditDynamicRoom = (room) => {
-    if (!isManagerOrAdmin) {
-      alert("Access Denied: Only Manager or Admin can modify room rates.");
+    if (!isGeneralManager) {
+      alert("Access Denied: Only General Manager or Admin can modify room rates.");
       return;
     }
     setEditingDynamicRoom(room);
@@ -937,7 +1050,7 @@ export default function App() {
 
   const handleSaveDynamicRoomRates = (e) => {
     e.preventDefault();
-    if (!isManagerOrAdmin || !editingDynamicRoom) return;
+    if (!isGeneralManager || !editingDynamicRoom) return;
 
     const baseVal = parseFloat(editRoomForm.rate) || 18000;
     const weekendVal = parseFloat(editRoomForm.weekendRate) || Math.round(baseVal * 1.2);
@@ -956,17 +1069,17 @@ export default function App() {
   };
 
   const handleQuickToggleStrategy = (room, nextStrategy) => {
-    if (!isManagerOrAdmin) {
-      alert("Access Denied: Only Manager or Admin can alter pricing strategies.");
+    if (!isGeneralManager) {
+      alert("Access Denied: Only General Manager can alter pricing strategies.");
       return;
     }
     update(ref(rtdb, `rooms/${room.id}`), { rateStrategy: nextStrategy });
   };
 
-  // --- STAFF EDIT INITIALIZER: BINDS ALL FIELDS ACCURATELY ---
+  // Staff Remuneration Editor: Restricted to General Manager / Admin
   const handleStartEditStaff = (member) => {
-    if (!isManagerOrAdmin) {
-      alert("Access Denied: Only Managers and Admins can modify staff profiles.");
+    if (!isGeneralManager) {
+      alert("Access Denied: Only General Manager can modify staff employment and remuneration profiles.");
       return;
     }
     setEditingStaffMember(member);
@@ -988,10 +1101,9 @@ export default function App() {
     });
   };
 
-  // --- STAFF SAVE HANDLER: WRITES TO FIREBASE & UPDATES LOCAL STATE IMMEDIATELY ---
   const handleSaveStaffEdit = (e) => {
     e.preventDefault();
-    if (!isManagerOrAdmin || !editingStaffMember) return;
+    if (!isGeneralManager || !editingStaffMember) return;
 
     const baseVal = parseFloat(editStaffForm.baseSalary) || 0;
     const allowancesVal = parseFloat(editStaffForm.allowances) || 0;
@@ -1019,12 +1131,10 @@ export default function App() {
       phone: sanitizeInput(editStaffForm.phone),
     };
 
-    // 1. Immediately update local state to avoid any input reset
     setStaff((prev) =>
       prev.map((s) => (s.id === editingStaffMember.id ? { ...s, ...updated } : s))
     );
 
-    // 2. Persist to Firebase Realtime Database
     update(ref(rtdb, `staff/${editingStaffMember.id}`), updated)
       .then(() => {
         setEditingStaffMember(null);
@@ -1034,10 +1144,10 @@ export default function App() {
       });
   };
 
-  // Staff Deletion
+  // Staff Deletion: Restricted to General Manager / Admin
   const handleDeleteStaff = (member) => {
-    if (!isManagerOrAdmin) {
-      alert("Access Denied: Only Managers and Admins can delete staff profiles.");
+    if (!isGeneralManager) {
+      alert("Access Denied: Only General Manager can delete staff profiles.");
       return;
     }
     if (window.confirm(`Permanently remove ${member.name}?`)) {
@@ -1049,6 +1159,10 @@ export default function App() {
   // Inventory Management
   const handleCreateInventoryItem = (e) => {
     e.preventDefault();
+    if (!isGeneralManager) {
+      alert("Access Denied: Only General Manager can create new inventory products.");
+      return;
+    }
     if (!newInventoryForm.name.trim()) return;
 
     const itemId = `inv_${Date.now()}`;
@@ -1072,8 +1186,8 @@ export default function App() {
   };
 
   const handleStartEditInventory = (item) => {
-    if (!isManagerOrAdmin) {
-      alert("Access Denied: Only Manager or Admin can modify inventory items.");
+    if (!isGeneralManager) {
+      alert("Access Denied: Only General Manager can modify inventory items.");
       return;
     }
     setEditingInventoryItem(item);
@@ -1088,7 +1202,7 @@ export default function App() {
 
   const handleSaveInventoryEdit = (e) => {
     e.preventDefault();
-    if (!isManagerOrAdmin || !editingInventoryItem || !editInventoryForm.name.trim()) return;
+    if (!isGeneralManager || !editingInventoryItem || !editInventoryForm.name.trim()) return;
 
     const cleanCost = parseFloat(editInventoryForm.cost) || 0;
     const cleanPrice = parseFloat(editInventoryForm.price) || 0;
@@ -1110,8 +1224,8 @@ export default function App() {
   };
 
   const handleDeleteInventoryItem = (item) => {
-    if (!isManagerOrAdmin) {
-      alert("Access Denied: Only Manager or Admin can delete inventory items.");
+    if (!isGeneralManager) {
+      alert("Access Denied: Only General Manager can delete inventory items.");
       return;
     }
     if (window.confirm(`Permanently delete "${item.name}"?`)) {
@@ -1182,8 +1296,8 @@ export default function App() {
   };
 
   const handleDeletePrebooking = (bookingId) => {
-    if (!isManagerOrAdmin) {
-      alert("Access Denied: Only Manager or Admin can delete pre-booking reservations.");
+    if (!isGeneralManager) {
+      alert("Access Denied: Only General Manager can delete pre-booking reservations.");
       return;
     }
     if (window.confirm("Delete this advance pre-booking reservation?")) {
@@ -1228,10 +1342,10 @@ export default function App() {
     setActiveTab("frontdesk");
   };
 
-  // Settings & Database Backup
+  // Settings & Database Backup (Strictly General Manager / Admin)
   const handleSaveAllSettings = () => {
-    if (!isManagerOrAdmin) {
-      alert("Access Denied: Only Manager or Admin can save system settings.");
+    if (!isGeneralManager) {
+      alert("Access Denied: Only General Manager can save system settings.");
       return;
     }
     set(ref(rtdb, "hotel_config/profile"), settingsForm);
@@ -1240,8 +1354,8 @@ export default function App() {
   };
 
   const handleDownloadBackup = () => {
-    if (!isManagerOrAdmin) {
-      alert("Access Denied: Database backup export is restricted.");
+    if (!isGeneralManager) {
+      alert("Access Denied: Database backup export is restricted to General Manager.");
       return;
     }
     onValue(ref(rtdb), (snap) => {
@@ -1256,8 +1370,8 @@ export default function App() {
   };
 
   const handleRestoreBackup = (e) => {
-    if (!isManagerOrAdmin) {
-      alert("Access Denied: Database restore is restricted.");
+    if (!isGeneralManager) {
+      alert("Access Denied: Database restore is restricted to General Manager.");
       return;
     }
     const file = e.target.files?.[0];
@@ -1278,8 +1392,8 @@ export default function App() {
   };
 
   const handlePurgeTestData = () => {
-    if (!isManagerOrAdmin) {
-      alert("Access Denied: Only Manager or Admin can execute a database reset/purge.");
+    if (!isGeneralManager) {
+      alert("Access Denied: Only General Manager can execute a database reset/purge.");
       return;
     }
     if (window.prompt('Type "CONFIRM" to clear guest orders and reset rooms to Available:') === "CONFIRM") {
@@ -1299,8 +1413,8 @@ export default function App() {
   };
 
   const handleDeleteRoomPhoto = (roomId) => {
-    if (!isManagerOrAdmin) {
-      alert("Access Denied: Only Manager or Admin can delete stored guest verification photos.");
+    if (!isGeneralManager) {
+      alert("Access Denied: Only General Manager can delete stored guest verification photos.");
       return;
     }
     if (window.confirm("Delete guest identification image for this room?")) {
@@ -1385,7 +1499,6 @@ export default function App() {
     printIsolatedDocument(html, printFormat);
   };
 
-  // Settle Order & Save into Permanent Sales Ledger
   const handleConfirmOrderSettlement = () => {
     if (!settleOrderRoom) return;
     const total = calculateTotal(settleOrderRoom);
@@ -1484,11 +1597,11 @@ export default function App() {
     printIsolatedDocument(html, "a4");
   };
 
-  // Staff Creation (Accessible by Manager or Admin)
+  // Staff Creation (General Manager / Admin only)
   const handleCreateStaff = (e) => {
     e.preventDefault();
-    if (!isManagerOrAdmin) {
-      alert("Access Denied: Only Manager or Admin can register employees.");
+    if (!isGeneralManager) {
+      alert("Access Denied: Only General Manager can register new staff members.");
       return;
     }
     if (!newStaffForm.name.trim()) return;
@@ -1518,8 +1631,8 @@ export default function App() {
   };
 
   const handleToggleStaffPayout = (staffId, currentStatus) => {
-    if (!isManagerOrAdmin) {
-      alert("Access Denied: Only Manager or Admin can disburse staff salaries.");
+    if (!isGeneralManager) {
+      alert("Access Denied: Only General Manager can disburse staff salaries.");
       return;
     }
     const nextStatus = !currentStatus;
@@ -1601,8 +1714,8 @@ export default function App() {
   };
 
   const handleDeleteActiveBill = (room) => {
-    if (!isManagerOrAdmin) {
-      alert("Access Denied: Only Manager or Admin can void an active bill.");
+    if (!isGeneralManager) {
+      alert("Access Denied: Only General Manager can void an active bill.");
       return;
     }
     if (window.confirm(`Void active bill for Room #${room.number}?`)) {
@@ -1622,8 +1735,8 @@ export default function App() {
 
   const handleCreateRoom = (e) => {
     e.preventDefault();
-    if (!isManagerOrAdmin) {
-      alert("Access Denied: Only Manager or Admin can create rooms.");
+    if (!isGeneralManager) {
+      alert("Access Denied: Only General Manager can create rooms.");
       return;
     }
     if (!newRoomForm.number) return;
@@ -1648,8 +1761,8 @@ export default function App() {
   };
 
   const handleDeleteRoom = (roomId, roomNumber) => {
-    if (!isManagerOrAdmin) {
-      alert("Access Denied: Only Manager or Admin can delete rooms.");
+    if (!isGeneralManager) {
+      alert("Access Denied: Only General Manager can delete rooms.");
       return;
     }
     if (window.confirm(`Delete Room #${roomNumber}?`)) {
@@ -1728,7 +1841,7 @@ export default function App() {
     );
   }
 
-  // --- PIN TERMINAL LOCK SCREEN ---
+  // --- PIN TERMINAL LOCK SCREEN (ADMIN & MANAGER SECURELY HIDDEN) ---
   if (!currentUser) {
     const keypadButtons = [
       { key: "1", sub: "" },
@@ -1747,9 +1860,10 @@ export default function App() {
 
     const isLockedOut = Date.now() < pinLockoutUntil;
 
+    // Filter quick buttons to NEVER display Admin or Manager accounts
     const safeOperationalStaff = staff.filter(s => {
       const r = (s.role || "").toLowerCase();
-      return !r.includes("admin") && !r.includes("manager") && !r.includes("supervisor");
+      return !r.includes("admin") && !r.includes("manager");
     });
 
     return (
@@ -1993,7 +2107,7 @@ export default function App() {
                       Live Rooms & Dynamic Rates
                     </h2>
                     <p className="text-xs text-slate-300 mt-1 max-w-xl">
-                      Guest photo IDs remain saved permanently until explicitly deleted or cleared on checkout folio archiving.
+                      Live night rates adjust automatically according to room strategy (Standard, Weekend, Peak, and Auto-Occupancy).
                     </p>
                   </div>
 
@@ -2054,7 +2168,7 @@ export default function App() {
                   ))}
                 </div>
 
-                {isManagerOrAdmin && (
+                {isGeneralManager && (
                   <button
                     type="button"
                     onClick={() => setShowAddRoomModal(true)}
@@ -2173,12 +2287,12 @@ export default function App() {
                                   </div>
                                 </div>
 
-                                {room.guestPhoto && isManagerOrAdmin && (
+                                {room.guestPhoto && isGeneralManager && (
                                   <button
                                     type="button"
                                     onClick={() => handleDeleteRoomPhoto(room.id)}
                                     className="p-1 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50"
-                                    title="Delete stored photo (Manager/Admin)"
+                                    title="Delete stored photo (General Manager)"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </button>
@@ -2279,7 +2393,7 @@ export default function App() {
                             </button>
                           )}
 
-                          {isMaintenance && isManagerOrAdmin && (
+                          {isMaintenance && isGeneralManager && (
                             <button
                               type="button"
                               onClick={() => updateRoomStatus(room.id, "available")}
@@ -2352,7 +2466,7 @@ export default function App() {
                   <h2 className="text-2xl font-bold">Inventory & Minibar Stock</h2>
                   <p className="text-sm text-slate-500">Manage item wholesale cost, retail billable price, and stock levels.</p>
                 </div>
-                {isManagerOrAdmin && (
+                {isGeneralManager && (
                   <button
                     type="button"
                     onClick={() => setShowAddInventoryModal(true)}
@@ -2374,7 +2488,7 @@ export default function App() {
                       <th className="p-3.5 text-right">Gross Margin</th>
                       <th className="p-3.5 text-center">Stock Level</th>
                       <th className="p-3.5 text-center">Quick Adjust</th>
-                      {isManagerOrAdmin && <th className="p-3.5 text-center">Actions</th>}
+                      {isGeneralManager && <th className="p-3.5 text-center">Actions</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#F3EFE6]">
@@ -2421,7 +2535,7 @@ export default function App() {
                               </button>
                             </div>
                           </td>
-                          {isManagerOrAdmin && (
+                          {isGeneralManager && (
                             <td className="p-3.5 text-center">
                               <div className="inline-flex items-center gap-1">
                                 <button
@@ -2450,7 +2564,7 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB: REPORTS & ANALYTICS */}
+          {/* TAB: REPORTS & ANALYTICS (GM ONLY) */}
           {activeTab === "reports" && canAccessTab("reports") && (
             <div className="max-w-7xl mx-auto space-y-6 pb-16">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -2586,7 +2700,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* REPORT VIEW 1: SALES & SETTLED INVOICES LEDGER WITH GUEST PHOTO BUTTON */}
+              {/* REPORT VIEW 1: SALES & SETTLED INVOICES LEDGER */}
               {reportsSubTab === "sales" && (
                 <div className="bg-white rounded-3xl border border-[#E6DFD3] shadow-sm overflow-hidden">
                   <div className="p-4 border-b border-[#F3EFE6] flex justify-between items-center bg-[#FAF9F5]">
@@ -2698,7 +2812,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* REPORT VIEW 2: PRE-BOOKINGS & ADVANCE RESERVATIONS */}
+              {/* REPORT VIEW 2: PRE-BOOKINGS */}
               {reportsSubTab === "prebookings" && (
                 <div className="bg-white rounded-3xl border border-[#E6DFD3] shadow-sm overflow-hidden">
                   <div className="p-4 border-b border-[#F3EFE6] flex justify-between items-center bg-[#FAF9F5]">
@@ -2706,7 +2820,7 @@ export default function App() {
                       <h3 className="font-bold text-sm text-[#091D26]">Advance Pre-Bookings & Reservations</h3>
                       <p className="text-[11px] text-slate-500">Monitor upcoming guest arrivals, check-in dates, and deposits</p>
                     </div>
-                    {isManagerOrAdmin && (
+                    {isGeneralManager && (
                       <button
                         type="button"
                         onClick={() => setShowAddBookingModal(true)}
@@ -2770,7 +2884,7 @@ export default function App() {
                                     Check In Now
                                   </button>
                                 )}
-                                {isManagerOrAdmin && (
+                                {isGeneralManager && (
                                   <button
                                     type="button"
                                     onClick={() => handleDeletePrebooking(b.id)}
@@ -2796,7 +2910,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* REPORT VIEW 3: MINIBAR CONSUMPTION */}
+              {/* REPORT VIEW 3: MINIBAR */}
               {reportsSubTab === "minibar" && (
                 <div className="bg-white rounded-3xl border border-[#E6DFD3] shadow-sm overflow-hidden">
                   <div className="p-4 border-b border-[#F3EFE6] flex justify-between items-center bg-[#FAF9F5]">
@@ -2839,7 +2953,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* REPORT VIEW 4: OCCUPANCY & ADR */}
+              {/* REPORT VIEW 4: OCCUPANCY */}
               {reportsSubTab === "occupancy" && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                   <div className="bg-white rounded-3xl border border-[#E6DFD3] p-5 shadow-sm space-y-3">
@@ -2897,8 +3011,8 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 4: ROOM ADMIN */}
-          {activeTab === "room-admin" && isManagerOrAdmin && (
+          {/* TAB 4: ROOM ADMIN (RESTRICTED TO GENERAL MANAGER) */}
+          {activeTab === "room-admin" && isGeneralManager && (
             <div className="max-w-7xl mx-auto space-y-6">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
@@ -3016,7 +3130,7 @@ export default function App() {
                   >
                     <FileSpreadsheet className="w-4 h-4 text-[#2DD4BF]" /> Print Audit Report
                   </button>
-                  {isManagerOrAdmin && (
+                  {isGeneralManager && (
                     <button
                       type="button"
                       onClick={() => setShowAddStaffModal(true)}
@@ -3054,7 +3168,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* View Switcher: Daily Attendance vs Report Monitor vs Remuneration */}
+              {/* View Switcher */}
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                 <div className="flex bg-[#F3EFE6] p-1 rounded-2xl border border-[#E6DFD3] overflow-x-auto">
                   <button
@@ -3075,7 +3189,7 @@ export default function App() {
                   >
                     <BarChart3 className="w-3.5 h-3.5 text-[#2DD4BF]" /> Shift Records & Monitor Report
                   </button>
-                  {isManagerOrAdmin && (
+                  {isGeneralManager && (
                     <button
                       type="button"
                       onClick={() => setStaffViewSubTab("roster")}
@@ -3244,8 +3358,8 @@ export default function App() {
                 </div>
               )}
 
-              {/* VIEW 3: COMPREHENSIVE PAYROLL MANAGEMENT & PAYSLIPS */}
-              {staffViewSubTab === "roster" && isManagerOrAdmin && (
+              {/* VIEW 3: COMPREHENSIVE PAYROLL MANAGEMENT & PAYSLIPS (GM ONLY) */}
+              {staffViewSubTab === "roster" && isGeneralManager && (
                 <div className="bg-white rounded-3xl border border-[#E6DFD3] shadow-sm overflow-hidden">
                   <div className="p-4 border-b border-[#F3EFE6] flex justify-between items-center bg-[#FAF9F5]">
                     <div>
@@ -3278,8 +3392,8 @@ export default function App() {
                           <th className="p-3.5 text-right text-emerald-700">Net Take-Home</th>
                           <th className="p-3.5 text-center">Payout</th>
                           <th className="p-3.5 text-center">Payslip</th>
-                          {isManagerOrAdmin && <th className="p-3.5 text-center">Modify</th>}
-                          {isManagerOrAdmin && <th className="p-3.5 text-center">Delete</th>}
+                          {isGeneralManager && <th className="p-3.5 text-center">Modify</th>}
+                          {isGeneralManager && <th className="p-3.5 text-center">Delete</th>}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#F3EFE6]">
@@ -3342,7 +3456,7 @@ export default function App() {
                                 </button>
                               </td>
 
-                              {isManagerOrAdmin && (
+                              {isGeneralManager && (
                                 <td className="p-3.5 text-center">
                                   <button
                                     type="button"
@@ -3355,7 +3469,7 @@ export default function App() {
                                 </td>
                               )}
 
-                              {isManagerOrAdmin && (
+                              {isGeneralManager && (
                                 <td className="p-3.5 text-center">
                                   <button
                                     type="button"
@@ -3378,8 +3492,8 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 6: SETTINGS */}
-          {activeTab === "settings" && isManagerOrAdmin && (
+          {/* TAB 6: SETTINGS (STRICTLY GENERAL MANAGER / ADMIN) */}
+          {activeTab === "settings" && isGeneralManager && (
             <div className="max-w-6xl mx-auto space-y-8 pb-16">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-[#E6DFD3] pb-4">
                 <div>
@@ -3894,7 +4008,7 @@ export default function App() {
         </main>
       </div>
 
-      {/* MODAL: IMAGE VIEWER / LIGHTBOX FOR SALES REPORT & FRONT DESK */}
+      {/* MODAL: IMAGE VIEWER / LIGHTBOX */}
       {viewPhotoModalData && (
         <div className="fixed inset-0 bg-[#06151E]/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-[#E6DFD3] space-y-4">
@@ -4283,13 +4397,13 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: EDIT STAFF MEMBER (COMPLETE WITH ALL REMUNERATION AND DESIGNATION FIELDS) */}
-      {editingStaffMember && isManagerOrAdmin && (
+      {/* MODAL: EDIT STAFF MEMBER (RESTRICTED TO GENERAL MANAGER) */}
+      {editingStaffMember && isGeneralManager && (
         <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border my-8">
             <div className="flex justify-between items-center mb-4 pb-2 border-b">
               <div>
-                <span className="text-[10px] uppercase font-bold text-[#0F766E]">Remuneration & Deductions Setup</span>
+                <span className="text-[10px] uppercase font-bold text-[#0F766E]">Employment & Remuneration Setup</span>
                 <h3 className="font-bold text-lg text-[#091D26]">Edit Profile: {editingStaffMember.name}</h3>
               </div>
               <button type="button" onClick={() => setEditingStaffMember(null)} className="text-slate-400">
@@ -4485,302 +4599,8 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: EDIT DYNAMIC ROOM RATES */}
-      {editingDynamicRoom && isManagerOrAdmin && (
-        <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border">
-            <div className="flex justify-between items-center mb-4 pb-2 border-b">
-              <div>
-                <span className="text-xs uppercase font-bold text-[#0F766E]">Dynamic Pricing Setup</span>
-                <h3 className="font-bold text-lg">Room #{editingDynamicRoom.number}</h3>
-              </div>
-              <button type="button" onClick={() => setEditingDynamicRoom(null)} className="text-slate-400">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveDynamicRoomRates} className="space-y-4 text-xs">
-              <div>
-                <label className="block font-semibold mb-1">Room Category</label>
-                <input
-                  type="text"
-                  required
-                  value={editRoomForm.type}
-                  onChange={(e) => setEditRoomForm({ ...editRoomForm, type: e.target.value })}
-                  className="w-full border rounded-xl p-2.5 bg-white"
-                />
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="block font-semibold mb-1">Base (Weekday)</label>
-                  <input
-                    type="number"
-                    required
-                    value={editRoomForm.rate}
-                    onChange={(e) => setEditRoomForm({ ...editRoomForm, rate: e.target.value })}
-                    className="w-full border rounded-xl p-2 font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1">Weekend Tier</label>
-                  <input
-                    type="number"
-                    required
-                    value={editRoomForm.weekendRate}
-                    onChange={(e) => setEditRoomForm({ ...editRoomForm, weekendRate: e.target.value })}
-                    className="w-full border rounded-xl p-2 font-bold text-amber-700"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1">Peak Season</label>
-                  <input
-                    type="number"
-                    required
-                    value={editRoomForm.peakRate}
-                    onChange={(e) => setEditRoomForm({ ...editRoomForm, peakRate: e.target.value })}
-                    className="w-full border rounded-xl p-2 font-bold text-rose-700"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold mb-1">Active Pricing Strategy</label>
-                <select
-                  value={editRoomForm.rateStrategy}
-                  onChange={(e) => setEditRoomForm({ ...editRoomForm, rateStrategy: e.target.value })}
-                  className="w-full border rounded-xl p-2.5 bg-white font-bold"
-                >
-                  <option value="standard">Standard (Use Base Rate)</option>
-                  <option value="weekend">Weekend Surge Tier</option>
-                  <option value="peak">Peak Season Surge Tier</option>
-                  <option value="auto">Auto Occupancy-Based Dynamic Surge</option>
-                </select>
-              </div>
-
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setEditingDynamicRoom(null)}
-                  className="flex-1 bg-slate-100 py-3 rounded-xl font-bold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 bg-[#14B8A6] hover:bg-[#0D9488] text-white py-3 rounded-xl font-bold"
-                >
-                  Save Rates
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: ADD ROOM */}
-      {showAddRoomModal && isManagerOrAdmin && (
-        <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 border shadow-2xl">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-lg">Add Room & Dynamic Rates</h3>
-              <button type="button" onClick={() => setShowAddRoomModal(false)} className="text-slate-400">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <form onSubmit={handleCreateRoom} className="space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold mb-1">Room Number</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. 301"
-                    value={newRoomForm.number}
-                    onChange={(e) => setNewRoomForm({ ...newRoomForm, number: e.target.value })}
-                    className="w-full border rounded-xl p-2.5"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1">Room Category</label>
-                  <input
-                    type="text"
-                    required
-                    value={newRoomForm.type}
-                    onChange={(e) => setNewRoomForm({ ...newRoomForm, type: e.target.value })}
-                    className="w-full border rounded-xl p-2.5"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="block font-semibold mb-1">Base ({settings.currency})</label>
-                  <input
-                    type="number"
-                    required
-                    value={newRoomForm.rate}
-                    onChange={(e) => setNewRoomForm({ ...newRoomForm, rate: e.target.value })}
-                    className="w-full border rounded-xl p-2 font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1">Weekend ({settings.currency})</label>
-                  <input
-                    type="number"
-                    required
-                    value={newRoomForm.weekendRate}
-                    onChange={(e) => setNewRoomForm({ ...newRoomForm, weekendRate: e.target.value })}
-                    className="w-full border rounded-xl p-2 font-bold text-amber-700"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1">Peak ({settings.currency})</label>
-                  <input
-                    type="number"
-                    required
-                    value={newRoomForm.peakRate}
-                    onChange={(e) => setNewRoomForm({ ...newRoomForm, peakRate: e.target.value })}
-                    className="w-full border rounded-xl p-2 font-bold text-rose-700"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold mb-1">Initial Pricing Strategy</label>
-                <select
-                  value={newRoomForm.rateStrategy}
-                  onChange={(e) => setNewRoomForm({ ...newRoomForm, rateStrategy: e.target.value })}
-                  className="w-full border rounded-xl p-2.5 bg-white font-bold"
-                >
-                  <option value="standard">Standard (Base Rate)</option>
-                  <option value="weekend">Weekend Surge Tier</option>
-                  <option value="peak">Peak Season Surge Tier</option>
-                  <option value="auto">Auto Occupancy-Based Dynamic Surge</option>
-                </select>
-              </div>
-
-              <button type="submit" className="w-full bg-[#14B8A6] text-white py-3 rounded-xl font-bold">
-                Register Room to Cloud
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: ADD INVENTORY */}
-      {showAddInventoryModal && isManagerOrAdmin && (
-        <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 border shadow-2xl">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-lg">Add Inventory Item</h3>
-              <button type="button" onClick={() => setShowAddInventoryModal(false)} className="text-slate-400">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <form onSubmit={handleCreateInventoryItem} className="space-y-4 text-xs">
-              <input
-                type="text"
-                placeholder="Product Name"
-                required
-                value={newInventoryForm.name}
-                onChange={(e) => setNewInventoryForm({ ...newInventoryForm, name: e.target.value })}
-                className="w-full border rounded-xl p-2.5"
-              />
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold mb-1">Cost Price ({settings.currency})</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    value={newInventoryForm.cost}
-                    onChange={(e) => setNewInventoryForm({ ...newInventoryForm, cost: e.target.value })}
-                    className="w-full border rounded-xl p-2.5"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1">Selling Price ({settings.currency})</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    value={newInventoryForm.price}
-                    onChange={(e) => setNewInventoryForm({ ...newInventoryForm, price: e.target.value })}
-                    className="w-full border rounded-xl p-2.5"
-                  />
-                </div>
-              </div>
-              <input
-                type="number"
-                placeholder="Stock Units"
-                required
-                value={newInventoryForm.stock}
-                onChange={(e) => setNewInventoryForm({ ...newInventoryForm, stock: e.target.value })}
-                className="w-full border rounded-xl p-2.5"
-              />
-              <button type="submit" className="w-full bg-[#14B8A6] text-white py-3 rounded-xl font-bold">
-                Save Product
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: EDIT INVENTORY */}
-      {editingInventoryItem && isManagerOrAdmin && (
-        <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 border shadow-2xl">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-lg">Edit {editingInventoryItem.name}</h3>
-              <button type="button" onClick={() => setEditingInventoryItem(null)} className="text-slate-400">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <form onSubmit={handleSaveInventoryEdit} className="space-y-4 text-xs">
-              <input
-                type="text"
-                required
-                value={editInventoryForm.name}
-                onChange={(e) => setEditInventoryForm({ ...editInventoryForm, name: e.target.value })}
-                className="w-full border rounded-xl p-2.5"
-              />
-              <div className="grid grid-cols-2 gap-3">
-                <input
-                  type="number"
-                  step="0.01"
-                  required
-                  value={editInventoryForm.cost}
-                  onChange={(e) => setEditInventoryForm({ ...editInventoryForm, cost: e.target.value })}
-                  className="w-full border rounded-xl p-2.5"
-                />
-                <input
-                  type="number"
-                  step="0.01"
-                  required
-                  value={editInventoryForm.price}
-                  onChange={(e) => setEditInventoryForm({ ...editInventoryForm, price: e.target.value })}
-                  className="w-full border rounded-xl p-2.5"
-                />
-              </div>
-              <input
-                type="number"
-                required
-                value={editInventoryForm.stock}
-                onChange={(e) => setEditInventoryForm({ ...editInventoryForm, stock: e.target.value })}
-                className="w-full border rounded-xl p-2.5"
-              />
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setEditingInventoryItem(null)} className="flex-1 bg-slate-100 py-3 rounded-xl font-bold">Cancel</button>
-                <button type="submit" className="flex-1 bg-[#0D9488] text-white py-3 rounded-xl font-bold">Save Changes</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: ADD STAFF */}
-      {showAddStaffModal && isManagerOrAdmin && (
+      {/* MODAL: ADD STAFF (RESTRICTED TO GENERAL MANAGER) */}
+      {showAddStaffModal && isGeneralManager && (
         <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-[#E6DFD3]">
             <div className="flex justify-between items-center mb-4">
