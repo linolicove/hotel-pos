@@ -60,7 +60,8 @@ import {
   BarChart3,
   ChevronDown,
   ChevronRight,
-  Usb
+  Usb,
+  Calendar
 } from "lucide-react";
 
 // --- 1. FIREBASE CONFIGURATION (REALTIME DATABASE) ---
@@ -78,9 +79,7 @@ const firebaseConfig = {
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const rtdb = getDatabase(app);
 
-// Comprehensive settings schema matching your settings dashboard screenshot
 const DEFAULT_SETTINGS = {
-  // Company & Business Information
   hotelName: "Linoli Cove Midigama",
   tagline: "RESTAURANT & BAR",
   legalEntity: "Linoli Cove Leisure (Pvt) Ltd",
@@ -92,13 +91,11 @@ const DEFAULT_SETTINGS = {
   website: "www.linolicove.me",
   address: "502 A Matara Road, Midigama, 81700",
 
-  // Automated Email Dispatch
   emailRecipient: "linolicove@gmail.com",
   emailScheduleTime: "23:30",
   emailStatus: "Disabled (Manual trigger only)",
   webhookUrl: "",
 
-  // Thermal Auto-Printer Configuration
   paperRollWidth: "80mm Thermal Paper (Standard POS)",
   receiptFontSize: "14px - Extra Bold & Large",
   receiptFontType: "Monospace (Classic ESC/POS Receipt)",
@@ -106,13 +103,11 @@ const DEFAULT_SETTINGS = {
   autoPrintKOT: "Yes - Print KOT & BOT Slips",
   autoPrintSettlement: "Yes - Print Final Tax Invoice",
 
-  // Automated Cash Drawer Solenoid
   autoDrawerKick: "Enabled (Auto-Pop on Payment)",
   drawerKickTrigger: "Cash Payments Only",
   drawerPinout: "Pin 2 / ESC p 0 (Epson, Rongta, Xprint)",
   drawerChime: true,
 
-  // Currency, Taxes & Surcharge Rates
   currency: "Rs.",
   serviceChargeRate: 10,
   vatRate: 0,
@@ -188,20 +183,19 @@ const INITIAL_STAFF_SEEDS = [
 
 const getTodayKey = () => new Date().toISOString().split("T")[0];
 
-function calculateShiftHours(inStr, outStr) {
-  if (!inStr || !outStr) return "--";
-  try {
-    const today = new Date().toISOString().split("T")[0];
-    const dIn = new Date(`${today} ${inStr}`);
-    const dOut = new Date(`${today} ${outStr}`);
-    const diffMs = dOut - dIn;
-    if (diffMs <= 0) return "--";
-    const hrs = diffMs / (1000 * 60 * 60);
-    return `${hrs.toFixed(1)} hrs`;
-  } catch (e) {
-    return "--";
-  }
-}
+// Safe time and duration calculation using milliseconds
+const formatTimeClean = (dateObj = new Date()) => {
+  return dateObj.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: true });
+};
+
+const calculateDurationFromMs = (inMs, outMs) => {
+  if (!inMs) return "--";
+  const end = outMs || Date.now();
+  const diffMs = end - inMs;
+  if (diffMs <= 0) return "0.0 hrs";
+  const hrs = diffMs / (1000 * 60 * 60);
+  return `${hrs.toFixed(1)} hrs`;
+};
 
 // --- 2. PROGRAMMATIC ISOLATED PRINT ENGINE ---
 function printIsolatedDocument(htmlBody, mode = "thermal") {
@@ -390,7 +384,6 @@ function buildA4Html({ settings, room, isTemporary, settlementMethod, total, cas
           `).join("")}
         </tbody>
       </table>
-
       <div style="border-top: 2px solid #091D26; border-bottom: 2px solid #091D26; padding: 12px 4px; margin: 24px 0;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <span style="font-size: 14px; font-weight: bold;">Total Bill Amount:</span>
@@ -412,7 +405,6 @@ function buildA4Html({ settings, room, isTemporary, settlementMethod, total, cas
           </div>
         `}
       </div>
-
       <div style="margin-top: 50px; text-align: center; font-size: 11px; border-top: 1px solid #ddd; padding-top: 12px;">
         <p style="margin: 0; font-weight: 500;">${settings.footerNote}</p>
       </div>
@@ -621,6 +613,7 @@ export default function App() {
   const [staff, setStaff] = useState(INITIAL_STAFF_SEEDS);
   const [allAttendanceRecords, setAllAttendanceRecords] = useState({});
   const [selectedDate, setSelectedDate] = useState(getTodayKey());
+  const [filterAllDates, setFilterAllDates] = useState(false); // Toggle to show all dates or single date
   const [loading, setLoading] = useState(true);
 
   // Attendance Monitor Filter State
@@ -917,6 +910,7 @@ export default function App() {
       }
     });
 
+    // Staff Listener (Preserves live duty flags and activeShiftId)
     const staffRef = ref(rtdb, "staff");
     const unsubStaff = onValue(staffRef, (snapshot) => {
       if (!snapshot.exists()) {
@@ -937,6 +931,10 @@ export default function App() {
           taxDeduction: Number(data[k].taxDeduction) || 0,
           advanceDeduction: Number(data[k].advanceDeduction) || 0,
           bankAccount: data[k].bankAccount || "",
+          isOnDuty: Boolean(data[k].isOnDuty),
+          clockIn: data[k].clockIn || "",
+          clockOut: data[k].clockOut || "",
+          activeShiftId: data[k].activeShiftId || null,
           paid: Boolean(data[k].paid)
         }));
         setStaff(staffList);
@@ -944,8 +942,8 @@ export default function App() {
       setLoading(false);
     });
 
-    // Permanent Daily Attendance Archive Listener
-    const allAttendanceRef = ref(rtdb, "attendance_history");
+    // Permanent Daily Attendance Archive Listener (Using unified 'attendance_records' path)
+    const allAttendanceRef = ref(rtdb, "attendance_records");
     const unsubAllAttendance = onValue(allAttendanceRef, (snapshot) => {
       setAllAttendanceRecords(snapshot.val() || {});
     });
@@ -1196,13 +1194,12 @@ export default function App() {
     }
   };
 
-  // --- PERMANENT IN/OUT DAILY ATTENDANCE & MULTI-SHIFT RECORDING ---
-  const formatTimeNow = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
+  // --- 100% BULLETPROOF CLOCK-IN / CLOCK-OUT MULTI-SESSION LEDGER ---
   const handleClockIn = (staffMember) => {
-    const timeStr = formatTimeNow();
+    const timeStr = formatTimeClean();
     const day = getTodayKey();
     const nowMs = Date.now();
+    // Unique shift ID prevents ANY overwrite of previous punches
     const shiftId = `${day}_${staffMember.id}_${nowMs}`;
 
     const newShiftRecord = {
@@ -1212,44 +1209,65 @@ export default function App() {
       role: staffMember.role,
       clockIn: timeStr,
       clockOut: "",
+      timestampIn: nowMs,
+      timestampOut: null,
       hoursLogged: "--",
       isOnDuty: true,
-      date: day,
-      timestamp: nowMs
+      date: day
     };
 
+    // 1. Permanently archive shift in the unified attendance_records node
     set(ref(rtdb, `attendance_records/${day}/${shiftId}`), newShiftRecord);
 
+    // 2. Update real-time live staff duty badge with activeShiftId pointer
     update(ref(rtdb, `staff/${staffMember.id}`), {
       clockIn: timeStr,
       clockOut: "",
+      timestampIn: nowMs,
       activeShiftId: shiftId,
       isOnDuty: true
     });
   };
 
   const handleClockOut = (staffMember) => {
-    const timeStr = formatTimeNow();
+    const timeStr = formatTimeClean();
     const day = getTodayKey();
-    const shiftId = staffMember.activeShiftId || `${day}_${staffMember.id}`;
+    const nowMs = Date.now();
 
-    onValue(ref(rtdb, `attendance_records/${day}/${shiftId}`), (snap) => {
-      const activeRecord = snap.val() || {};
-      const computedHours = calculateShiftHours(activeRecord.clockIn || staffMember.clockIn, timeStr);
+    // 1. Locate active shift ID
+    let targetShiftId = staffMember.activeShiftId;
 
-      update(ref(rtdb, `attendance_records/${day}/${shiftId}`), {
-        clockOut: timeStr,
-        hoursLogged: computedHours,
-        isOnDuty: false,
-        timestampOut: Date.now()
-      });
+    // Fallback: If activeShiftId pointer was cleared or missing, find currently open shift in today's records
+    if (!targetShiftId && allAttendanceRecords[day]) {
+      const foundEntry = Object.values(allAttendanceRecords[day]).find(
+        (r) => r.staffId === staffMember.id && r.isOnDuty
+      );
+      if (foundEntry) targetShiftId = foundEntry.shiftId;
+    }
 
-      update(ref(rtdb, `staff/${staffMember.id}`), {
-        clockOut: timeStr,
-        activeShiftId: null,
-        isOnDuty: false
-      });
-    }, { onlyOnce: true });
+    // Fallback 2: Generate fallback ID if no record exists
+    if (!targetShiftId) {
+      targetShiftId = `${day}_${staffMember.id}_${nowMs}`;
+    }
+
+    // 2. Calculate duration safely using epoch millisecond subtraction
+    const startMs = staffMember.timestampIn || (allAttendanceRecords[day]?.[targetShiftId]?.timestampIn) || nowMs;
+    const computedHours = calculateDurationFromMs(startMs, nowMs);
+
+    // 3. Permanently write close-out details to the archived shift ledger
+    update(ref(rtdb, `attendance_records/${day}/${targetShiftId}`), {
+      clockOut: timeStr,
+      timestampOut: nowMs,
+      hoursLogged: computedHours,
+      isOnDuty: false
+    });
+
+    // 4. Update live staff status to off-duty
+    update(ref(rtdb, `staff/${staffMember.id}`), {
+      clockOut: timeStr,
+      activeShiftId: null,
+      isOnDuty: false
+    });
   };
 
   // Print Handlers
@@ -1317,14 +1335,16 @@ export default function App() {
       role: rec.role,
       clockIn: rec.clockIn || "--:--",
       clockOut: rec.clockOut || "--:--",
-      hoursLogged: rec.hoursLogged || calculateShiftHours(rec.clockIn, rec.clockOut),
+      hoursLogged: rec.hoursLogged || calculateDurationFromMs(rec.timestampIn, rec.timestampOut),
       isOnDuty: Boolean(rec.isOnDuty)
     }));
 
     const html = buildDailyAttendanceReportHtml({
       settings,
       reportList,
-      titleStr: `Date: ${selectedDate} | Staff: ${attendanceStaffFilter === "all" ? "All Personnel" : attendanceStaffFilter}`
+      titleStr: filterAllDates 
+        ? `All Recorded Dates | Personnel: ${attendanceStaffFilter === "all" ? "All Personnel" : attendanceStaffFilter}`
+        : `Date: ${selectedDate} | Personnel: ${attendanceStaffFilter === "all" ? "All Personnel" : attendanceStaffFilter}`
     });
     printIsolatedDocument(html, "a4");
   };
@@ -1511,15 +1531,17 @@ export default function App() {
         role: rec.role || "Staff",
         clockIn: rec.clockIn || "--:--",
         clockOut: rec.clockOut || "--:--",
-        hoursLogged: rec.hoursLogged || calculateShiftHours(rec.clockIn, rec.clockOut),
+        timestampIn: rec.timestampIn,
+        timestampOut: rec.timestampOut,
+        hoursLogged: rec.hoursLogged || calculateDurationFromMs(rec.timestampIn, rec.timestampOut),
         isOnDuty: Boolean(rec.isOnDuty)
       };
     });
-  }).sort((a, b) => (b.date + b.id).localeCompare(a.date + a.id));
+  }).sort((a, b) => (b.timestampIn || 0) - (a.timestampIn || 0));
 
   const filteredArchivedReports = allArchivedReports.filter((item) => {
     const matchesStaff = attendanceStaffFilter === "all" || item.staffId === attendanceStaffFilter;
-    const matchesDate = !selectedDate || item.date === selectedDate;
+    const matchesDate = filterAllDates || (!selectedDate || item.date === selectedDate);
     return matchesStaff && matchesDate;
   });
 
@@ -2416,13 +2438,25 @@ export default function App() {
                 </div>
 
                 <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <span className="text-xs font-semibold text-slate-500 shrink-0">Filter Date:</span>
-                  <input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    className="border border-[#D3C8B7] rounded-xl px-2.5 py-1.5 text-xs bg-white font-mono"
-                  />
+                  <button
+                    type="button"
+                    onClick={() => setFilterAllDates(!filterAllDates)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+                      filterAllDates
+                        ? "bg-[#091D26] text-white border-[#091D26]"
+                        : "bg-white text-slate-700 border-[#D3C8B7] hover:bg-slate-50"
+                    }`}
+                  >
+                    {filterAllDates ? "Showing All Dates" : "Show All Dates"}
+                  </button>
+                  {!filterAllDates && (
+                    <input
+                      type="date"
+                      value={selectedDate}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                      className="border border-[#D3C8B7] rounded-xl px-2.5 py-1.5 text-xs bg-white font-mono"
+                    />
+                  )}
                 </div>
               </div>
 
@@ -2468,7 +2502,7 @@ export default function App() {
                                 <button
                                   type="button"
                                   onClick={() => handleClockIn(m)}
-                                  className="px-3.5 py-1.5 bg-[#0D9488] hover:bg-[#0F766E] text-white rounded-xl text-xs font-bold"
+                                  className="px-3.5 py-1.5 bg-[#0D9488] hover:bg-[#0F766E] text-white rounded-xl text-xs font-bold shadow-sm"
                                 >
                                   Clock In
                                 </button>
@@ -2476,7 +2510,7 @@ export default function App() {
                                 <button
                                   type="button"
                                   onClick={() => handleClockOut(m)}
-                                  className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold"
+                                  className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-sm"
                                 >
                                   Clock Out
                                 </button>
@@ -2496,7 +2530,9 @@ export default function App() {
                   <div className="p-4 border-b border-[#F3EFE6] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-[#FAF9F5]">
                     <div>
                       <h3 className="font-bold text-sm text-[#091D26]">Attendance & Shift Audit Monitor</h3>
-                      <p className="text-[11px] text-slate-500">Complete historical in/out records archived by date</p>
+                      <p className="text-[11px] text-slate-500">
+                        {filterAllDates ? "Showing all historical shift sessions across all dates" : `Showing shift sessions for ${selectedDate}`}
+                      </p>
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -2537,9 +2573,9 @@ export default function App() {
                             <td className="p-3.5 text-center font-bold text-[#0F766E]">{item.hoursLogged}</td>
                             <td className="p-3.5 text-center">
                               <span className={`px-2.5 py-0.5 rounded-full font-bold uppercase text-[10px] ${
-                                item.isOnDuty ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"
+                                item.isOnDuty ? "bg-emerald-100 text-emerald-800" : item.clockOut !== "--:--" ? "bg-slate-100 text-slate-600" : "bg-amber-100 text-amber-800"
                               }`}>
-                                {item.isOnDuty ? "On Duty" : item.clockOut !== "--:--" ? "Completed" : "Off Duty"}
+                                {item.isOnDuty ? "On Duty" : item.clockOut !== "--:--" ? "Completed" : "Active"}
                               </span>
                             </td>
                           </tr>
@@ -2674,12 +2710,9 @@ export default function App() {
             </div>
           )}
 
-          {/* =========================================================
-              TAB 6: EXACT FULL SETTINGS MODULE (FROM YOUR SCREENSHOT)
-              ========================================================= */}
+          {/* TAB 6: SETTINGS */}
           {activeTab === "settings" && isManager && (
             <div className="max-w-6xl mx-auto space-y-8 pb-16">
-              {/* Header Action Bar */}
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-[#E6DFD3] pb-4">
                 <div>
                   <h2 className="text-2xl font-bold flex items-center gap-2">
@@ -2874,7 +2907,6 @@ export default function App() {
                   </button>
                 </div>
 
-                {/* Collapsible Webhook Options */}
                 <div>
                   <button
                     type="button"
