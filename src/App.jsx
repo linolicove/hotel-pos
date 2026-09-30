@@ -147,7 +147,7 @@ const INITIAL_STAFF_SEEDS = [
   { 
     id: "s1", 
     name: "Kailani Silva", 
-    role: "Admin (General Manager)", 
+    role: "General Manager", 
     pin: "1001", 
     type: "Full-Time", 
     baseSalary: 125000, 
@@ -452,7 +452,7 @@ function buildPayslipHtml({ settings, staffMember, payPeriodStr = "Current Pay P
       <div style="border-bottom: 3px double #091D26; padding-bottom: 16px; display: flex; justify-content: space-between;">
         <div>
           <h1 style="font-size: 24px; font-weight: 900; text-transform: uppercase; margin: 0; color: #091D26;">${settings.hotelName}</h1>
-          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; color: #555;">Monthly Remuneration Statement</p>
+          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; text-transform: uppercase; color: #555;">Monthly Remuneration Statement</p>
         </div>
         <div style="text-align: right;">
           <div style="display: inline-block; border: 2px solid #091D26; padding: 6px 14px; font-weight: bold; font-size: 12px; background: #F3EFE6;">
@@ -574,6 +574,69 @@ function buildDailyAttendanceReportHtml({ settings, reportList, titleStr }) {
               </td>
             </tr>
           `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function buildSalesReportHtml({ settings, salesList, prebookingsList, titleStr, totalSales }) {
+  return `
+    <div class="a4-container">
+      <div style="border-bottom: 3px double #091D26; padding-bottom: 16px; display: flex; justify-content: space-between;">
+        <div>
+          <h1 style="font-size: 24px; font-weight: 900; text-transform: uppercase; margin: 0; color: #091D26;">${settings.hotelName}</h1>
+          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; color: #555;">Executive Sales, Turnover & Prebooking Report</p>
+        </div>
+        <div style="text-align: right;">
+          <div style="display: inline-block; border: 2px solid #091D26; padding: 6px 14px; font-weight: bold; font-size: 12px; background: #F3EFE6;">
+            REVENUE AUDIT
+          </div>
+          <p style="margin: 8px 0 0 0; font-size: 12px;"><b>Scope:</b> ${titleStr}</p>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 20px 0;">
+        <div style="border: 1px solid #091D26; padding: 12px; background: #FAF9F5; border-radius: 4px;">
+          <div style="font-size: 10px; font-weight: bold; text-transform: uppercase; color: #555;">Gross Settled Revenue</div>
+          <div style="font-size: 20px; font-weight: 900; color: #0D9488; margin-top: 4px;">${settings.currency}${Number(totalSales).toLocaleString()}</div>
+        </div>
+        <div style="border: 1px solid #091D26; padding: 12px; background: #FAF9F5; border-radius: 4px;">
+          <div style="font-size: 10px; font-weight: bold; text-transform: uppercase; color: #555;">Settled Transactions</div>
+          <div style="font-size: 20px; font-weight: 900; color: #091D26; margin-top: 4px;">${salesList.length} Folios</div>
+        </div>
+        <div style="border: 1px solid #091D26; padding: 12px; background: #FAF9F5; border-radius: 4px;">
+          <div style="font-size: 10px; font-weight: bold; text-transform: uppercase; color: #555;">Pre-Bookings Manifest</div>
+          <div style="font-size: 20px; font-weight: 900; color: #6366F1; margin-top: 4px;">${prebookingsList.length} Stays</div>
+        </div>
+      </div>
+
+      <h3 style="font-size: 14px; font-weight: bold; text-transform: uppercase; margin-top: 24px; border-bottom: 2px solid #091D26; padding-bottom: 4px;">
+        1. Settled Revenue & Folios Ledger
+      </h3>
+      <table style="width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 11px;">
+        <thead>
+          <tr style="border-bottom: 2px solid #091D26; background: #F3EFE6;">
+            <th style="padding: 8px 6px; text-align: left;">Date & Time</th>
+            <th style="padding: 8px 6px; text-align: left;">Folio / Bill #</th>
+            <th style="padding: 8px 6px; text-align: left;">Room</th>
+            <th style="padding: 8px 6px; text-align: left;">Guest Name</th>
+            <th style="padding: 8px 6px; text-align: center;">Tender</th>
+            <th style="padding: 8px 6px; text-align: right;">Total Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${salesList.map((s) => `
+            <tr style="border-bottom: 1px solid #ddd;">
+              <td style="padding: 8px 6px; font-family: monospace;">${s.date} ${s.settledAt || ""}</td>
+              <td style="padding: 8px 6px; font-family: monospace; font-weight: bold;">${s.orderId}</td>
+              <td style="padding: 8px 6px;">#${s.roomNumber}</td>
+              <td style="padding: 8px 6px; font-weight: bold;">${s.guestName}</td>
+              <td style="padding: 8px 6px; text-align: center;">${s.settlementMethod}</td>
+              <td style="padding: 8px 6px; text-align: right; font-weight: bold;">${settings.currency}${Number(s.totalAmount).toLocaleString()}</td>
+            </tr>
+          `).join("")}
+          ${salesList.length === 0 ? `<tr><td colspan="6" style="padding: 16px; text-align: center; color: #888;">No sales records found for this period.</td></tr>` : ""}
         </tbody>
       </table>
     </div>
@@ -767,20 +830,20 @@ export default function App() {
     phone: "",
   });
 
-  // STRICT PRIVILEGE ARCHITECTURE:
-  // Admin only: Edit/Delete rooms, Edit/Delete staff, Settings, Purge records
-  const isAdmin = currentUser?.role?.toLowerCase().includes("admin") || currentUser?.role?.toLowerCase().includes("manager");
-  const isFrontDesk = currentUser?.role?.toLowerCase().includes("front desk");
-  const isHousekeeping = currentUser?.role?.toLowerCase().includes("housekeeping");
+  // Role Permissions: Managers AND Admins have staff modify/delete permissions
+  const roleLower = (currentUser?.role || "").toLowerCase();
+  const isManagerOrAdmin = roleLower.includes("admin") || roleLower.includes("manager") || roleLower.includes("supervisor");
+  const isFrontDesk = roleLower.includes("front desk");
+  const isHousekeeping = roleLower.includes("housekeeping");
 
   const canAccessTab = (tabId) => {
     if (!currentUser) return false;
-    if (isAdmin) return true;
+    if (isManagerOrAdmin) return true;
     if (tabId === "frontdesk") return true;
-    if (tabId === "active-orders" && (isFrontDesk || isAdmin)) return true;
-    if (tabId === "inventory" && (isFrontDesk || isAdmin || isHousekeeping)) return true;
-    if (tabId === "reports" && (isFrontDesk || isAdmin)) return true;
-    if (tabId === "staff") return true; // View/attendance only for general staff
+    if (tabId === "active-orders" && (isFrontDesk || isManagerOrAdmin)) return true;
+    if (tabId === "inventory" && (isFrontDesk || isManagerOrAdmin || isHousekeeping)) return true;
+    if (tabId === "reports" && (isFrontDesk || isManagerOrAdmin)) return true;
+    if (tabId === "staff") return true;
     return false;
   };
 
@@ -1040,8 +1103,8 @@ export default function App() {
 
   // Dynamic Room Rates Management
   const handleStartEditDynamicRoom = (room) => {
-    if (!isAdmin) {
-      alert("Access Denied: Only Admin/Manager can modify room pricing tiers.");
+    if (!isManagerOrAdmin) {
+      alert("Access Denied: Only Manager or Admin can modify room rates.");
       return;
     }
     setEditingDynamicRoom(room);
@@ -1057,7 +1120,7 @@ export default function App() {
 
   const handleSaveDynamicRoomRates = (e) => {
     e.preventDefault();
-    if (!isAdmin || !editingDynamicRoom) return;
+    if (!isManagerOrAdmin || !editingDynamicRoom) return;
 
     const baseVal = parseFloat(editRoomForm.rate) || 18000;
     const weekendVal = parseFloat(editRoomForm.weekendRate) || Math.round(baseVal * 1.2);
@@ -1076,17 +1139,17 @@ export default function App() {
   };
 
   const handleQuickToggleStrategy = (room, nextStrategy) => {
-    if (!isAdmin) {
-      alert("Access Denied: Only Administrator can change active pricing strategies.");
+    if (!isManagerOrAdmin) {
+      alert("Access Denied: Only Manager or Admin can alter pricing strategies.");
       return;
     }
     update(ref(rtdb, `rooms/${room.id}`), { rateStrategy: nextStrategy });
   };
 
-  // Staff Remuneration Editor (Admin only)
+  // Staff Remuneration Editor: Accessible by Manager or Admin
   const handleStartEditStaff = (member) => {
-    if (!isAdmin) {
-      alert("Access Denied: Only Administrator can edit employee records and salary.");
+    if (!isManagerOrAdmin) {
+      alert("Access Denied: Only Managers and Admins can modify staff profiles.");
       return;
     }
     setEditingStaffMember(member);
@@ -1110,7 +1173,7 @@ export default function App() {
 
   const handleSaveStaffEdit = (e) => {
     e.preventDefault();
-    if (!isAdmin || !editingStaffMember) return;
+    if (!isManagerOrAdmin || !editingStaffMember) return;
 
     const updated = {
       name: sanitizeInput(editStaffForm.name),
@@ -1133,7 +1196,19 @@ export default function App() {
     setEditingStaffMember(null);
   };
 
-  // Inventory Management (Edit / Delete restricted to Admin)
+  // Staff Deletion: Accessible by Manager or Admin
+  const handleDeleteStaff = (member) => {
+    if (!isManagerOrAdmin) {
+      alert("Access Denied: Only Managers and Admins can delete staff profiles.");
+      return;
+    }
+    if (window.confirm(`Permanently remove ${member.name}?`)) {
+      setStaff((prev) => prev.filter((s) => s.id !== member.id));
+      remove(ref(rtdb, `staff/${member.id}`));
+    }
+  };
+
+  // Inventory Management
   const handleCreateInventoryItem = (e) => {
     e.preventDefault();
     if (!newInventoryForm.name.trim()) return;
@@ -1159,8 +1234,8 @@ export default function App() {
   };
 
   const handleStartEditInventory = (item) => {
-    if (!isAdmin) {
-      alert("Access Denied: Only Admin can modify inventory items.");
+    if (!isManagerOrAdmin) {
+      alert("Access Denied: Only Manager or Admin can modify inventory items.");
       return;
     }
     setEditingInventoryItem(item);
@@ -1175,7 +1250,7 @@ export default function App() {
 
   const handleSaveInventoryEdit = (e) => {
     e.preventDefault();
-    if (!isAdmin || !editingInventoryItem || !editInventoryForm.name.trim()) return;
+    if (!isManagerOrAdmin || !editingInventoryItem || !editInventoryForm.name.trim()) return;
 
     const cleanCost = parseFloat(editInventoryForm.cost) || 0;
     const cleanPrice = parseFloat(editInventoryForm.price) || 0;
@@ -1197,8 +1272,8 @@ export default function App() {
   };
 
   const handleDeleteInventoryItem = (item) => {
-    if (!isAdmin) {
-      alert("Access Denied: Only Admin can delete inventory items.");
+    if (!isManagerOrAdmin) {
+      alert("Access Denied: Only Manager or Admin can delete inventory items.");
       return;
     }
     if (window.confirm(`Permanently delete "${item.name}"?`)) {
@@ -1269,8 +1344,8 @@ export default function App() {
   };
 
   const handleDeletePrebooking = (bookingId) => {
-    if (!isAdmin) {
-      alert("Access Denied: Only Admin can delete pre-booking reservations.");
+    if (!isManagerOrAdmin) {
+      alert("Access Denied: Only Manager or Admin can delete pre-booking reservations.");
       return;
     }
     if (window.confirm("Delete this advance pre-booking reservation?")) {
@@ -1315,10 +1390,10 @@ export default function App() {
     setActiveTab("frontdesk");
   };
 
-  // Settings & Database Backup (Admin only)
+  // Settings & Database Backup (Manager & Admin only)
   const handleSaveAllSettings = () => {
-    if (!isAdmin) {
-      alert("Access Denied: Only Administrator can save system settings.");
+    if (!isManagerOrAdmin) {
+      alert("Access Denied: Only Manager or Admin can save system settings.");
       return;
     }
     set(ref(rtdb, "hotel_config/profile"), settingsForm);
@@ -1327,8 +1402,8 @@ export default function App() {
   };
 
   const handleDownloadBackup = () => {
-    if (!isAdmin) {
-      alert("Access Denied: Database backup export is restricted to Admin.");
+    if (!isManagerOrAdmin) {
+      alert("Access Denied: Database backup export is restricted.");
       return;
     }
     onValue(ref(rtdb), (snap) => {
@@ -1343,8 +1418,8 @@ export default function App() {
   };
 
   const handleRestoreBackup = (e) => {
-    if (!isAdmin) {
-      alert("Access Denied: Database restore is restricted to Admin.");
+    if (!isManagerOrAdmin) {
+      alert("Access Denied: Database restore is restricted.");
       return;
     }
     const file = e.target.files?.[0];
@@ -1365,8 +1440,8 @@ export default function App() {
   };
 
   const handlePurgeTestData = () => {
-    if (!isAdmin) {
-      alert("Access Denied: Only Admin can execute a database reset/purge.");
+    if (!isManagerOrAdmin) {
+      alert("Access Denied: Only Manager or Admin can execute a database reset/purge.");
       return;
     }
     if (window.prompt('Type "CONFIRM" to clear guest orders and reset rooms to Available:') === "CONFIRM") {
@@ -1385,10 +1460,10 @@ export default function App() {
     }
   };
 
-  // Safe delete for front desk guest ID photo (Admin only)
+  // Safe delete for front desk guest ID photo
   const handleDeleteRoomPhoto = (roomId) => {
-    if (!isAdmin) {
-      alert("Access Denied: Only Admin can delete stored guest verification photos.");
+    if (!isManagerOrAdmin) {
+      alert("Access Denied: Only Manager or Admin can delete stored guest verification photos.");
       return;
     }
     if (window.confirm("Delete guest identification image for this room?")) {
@@ -1488,7 +1563,7 @@ export default function App() {
       roomNumber: settleOrderRoom.number,
       guestName: settleOrderRoom.guestName || "Walk-In",
       guestPhone: settleOrderRoom.guestPhone || "",
-      guestPhoto: settleOrderRoom.guestPhoto || null, // Image saved permanently
+      guestPhoto: settleOrderRoom.guestPhoto || null,
       checkIn: settleOrderRoom.checkIn || day,
       checkOut: settleOrderRoom.checkOut || day,
       totalAmount: total,
@@ -1530,7 +1605,7 @@ export default function App() {
       openedAt: null,
       guestName: "",
       guestPhone: "",
-      guestPhoto: null, // Cleared from active room after archiving
+      guestPhoto: null,
       checkIn: "",
       checkOut: "",
       orderItems: null,
@@ -1572,10 +1647,11 @@ export default function App() {
     printIsolatedDocument(html, "a4");
   };
 
+  // Staff Creation (Accessible by Manager or Admin)
   const handleCreateStaff = (e) => {
     e.preventDefault();
-    if (!isAdmin) {
-      alert("Access Denied: Only Admin can add employee profiles.");
+    if (!isManagerOrAdmin) {
+      alert("Access Denied: Only Manager or Admin can register employees.");
       return;
     }
     if (!newStaffForm.name.trim()) return;
@@ -1605,24 +1681,13 @@ export default function App() {
   };
 
   const handleToggleStaffPayout = (staffId, currentStatus) => {
-    if (!isAdmin) {
-      alert("Access Denied: Only Admin can disburse and mark staff salaries as paid.");
+    if (!isManagerOrAdmin) {
+      alert("Access Denied: Only Manager or Admin can disburse staff salaries.");
       return;
     }
     const nextStatus = !currentStatus;
     setStaff((prev) => prev.map((s) => (s.id === staffId ? { ...s, paid: nextStatus } : s)));
     update(ref(rtdb, `staff/${staffId}`), { paid: nextStatus });
-  };
-
-  const handleDeleteStaff = (member) => {
-    if (!isAdmin) {
-      alert("Access Denied: Only Admin can delete staff profiles.");
-      return;
-    }
-    if (window.confirm(`Permanently remove ${member.name}?`)) {
-      setStaff((prev) => prev.filter((s) => s.id !== member.id));
-      remove(ref(rtdb, `staff/${member.id}`));
-    }
   };
 
   const updateRoomStatus = (roomId, status) => {
@@ -1654,7 +1719,7 @@ export default function App() {
       openedAt: now.toLocaleString(),
       guestName: sanitizeInput(guestForm.name),
       guestPhone: sanitizeInput(guestForm.phone),
-      guestPhoto: guestPhoto || null, // Image saved permanently until deleted
+      guestPhoto: guestPhoto || null,
       checkIn: now.toISOString().split("T")[0],
       checkOut: new Date(Date.now() + nights * 86400000).toISOString().split("T")[0],
       orderItems: { [itemId]: initialOrderItem },
@@ -1699,8 +1764,8 @@ export default function App() {
   };
 
   const handleDeleteActiveBill = (room) => {
-    if (!isAdmin) {
-      alert("Access Denied: Only Admin can void or delete an active folio.");
+    if (!isManagerOrAdmin) {
+      alert("Access Denied: Only Manager or Admin can void an active bill.");
       return;
     }
     if (window.confirm(`Void active bill for Room #${room.number}?`)) {
@@ -1720,8 +1785,8 @@ export default function App() {
 
   const handleCreateRoom = (e) => {
     e.preventDefault();
-    if (!isAdmin) {
-      alert("Access Denied: Only Admin can create new hotel room units.");
+    if (!isManagerOrAdmin) {
+      alert("Access Denied: Only Manager or Admin can create rooms.");
       return;
     }
     if (!newRoomForm.number) return;
@@ -1746,8 +1811,8 @@ export default function App() {
   };
 
   const handleDeleteRoom = (roomId, roomNumber) => {
-    if (!isAdmin) {
-      alert("Access Denied: Only Admin can delete room units.");
+    if (!isManagerOrAdmin) {
+      alert("Access Denied: Only Manager or Admin can delete rooms.");
       return;
     }
     if (window.confirm(`Delete Room #${roomNumber}?`)) {
@@ -1845,7 +1910,7 @@ export default function App() {
 
     const isLockedOut = Date.now() < pinLockoutUntil;
 
-    // Filter roster demo buttons to NEVER show Admin or Manager PINs
+    // Filter quick buttons to NEVER display Admin, Manager, or Supervisor accounts
     const safeOperationalStaff = staff.filter(s => {
       const r = (s.role || "").toLowerCase();
       return !r.includes("admin") && !r.includes("manager") && !r.includes("supervisor");
@@ -1962,7 +2027,6 @@ export default function App() {
             })}
           </div>
 
-          {/* Quick Staff Roster (Admin & Manager are filtered out) */}
           {safeOperationalStaff && safeOperationalStaff.length > 0 && !isLockedOut && (
             <div className="mt-6 pt-4 border-t border-white/[0.08] w-full">
               <div className="flex justify-between items-center mb-2 px-1">
@@ -2154,7 +2218,7 @@ export default function App() {
                   ))}
                 </div>
 
-                {isAdmin && (
+                {isManagerOrAdmin && (
                   <button
                     type="button"
                     onClick={() => setShowAddRoomModal(true)}
@@ -2165,7 +2229,7 @@ export default function App() {
                 )}
               </div>
 
-              {/* Enhanced Room Grid */}
+              {/* Room Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                 {rooms
                   .filter((room) => {
@@ -2273,12 +2337,12 @@ export default function App() {
                                   </div>
                                 </div>
 
-                                {room.guestPhoto && isAdmin && (
+                                {room.guestPhoto && isManagerOrAdmin && (
                                   <button
                                     type="button"
                                     onClick={() => handleDeleteRoomPhoto(room.id)}
                                     className="p-1 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50"
-                                    title="Delete stored photo (Admin)"
+                                    title="Delete stored photo (Manager/Admin)"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </button>
@@ -2379,7 +2443,7 @@ export default function App() {
                             </button>
                           )}
 
-                          {isMaintenance && isAdmin && (
+                          {isMaintenance && isManagerOrAdmin && (
                             <button
                               type="button"
                               onClick={() => updateRoomStatus(room.id, "available")}
@@ -2452,7 +2516,7 @@ export default function App() {
                   <h2 className="text-2xl font-bold">Inventory & Minibar Stock</h2>
                   <p className="text-sm text-slate-500">Manage item wholesale cost, retail billable price, and stock levels.</p>
                 </div>
-                {isAdmin && (
+                {isManagerOrAdmin && (
                   <button
                     type="button"
                     onClick={() => setShowAddInventoryModal(true)}
@@ -2474,7 +2538,7 @@ export default function App() {
                       <th className="p-3.5 text-right">Gross Margin</th>
                       <th className="p-3.5 text-center">Stock Level</th>
                       <th className="p-3.5 text-center">Quick Adjust</th>
-                      {isAdmin && <th className="p-3.5 text-center">Actions</th>}
+                      {isManagerOrAdmin && <th className="p-3.5 text-center">Actions</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#F3EFE6]">
@@ -2521,7 +2585,7 @@ export default function App() {
                               </button>
                             </div>
                           </td>
-                          {isAdmin && (
+                          {isManagerOrAdmin && (
                             <td className="p-3.5 text-center">
                               <div className="inline-flex items-center gap-1">
                                 <button
@@ -2550,7 +2614,7 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB: REPORTS & ANALYTICS (WITH PHOTO PREVIEWS) */}
+          {/* TAB: REPORTS & ANALYTICS */}
           {activeTab === "reports" && canAccessTab("reports") && (
             <div className="max-w-7xl mx-auto space-y-6 pb-16">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -2806,7 +2870,7 @@ export default function App() {
                       <h3 className="font-bold text-sm text-[#091D26]">Advance Pre-Bookings & Reservations</h3>
                       <p className="text-[11px] text-slate-500">Monitor upcoming guest arrivals, check-in dates, and deposits</p>
                     </div>
-                    {isAdmin && (
+                    {isManagerOrAdmin && (
                       <button
                         type="button"
                         onClick={() => setShowAddBookingModal(true)}
@@ -2870,7 +2934,7 @@ export default function App() {
                                     Check In Now
                                   </button>
                                 )}
-                                {isAdmin && (
+                                {isManagerOrAdmin && (
                                   <button
                                     type="button"
                                     onClick={() => handleDeletePrebooking(b.id)}
@@ -2997,8 +3061,8 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 4: ROOM ADMIN (RESTRICTED TO ADMIN) */}
-          {activeTab === "room-admin" && isAdmin && (
+          {/* TAB 4: ROOM ADMIN (RESTRICTED TO MANAGERS AND ADMINS) */}
+          {activeTab === "room-admin" && isManagerOrAdmin && (
             <div className="max-w-7xl mx-auto space-y-6">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
@@ -3116,7 +3180,7 @@ export default function App() {
                   >
                     <FileSpreadsheet className="w-4 h-4 text-[#2DD4BF]" /> Print Audit Report
                   </button>
-                  {isAdmin && (
+                  {isManagerOrAdmin && (
                     <button
                       type="button"
                       onClick={() => setShowAddStaffModal(true)}
@@ -3128,7 +3192,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Comprehensive Top KPI Metric Cards */}
+              {/* KPI Metric Cards */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div className="bg-white border border-[#E6DFD3] rounded-3xl p-4 shadow-sm">
                   <p className="text-[11px] font-bold uppercase text-slate-400">Total Staff Headcount</p>
@@ -3175,7 +3239,7 @@ export default function App() {
                   >
                     <BarChart3 className="w-3.5 h-3.5 text-[#2DD4BF]" /> Shift Records & Monitor Report
                   </button>
-                  {isAdmin && (
+                  {isManagerOrAdmin && (
                     <button
                       type="button"
                       onClick={() => setStaffViewSubTab("roster")}
@@ -3345,7 +3409,7 @@ export default function App() {
               )}
 
               {/* VIEW 3: COMPREHENSIVE PAYROLL MANAGEMENT & PAYSLIPS */}
-              {staffViewSubTab === "roster" && isAdmin && (
+              {staffViewSubTab === "roster" && isManagerOrAdmin && (
                 <div className="bg-white rounded-3xl border border-[#E6DFD3] shadow-sm overflow-hidden">
                   <div className="p-4 border-b border-[#F3EFE6] flex justify-between items-center bg-[#FAF9F5]">
                     <div>
@@ -3378,7 +3442,8 @@ export default function App() {
                           <th className="p-3.5 text-right text-emerald-700">Net Take-Home</th>
                           <th className="p-3.5 text-center">Payout</th>
                           <th className="p-3.5 text-center">Payslip</th>
-                          <th className="p-3.5 text-center">Edit</th>
+                          {isManagerOrAdmin && <th className="p-3.5 text-center">Modify</th>}
+                          {isManagerOrAdmin && <th className="p-3.5 text-center">Delete</th>}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#F3EFE6]">
@@ -3441,15 +3506,33 @@ export default function App() {
                                 </button>
                               </td>
 
-                              <td className="p-3.5 text-center">
-                                <button
-                                  type="button"
-                                  onClick={() => handleStartEditStaff(member)}
-                                  className="p-1.5 text-slate-400 hover:text-[#0D9488] rounded hover:bg-slate-100"
-                                >
-                                  <Edit2 className="w-4 h-4" />
-                                </button>
-                              </td>
+                              {/* Modify Action for Managers & Admins */}
+                              {isManagerOrAdmin && (
+                                <td className="p-3.5 text-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleStartEditStaff(member)}
+                                    className="p-1.5 text-slate-400 hover:text-[#0D9488] rounded hover:bg-slate-100"
+                                    title="Edit & Modify Remuneration"
+                                  >
+                                    <Edit2 className="w-4 h-4" />
+                                  </button>
+                                </td>
+                              )}
+
+                              {/* Delete Action for Managers & Admins */}
+                              {isManagerOrAdmin && (
+                                <td className="p-3.5 text-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteStaff(member)}
+                                    className="p-1.5 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50"
+                                    title="Permanently Delete Staff Member"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </td>
+                              )}
                             </tr>
                           );
                         })}
@@ -3461,8 +3544,8 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 6: SETTINGS (RESTRICTED TO ADMIN) */}
-          {activeTab === "settings" && isAdmin && (
+          {/* TAB 6: SETTINGS (RESTRICTED TO MANAGERS AND ADMINS) */}
+          {activeTab === "settings" && isManagerOrAdmin && (
             <div className="max-w-6xl mx-auto space-y-8 pb-16">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-[#E6DFD3] pb-4">
                 <div>
@@ -3656,6 +3739,29 @@ export default function App() {
                   >
                     Send Daily Report Now[cite: 3]
                   </button>
+                </div>
+
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setShowAdvancedEmail(!showAdvancedEmail)}
+                    className="flex items-center gap-1.5 text-xs text-slate-600 font-semibold hover:text-black"
+                  >
+                    {showAdvancedEmail ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                    Advanced: Direct Silent Webhook or EmailJS API Keys (Optional)[cite: 3]
+                  </button>
+                  {showAdvancedEmail && (
+                    <div className="mt-2 p-3 bg-slate-50 border rounded-xl space-y-2 text-xs">
+                      <label className="block font-semibold">Custom Webhook / Relay URL</label>
+                      <input
+                        type="url"
+                        placeholder="https://api.resort-os.com/v1/webhook"
+                        value={settingsForm.webhookUrl || ""}
+                        onChange={(e) => setSettingsForm({ ...settingsForm, webhookUrl: e.target.value })}
+                        className="w-full border rounded-lg p-2 bg-white"
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -3954,8 +4060,657 @@ export default function App() {
         </main>
       </div>
 
-      {/* MODAL: ADD ROOM WITH MULTI-TIER RATES (ADMIN ONLY) */}
-      {showAddRoomModal && isAdmin && (
+      {/* MODAL: IMAGE VIEWER / LIGHTBOX FOR SALES REPORT & FRONT DESK */}
+      {viewPhotoModalData && (
+        <div className="fixed inset-0 bg-[#06151E]/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-[#E6DFD3] space-y-4">
+            <div className="flex justify-between items-center border-b pb-2">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-[#0F766E]">Archived Photo Verification</span>
+                <h3 className="font-bold text-base text-[#091D26]">{viewPhotoModalData.title}</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewPhotoModalData(null)}
+                className="text-slate-400 hover:text-black p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="rounded-2xl overflow-hidden border border-[#D3C8B7] bg-black flex items-center justify-center aspect-video">
+              <img
+                src={viewPhotoModalData.image}
+                alt="Document Preview"
+                className="max-h-[380px] w-full object-contain"
+              />
+            </div>
+
+            <div className="p-3 bg-[#FAF9F5] rounded-xl border text-xs text-slate-600 flex justify-between items-center">
+              <span>{viewPhotoModalData.details}</span>
+              <a
+                href={viewPhotoModalData.image}
+                download="Guest_ID_Archive.jpg"
+                className="px-3 py-1.5 bg-[#0D9488] text-white rounded-lg font-bold text-[11px] inline-flex items-center gap-1"
+              >
+                <Download className="w-3.5 h-3.5" /> Download
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CREATE PRE-BOOKING RESERVATION */}
+      {showAddBookingModal && (
+        <div className="fixed inset-0 bg-[#06151E]/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-[#E6DFD3] my-8">
+            <div className="flex justify-between items-center mb-4 pb-2 border-b">
+              <div>
+                <span className="text-xs uppercase font-bold text-[#0F766E]">Advance Booking Manifest</span>
+                <h3 className="font-bold text-lg">Create Pre-Booking Reservation</h3>
+              </div>
+              <button type="button" onClick={() => setShowAddBookingModal(false)} className="text-slate-400">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreatePrebooking} className="space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1">Guest Full Name</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Alexander Vance"
+                    value={newBookingForm.guestName}
+                    onChange={(e) => setNewBookingForm({ ...newBookingForm, guestName: e.target.value })}
+                    className="w-full border rounded-xl p-2.5"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Contact Phone</label>
+                  <input
+                    type="tel"
+                    required
+                    placeholder="+94 77 ..."
+                    value={newBookingForm.guestPhone}
+                    onChange={(e) => setNewBookingForm({ ...newBookingForm, guestPhone: e.target.value })}
+                    className="w-full border rounded-xl p-2.5"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block font-semibold mb-1">Room #</label>
+                  <select
+                    required
+                    value={newBookingForm.roomNumber}
+                    onChange={(e) => {
+                      const selRoom = rooms.find(r => String(r.number) === e.target.value);
+                      setNewBookingForm({
+                        ...newBookingForm,
+                        roomNumber: e.target.value,
+                        totalRate: selRoom ? String(selRoom.rate) : newBookingForm.totalRate
+                      });
+                    }}
+                    className="w-full border rounded-xl p-2 bg-white font-bold"
+                  >
+                    <option value="">Select Room</option>
+                    {rooms.map(r => (
+                      <option key={r.id} value={r.number}>#{r.number} ({r.type})</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Check-In Date</label>
+                  <input
+                    type="date"
+                    required
+                    value={newBookingForm.checkInDate}
+                    onChange={(e) => setNewBookingForm({ ...newBookingForm, checkInDate: e.target.value })}
+                    className="w-full border rounded-xl p-2 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Check-Out Date</label>
+                  <input
+                    type="date"
+                    required
+                    value={newBookingForm.checkOutDate}
+                    onChange={(e) => setNewBookingForm({ ...newBookingForm, checkOutDate: e.target.value })}
+                    className="w-full border rounded-xl p-2 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block font-semibold mb-1">Estimated Rate ({settings.currency})</label>
+                  <input
+                    type="number"
+                    required
+                    value={newBookingForm.totalRate}
+                    onChange={(e) => setNewBookingForm({ ...newBookingForm, totalRate: e.target.value })}
+                    className="w-full border rounded-xl p-2 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Deposit Paid ({settings.currency})</label>
+                  <input
+                    type="number"
+                    value={newBookingForm.depositAmount}
+                    onChange={(e) => setNewBookingForm({ ...newBookingForm, depositAmount: e.target.value })}
+                    className="w-full border rounded-xl p-2 font-bold text-emerald-700"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Booking Status</label>
+                  <select
+                    value={newBookingForm.status}
+                    onChange={(e) => setNewBookingForm({ ...newBookingForm, status: e.target.value })}
+                    className="w-full border rounded-xl p-2 bg-white font-bold"
+                  >
+                    <option value="Confirmed">Confirmed</option>
+                    <option value="Deposit Paid">Deposit Paid</option>
+                    <option value="Tentative">Tentative</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1">Special Requests / Notes</label>
+                <textarea
+                  rows={2}
+                  placeholder="e.g. Airport pickup required, late arrival around 9 PM"
+                  value={newBookingForm.notes}
+                  onChange={(e) => setNewBookingForm({ ...newBookingForm, notes: e.target.value })}
+                  className="w-full border rounded-xl p-2.5"
+                />
+              </div>
+
+              <button type="submit" className="w-full bg-[#14B8A6] hover:bg-[#0D9488] text-white font-bold py-3 rounded-xl shadow">
+                Save Advance Reservation
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CHECK-IN WITH CAMERA */}
+      {checkInModalRoom && (
+        <div className="fixed inset-0 bg-[#06151E]/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-[#E6DFD3] my-8">
+            <div className="flex justify-between items-center mb-4 pb-2 border-b">
+              <div>
+                <span className="text-xs uppercase font-bold text-[#0F766E]">Guest Registration & Check-In</span>
+                <h3 className="font-bold text-lg">Room #{checkInModalRoom.number} ({checkInModalRoom.type})</h3>
+              </div>
+              <button type="button" onClick={handleCloseCheckInModal} className="text-slate-400">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <canvas ref={canvasRef} className="hidden" />
+
+            <form onSubmit={handleOpenOrderAndCheckIn} className="space-y-4 text-xs">
+              <div className="bg-[#FAF9F5] p-3 rounded-xl border space-y-2">
+                <span className="font-bold text-[11px] block">Guest Photo / Passport</span>
+                {isCameraActive ? (
+                  <div className="relative rounded overflow-hidden aspect-video bg-black flex items-center justify-center">
+                    <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={takeSnapshot}
+                      className="absolute bottom-2 px-4 py-1 bg-[#14B8A6] text-white rounded-full font-bold shadow"
+                    >
+                      Snap Photo
+                    </button>
+                  </div>
+                ) : guestPhoto ? (
+                  <img src={guestPhoto} alt="ID" className="w-full aspect-video object-cover rounded" />
+                ) : (
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={startCamera}
+                      className="flex-1 p-3 border border-dashed rounded-lg bg-teal-50 text-teal-800 font-bold flex flex-col items-center gap-1"
+                    >
+                      <Camera className="w-4 h-4" /> Open Camera
+                    </button>
+                    <label className="flex-1 p-3 border border-dashed rounded-lg bg-white text-slate-700 font-bold flex flex-col items-center gap-1 cursor-pointer">
+                      <Upload className="w-4 h-4" /> Pick File
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1">Guest Full Name</label>
+                <input
+                  type="text"
+                  required
+                  value={guestForm.name}
+                  onChange={(e) => setGuestForm({ ...guestForm, name: e.target.value })}
+                  className="w-full border rounded-lg p-2.5"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1">Contact Phone</label>
+                  <input
+                    type="tel"
+                    value={guestForm.phone}
+                    onChange={(e) => setGuestForm({ ...guestForm, phone: e.target.value })}
+                    className="w-full border rounded-lg p-2.5"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Nights Duration</label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={guestForm.nights}
+                    onChange={(e) => setGuestForm({ ...guestForm, nights: parseInt(e.target.value, 10) || 1 })}
+                    className="w-full border rounded-lg p-2.5"
+                  />
+                </div>
+              </div>
+
+              <div className="bg-[#FAF9F5] p-3 rounded-xl border border-[#E6DFD3] space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-[11px] text-slate-700">Nightly Rate Applied:</span>
+                  <span className="text-[10px] font-bold uppercase text-[#0F766E] bg-[#CCFBF1] px-2 py-0.5 rounded">
+                    Tier: {checkInModalRoom.rateStrategy || "Standard"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-slate-500">{settings.currency}</span>
+                  <input
+                    type="number"
+                    required
+                    value={guestForm.customRate}
+                    onChange={(e) => setGuestForm({ ...guestForm, customRate: e.target.value })}
+                    className="w-full border rounded-lg p-2 font-bold text-sm bg-white"
+                  />
+                </div>
+              </div>
+
+              <button type="submit" className="w-full bg-[#14B8A6] hover:bg-[#0D9488] text-white font-bold py-3 rounded-xl shadow">
+                Complete Check In
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: DIRECT BILL SETTLEMENT CONSOLE */}
+      {settleOrderRoom && (
+        <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-[#E6DFD3]">
+            <div className="flex justify-between items-start mb-4 pb-3 border-b border-[#E6DFD3]">
+              <div>
+                <span className="text-xs uppercase font-bold text-[#0F766E]">Direct Order Settlement</span>
+                <h3 className="font-black text-xl text-[#091D26]">Room #{settleOrderRoom.number}</h3>
+                <p className="text-xs text-slate-500">Guest: {settleOrderRoom.guestName || "Walk-In"}</p>
+              </div>
+              <button type="button" onClick={() => setSettleOrderRoom(null)} className="text-slate-400 hover:text-black">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="max-h-44 overflow-y-auto border border-[#E6DFD3] rounded-2xl p-3 bg-[#FAF9F5] mb-4 text-xs space-y-1.5">
+              {settleOrderRoom.orderItems?.map((item) => (
+                <div key={item.id} className="flex justify-between py-1 border-b border-slate-100 last:border-none">
+                  <div>
+                    <span className="font-semibold text-slate-800">{item.quantity}x {item.description}</span>
+                  </div>
+                  <span className="font-semibold text-[#091D26]">{settings.currency}{Number(item.total).toFixed(2)}</span>
+                </div>
+              ))}
+              <div className="pt-2 flex justify-between font-black text-sm text-[#091D26]">
+                <span>Total Balance Due:</span>
+                <span className="text-[#0D9488] text-base">
+                  {settings.currency}{calculateTotal(settleOrderRoom).toFixed(2)}
+                </span>
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-slate-700 mb-2">Tender Method:</label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { id: "Credit Card", icon: CreditCard },
+                  { id: "Cash", icon: Banknote },
+                  { id: "Transfer", icon: Building2 },
+                ].map(({ id, icon: Icon }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setSettlementMethod(id)}
+                    className={`py-2.5 text-xs font-bold rounded-xl border flex items-center justify-center gap-1.5 transition-all ${
+                      settlementMethod === id
+                        ? "bg-[#0F2D3C] text-white border-[#0F2D3C]"
+                        : "bg-white text-slate-700 border-[#E6DFD3] hover:bg-[#F3EFE6]"
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" /> {id}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {settlementMethod === "Cash" && (
+              <div className="bg-[#FAF9F5] p-3 rounded-2xl border border-[#E6DFD3] mb-4 flex items-center gap-3 text-xs">
+                <div className="flex-1">
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Cash Tendered:</label>
+                  <input
+                    type="number"
+                    placeholder="0.00"
+                    value={cashTendered}
+                    onChange={(e) => setCashTendered(e.target.value)}
+                    className="w-full border border-[#D3C8B7] rounded-lg px-2.5 py-1.5 font-bold text-sm focus:outline-none"
+                  />
+                </div>
+                <div className="flex-1 text-right">
+                  <span className="block text-[11px] font-semibold text-slate-600">Change Due:</span>
+                  <span className="text-base font-black text-[#0D9488]">
+                    {settings.currency}{changeDue.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setSettleOrderRoom(null)}
+                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-3 rounded-xl text-xs font-semibold"
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmOrderSettlement}
+                className="flex-2 bg-[#0D9488] hover:bg-[#0F766E] text-white py-3 px-6 rounded-xl text-xs font-bold shadow-md flex items-center justify-center gap-1.5"
+              >
+                <Check className="w-4 h-4" /> Confirm & Auto-Print Invoice
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EDIT STAFF MEMBER (ACCESSIBLE TO MANAGERS AND ADMINS) */}
+      {editingStaffMember && isManagerOrAdmin && (
+        <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border my-8">
+            <div className="flex justify-between items-center mb-4 pb-2 border-b">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-[#0F766E]">Remuneration & Deductions Setup</span>
+                <h3 className="font-bold text-lg text-[#091D26]">Edit Profile: {editingStaffMember.name}</h3>
+              </div>
+              <button type="button" onClick={() => setEditingStaffMember(null)} className="text-slate-400">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveStaffEdit} className="space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1">Employee Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={editStaffForm.name}
+                    onChange={(e) => setEditStaffForm({ ...editStaffForm, name: e.target.value })}
+                    className="w-full border rounded-xl p-2.5"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Role / Designation</label>
+                  <select
+                    value={editStaffForm.role}
+                    onChange={(e) => setEditStaffForm({ ...editStaffForm, role: e.target.value })}
+                    className="w-full border rounded-xl p-2.5 bg-white font-semibold"
+                  >
+                    <option value="General Manager">General Manager</option>
+                    <option value="Front Desk Supervisor">Front Desk Supervisor</option>
+                    <option value="Front Desk Agent">Front Desk Agent</option>
+                    <option value="Housekeeping Lead">Housekeeping Lead</option>
+                    <option value="Housekeeping Staff">Housekeeping Staff</option>
+                    <option value="Maintenance Technician">Maintenance Technician</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="bg-[#FAF9F5] p-3.5 rounded-2xl border space-y-2">
+                <span className="font-bold text-[11px] uppercase text-[#0D9488] block">Gross Earnings ({settings.currency})</span>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-semibold mb-1">Basic Salary</label>
+                    <input
+                      type="number"
+                      value={editStaffForm.baseSalary}
+                      onChange={(e) => setEditStaffForm({ ...editStaffForm, baseSalary: e.target.value })}
+                      className="w-full border rounded-lg p-2 font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold mb-1">Allowances</label>
+                    <input
+                      type="number"
+                      value={editStaffForm.allowances}
+                      onChange={(e) => setEditStaffForm({ ...editStaffForm, allowances: e.target.value })}
+                      className="w-full border rounded-lg p-2 font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold mb-1">Service Pool</label>
+                    <input
+                      type="number"
+                      value={editStaffForm.serviceCharge}
+                      onChange={(e) => setEditStaffForm({ ...editStaffForm, serviceCharge: e.target.value })}
+                      className="w-full border rounded-lg p-2 font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold mb-1">Bonus</label>
+                    <input
+                      type="number"
+                      value={editStaffForm.bonus}
+                      onChange={(e) => setEditStaffForm({ ...editStaffForm, bonus: e.target.value })}
+                      className="w-full border rounded-lg p-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold mb-1">Overtime Pay</label>
+                    <input
+                      type="number"
+                      value={editStaffForm.overtimePay}
+                      onChange={(e) => setEditStaffForm({ ...editStaffForm, overtimePay: e.target.value })}
+                      className="w-full border rounded-lg p-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold mb-1">Terminal PIN</label>
+                    <input
+                      type="text"
+                      value={editStaffForm.pin}
+                      onChange={(e) => setEditStaffForm({ ...editStaffForm, pin: e.target.value })}
+                      className="w-full border rounded-lg p-2 font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-rose-50/60 p-3.5 rounded-2xl border border-rose-200 space-y-2">
+                <span className="font-bold text-[11px] uppercase text-rose-700 block">Deductions & Taxes ({settings.currency})</span>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-semibold mb-1">EPF (Employee 8%)</label>
+                    <input
+                      type="number"
+                      value={editStaffForm.epfDeduction}
+                      onChange={(e) => setEditStaffForm({ ...editStaffForm, epfDeduction: e.target.value })}
+                      className="w-full border border-rose-200 rounded-lg p-2 font-bold text-rose-700 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold mb-1">Tax / PAYE</label>
+                    <input
+                      type="number"
+                      value={editStaffForm.taxDeduction}
+                      onChange={(e) => setEditStaffForm({ ...editStaffForm, taxDeduction: e.target.value })}
+                      className="w-full border border-rose-200 rounded-lg p-2 font-bold text-rose-700 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold mb-1">Advance / Loans</label>
+                    <input
+                      type="number"
+                      value={editStaffForm.advanceDeduction}
+                      onChange={(e) => setEditStaffForm({ ...editStaffForm, advanceDeduction: e.target.value })}
+                      className="w-full border border-rose-200 rounded-lg p-2 font-bold text-rose-700 bg-white"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1">Bank Account / Transfer Details</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Commercial Bank - 8009234123"
+                  value={editStaffForm.bankAccount}
+                  onChange={(e) => setEditStaffForm({ ...editStaffForm, bankAccount: e.target.value })}
+                  className="w-full border rounded-xl p-2.5 font-mono"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingStaffMember(null)}
+                  className="flex-1 bg-slate-100 py-3 rounded-xl font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-[#0D9488] hover:bg-[#0F766E] text-white py-3 rounded-xl font-bold"
+                >
+                  Save Remuneration Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EDIT DYNAMIC ROOM RATES */}
+      {editingDynamicRoom && isManagerOrAdmin && (
+        <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border">
+            <div className="flex justify-between items-center mb-4 pb-2 border-b">
+              <div>
+                <span className="text-xs uppercase font-bold text-[#0F766E]">Dynamic Pricing Setup</span>
+                <h3 className="font-bold text-lg">Room #{editingDynamicRoom.number}</h3>
+              </div>
+              <button type="button" onClick={() => setEditingDynamicRoom(null)} className="text-slate-400">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveDynamicRoomRates} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold mb-1">Room Category</label>
+                <input
+                  type="text"
+                  required
+                  value={editRoomForm.type}
+                  onChange={(e) => setEditRoomForm({ ...editRoomForm, type: e.target.value })}
+                  className="w-full border rounded-xl p-2.5 bg-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block font-semibold mb-1">Base (Weekday)</label>
+                  <input
+                    type="number"
+                    required
+                    value={editRoomForm.rate}
+                    onChange={(e) => setEditRoomForm({ ...editRoomForm, rate: e.target.value })}
+                    className="w-full border rounded-xl p-2 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Weekend Tier</label>
+                  <input
+                    type="number"
+                    required
+                    value={editRoomForm.weekendRate}
+                    onChange={(e) => setEditRoomForm({ ...editRoomForm, weekendRate: e.target.value })}
+                    className="w-full border rounded-xl p-2 font-bold text-amber-700"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Peak Season</label>
+                  <input
+                    type="number"
+                    required
+                    value={editRoomForm.peakRate}
+                    onChange={(e) => setEditRoomForm({ ...editRoomForm, peakRate: e.target.value })}
+                    className="w-full border rounded-xl p-2 font-bold text-rose-700"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1">Active Pricing Strategy</label>
+                <select
+                  value={editRoomForm.rateStrategy}
+                  onChange={(e) => setEditRoomForm({ ...editRoomForm, rateStrategy: e.target.value })}
+                  className="w-full border rounded-xl p-2.5 bg-white font-bold"
+                >
+                  <option value="standard">Standard (Use Base Rate)</option>
+                  <option value="weekend">Weekend Surge Tier</option>
+                  <option value="peak">Peak Season Surge Tier</option>
+                  <option value="auto">Auto Occupancy-Based Dynamic Surge</option>
+                </select>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingDynamicRoom(null)}
+                  className="flex-1 bg-slate-100 py-3 rounded-xl font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-[#14B8A6] hover:bg-[#0D9488] text-white py-3 rounded-xl font-bold"
+                >
+                  Save Rates
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD ROOM (MANAGERS AND ADMINS) */}
+      {showAddRoomModal && isManagerOrAdmin && (
         <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 border shadow-2xl">
             <div className="flex justify-between items-center mb-4">
@@ -4044,8 +4799,8 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: ADD INVENTORY (ADMIN ONLY) */}
-      {showAddInventoryModal && isAdmin && (
+      {/* MODAL: ADD INVENTORY (MANAGERS AND ADMINS) */}
+      {showAddInventoryModal && isManagerOrAdmin && (
         <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 border shadow-2xl">
             <div className="flex justify-between items-center mb-4">
@@ -4103,8 +4858,8 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: EDIT INVENTORY (ADMIN ONLY) */}
-      {editingInventoryItem && isAdmin && (
+      {/* MODAL: EDIT INVENTORY (MANAGERS AND ADMINS) */}
+      {editingInventoryItem && isManagerOrAdmin && (
         <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 border shadow-2xl">
             <div className="flex justify-between items-center mb-4">
@@ -4155,8 +4910,8 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: ADD STAFF (ADMIN ONLY) */}
-      {showAddStaffModal && isAdmin && (
+      {/* MODAL: ADD STAFF (MANAGERS AND ADMINS) */}
+      {showAddStaffModal && isManagerOrAdmin && (
         <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-[#E6DFD3]">
             <div className="flex justify-between items-center mb-4">
@@ -4180,7 +4935,7 @@ export default function App() {
                   onChange={(e) => setNewStaffForm({ ...newStaffForm, role: e.target.value })}
                   className="w-full border rounded p-2 bg-white"
                 >
-                  <option value="Admin (General Manager)">Admin (General Manager)</option>
+                  <option value="General Manager">General Manager</option>
                   <option value="Front Desk Supervisor">Front Desk Supervisor</option>
                   <option value="Front Desk Agent">Front Desk Agent</option>
                   <option value="Housekeeping Lead">Housekeeping Lead</option>
