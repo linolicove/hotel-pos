@@ -440,7 +440,6 @@ function buildA4Html({ settings, room, isTemporary, settlementMethod, total, cas
   `;
 }
 
-// --- RESTORED & OPTIMIZED PAYSLIP GENERATION ENGINE ---
 function buildPayslipHtml({ settings, staffMember, payPeriodStr = "Current Pay Period" }) {
   const base = Number(staffMember.baseSalary) || 0;
   const allowances = Number(staffMember.allowances) || 0;
@@ -721,6 +720,14 @@ export default function App() {
   const [selectedDate, setSelectedDate] = useState(getTodayKey());
   const [filterAllDates, setFilterAllDates] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Active Orders: Direct Add Folio Item Modal State
+  const [folioModalRoom, setFolioModalRoom] = useState(null);
+  const [folioItemForm, setFolioItemForm] = useState({
+    description: "",
+    unitPrice: "",
+    quantity: "1"
+  });
 
   // Attendance Monitor Filter State
   const [attendanceStaffFilter, setAttendanceStaffFilter] = useState("all");
@@ -1142,7 +1149,7 @@ export default function App() {
   // Dynamic Room Rates Management (Restricted to General Manager)
   const handleStartEditDynamicRoom = (room) => {
     if (!isGeneralManager) {
-      alert("Access Denied: Only General Manager can modify room rates.");
+      alert("Access Denied: Only General Manager or Admin can modify room rates.");
       return;
     }
     setEditingDynamicRoom(room);
@@ -1351,8 +1358,8 @@ export default function App() {
     update(ref(rtdb, `inventory/${itemId}`), { stock: newStock });
   };
 
-  const handleQuickAddMinibar = (item) => {
-    if (!currentRoom) return;
+  const handleQuickAddMinibar = (item, targetRoom = currentRoom) => {
+    if (!targetRoom) return;
     const now = new Date();
     const itemId = `itm_${Date.now()}`;
     const newItem = {
@@ -1363,8 +1370,34 @@ export default function App() {
       total: item.price,
       timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
     };
-    set(ref(rtdb, `rooms/${currentRoom.id}/orderItems/${itemId}`), newItem);
+    set(ref(rtdb, `rooms/${targetRoom.id}/orderItems/${itemId}`), newItem);
     if (item.stock > 0) handleUpdateStockLevel(item.id, -1);
+  };
+
+  // Direct Folio Posting to any Room
+  const handleAddFolioItemToRoom = (e) => {
+    e.preventDefault();
+    if (!folioModalRoom || !folioItemForm.description || !folioItemForm.unitPrice) return;
+    const unitPrice = parseFloat(folioItemForm.unitPrice) || 0;
+    const quantity = parseInt(folioItemForm.quantity, 10) || 1;
+    const now = new Date();
+    const itemId = `itm_${Date.now()}`;
+    const newItem = {
+      id: itemId,
+      description: sanitizeInput(folioItemForm.description),
+      quantity,
+      unitPrice,
+      total: unitPrice * quantity,
+      timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
+    };
+    set(ref(rtdb, `rooms/${folioModalRoom.id}/orderItems/${itemId}`), newItem);
+    setFolioItemForm({ description: "", unitPrice: "", quantity: "1" });
+    setFolioModalRoom(null);
+  };
+
+  const handleRemoveItemFromAnyRoom = (roomId, itemId) => {
+    if (!roomId || !itemId) return;
+    remove(ref(rtdb, `rooms/${roomId}/orderItems/${itemId}`));
   };
 
   // Pre-Bookings Actions
@@ -1450,7 +1483,7 @@ export default function App() {
     setActiveTab("frontdesk");
   };
 
-  // Settings & Database Backup (Strictly General Manager / Admin)
+  // Settings & Database Backup
   const handleSaveAllSettings = () => {
     if (!isGeneralManager) {
       alert("Access Denied: Only General Manager can save system settings.");
@@ -1673,7 +1706,6 @@ export default function App() {
     setCashTendered("");
   };
 
-  // FIXED: Reliable Payslip Printing Invocation
   const handlePrintPayslip = (staffMember) => {
     try {
       const html = buildPayslipHtml({
@@ -1721,7 +1753,6 @@ export default function App() {
     printIsolatedDocument(html, "a4");
   };
 
-  // Staff Creation (General Manager only)
   const handleCreateStaff = (e) => {
     e.preventDefault();
     if (!isGeneralManager) {
@@ -1802,32 +1833,6 @@ export default function App() {
     setGuestPhoto(null);
     setCheckInModalRoom(null);
     setGuestForm({ name: "", phone: "", nights: 1, customRate: "" });
-  };
-
-  const handleAddItemToOrder = (e) => {
-    e.preventDefault();
-    if (!newItemDesc || !newItemPrice || !currentRoom) return;
-    const unitPrice = parseFloat(newItemPrice);
-    const quantity = parseInt(newItemQty, 10) || 1;
-    const now = new Date();
-    const itemId = `itm_${Date.now()}`;
-    const newItem = {
-      id: itemId,
-      description: sanitizeInput(newItemDesc),
-      quantity,
-      unitPrice,
-      total: unitPrice * quantity,
-      timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
-    };
-    set(ref(rtdb, `rooms/${currentRoom.id}/orderItems/${itemId}`), newItem);
-    setNewItemDesc("");
-    setNewItemPrice("");
-    setNewItemQty("1");
-  };
-
-  const handleRemoveOrderItem = (itemId) => {
-    if (!currentRoom) return;
-    remove(ref(rtdb, `rooms/${currentRoom.id}/orderItems/${itemId}`));
   };
 
   const handleInitiateSettleOrder = (room) => {
@@ -1984,7 +1989,6 @@ export default function App() {
 
     const isLockedOut = Date.now() < pinLockoutUntil;
 
-    // Filter quick buttons to NEVER display General Manager or Admin accounts
     const safeOperationalStaff = staff.filter(s => {
       const r = (s.role || "").toLowerCase();
       return !r.includes("admin") && !r.includes("general manager");
@@ -2101,7 +2105,6 @@ export default function App() {
             })}
           </div>
 
-          {/* Quick Operational Staff Login Buttons (General Manager / Admin are hidden) */}
           {safeOperationalStaff && safeOperationalStaff.length > 0 && !isLockedOut && (
             <div className="mt-6 pt-4 border-t border-white/[0.08] w-full">
               <div className="flex justify-between items-center mb-2 px-1">
@@ -2489,12 +2492,12 @@ export default function App() {
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    setSelectedRoomId(room.id);
-                                    setActiveTab("active-orders");
+                                    setFolioModalRoom(room);
+                                    setFolioItemForm({ description: "", unitPrice: "", quantity: "1" });
                                   }}
-                                  className="flex-1 bg-[#F3EFE6] hover:bg-[#E6DFD3] text-[#091D26] py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1 transition-colors"
+                                  className="flex-1 bg-[#F3EFE6] hover:bg-[#E6DFD3] text-[#091D26] py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-colors"
                                 >
-                                  <Receipt className="w-3.5 h-3.5 text-slate-500" /> Folio Items
+                                  <Plus className="w-3.5 h-3.5 text-teal-700" /> Add Folio Item
                                 </button>
                                 <button
                                   type="button"
@@ -2535,51 +2538,126 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 2: ACTIVE BILLS */}
+          {/* =========================================================
+              TAB 2: ACTIVE BILLS & TABS (WITH ACTIVE FOLIO ITEM POSTING)
+              ========================================================= */}
           {activeTab === "active-orders" && canAccessTab("active-orders") && (
             <div className="max-w-7xl mx-auto space-y-6">
-              <div className="flex justify-between items-center">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                 <div>
-                  <h2 className="text-2xl font-bold">Active Bills & Guest Tabs</h2>
-                  <p className="text-sm text-slate-500">Print temporary pro-forma check or settle official tax invoices</p>
+                  <h2 className="text-2xl font-bold flex items-center gap-2">
+                    <Receipt className="w-6 h-6 text-[#14B8A6]" /> Active Bills & Guest Tabs
+                  </h2>
+                  <p className="text-sm text-slate-500">
+                    Post custom charges, room service, or minibar items directly onto any active guest folio.
+                  </p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                 {rooms.filter((r) => r.status === "occupied").map((room) => {
                   const billTotal = calculateTotal(room);
                   return (
-                    <div key={room.id} className="bg-white rounded-xl border border-[#E6DFD3] p-5 shadow-sm space-y-4">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <span className="text-xs uppercase font-bold text-[#0F766E]">{room.orderId}</span>
-                          <h3 className="text-xl font-black">Room #{room.number}</h3>
+                    <div key={room.id} className="bg-white rounded-3xl border border-[#E6DFD3] p-5 shadow-sm space-y-4 flex flex-col justify-between">
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-start pb-2 border-b border-[#F3EFE6]">
+                          <div>
+                            <span className="text-[10px] uppercase font-bold text-[#0F766E]">{room.orderId}</span>
+                            <h3 className="text-xl font-black text-[#091D26]">Room #{room.number}</h3>
+                            <p className="text-xs text-slate-500">{room.guestName || "Walk-In Guest"}</p>
+                          </div>
+                          <span className="text-xl font-black text-[#0D9488]">
+                            {settings.currency}{billTotal.toFixed(2)}
+                          </span>
                         </div>
-                        <span className="text-xl font-black text-[#0D9488]">{settings.currency}{billTotal.toFixed(2)}</span>
+
+                        {/* List of current folio items */}
+                        <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Current Folio Items:</p>
+                          {room.orderItems && room.orderItems.length > 0 ? (
+                            room.orderItems.map((item) => (
+                              <div key={item.id} className="flex justify-between items-center bg-[#FAF9F5] p-2 rounded-xl text-xs border border-slate-100">
+                                <div className="truncate pr-2">
+                                  <span className="font-semibold text-slate-800 block truncate">{item.description}</span>
+                                  <span className="text-[10px] text-slate-400">Qty: {item.quantity} × {settings.currency}{Number(item.unitPrice || 0).toFixed(2)}</span>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <span className="font-bold text-[#091D26]">{settings.currency}{Number(item.total).toFixed(2)}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveItemFromAnyRoom(room.id, item.id)}
+                                    className="p-1 text-slate-400 hover:text-rose-600 rounded"
+                                    title="Remove this line item"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="text-xs text-slate-400 italic">No billable items on tab yet.</p>
+                          )}
+                        </div>
+
+                        {/* Quick-add Minibar Chips */}
+                        <div className="pt-2 border-t border-[#F3EFE6]">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Quick Add Minibar:</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {inventory.filter(i => i.category === "minibar" && i.stock > 0).slice(0, 4).map(item => (
+                              <button
+                                key={item.id}
+                                type="button"
+                                onClick={() => handleQuickAddMinibar(item, room)}
+                                className="px-2 py-1 bg-teal-50 hover:bg-teal-100 text-[#0F766E] border border-teal-200 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all"
+                              >
+                                <Plus className="w-3 h-3" /> {item.name.split(" ")[0]} ({settings.currency}{item.price})
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex gap-2">
+
+                      {/* Card Bottom Actions */}
+                      <div className="space-y-2 pt-3 border-t border-[#F3EFE6]">
                         <button
                           type="button"
                           onClick={() => {
-                            const html = buildThermalHtml({ settings, room, isTemporary: true, settlementMethod: "Pending", total: billTotal });
-                            printIsolatedDocument(html, "thermal");
+                            setFolioModalRoom(room);
+                            setFolioItemForm({ description: "", unitPrice: "", quantity: "1" });
                           }}
-                          className="flex-1 bg-[#0F2D3C] text-white py-2 rounded-lg text-xs font-semibold"
+                          className="w-full bg-[#14B8A6] hover:bg-[#0D9488] text-white py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-all"
                         >
-                          Print Temp
+                          <Plus className="w-4 h-4" /> Add Custom Folio Item
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => handleInitiateSettleOrder(room)}
-                          className="flex-1 bg-[#0D9488] text-white py-2 rounded-lg text-xs font-bold"
-                        >
-                          Settle & Print
-                        </button>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handlePrintTemporaryBill(room)}
+                            className="flex-1 bg-[#0F2D3C] hover:bg-[#091D26] text-white py-2 rounded-xl text-xs font-semibold"
+                          >
+                            Print Temp
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleInitiateSettleOrder(room)}
+                            className="flex-1 bg-[#0D9488] hover:bg-[#0F766E] text-white py-2 rounded-xl text-xs font-bold"
+                          >
+                            Settle & Print
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
                 })}
               </div>
+
+              {rooms.filter((r) => r.status === "occupied").length === 0 && (
+                <div className="bg-white p-12 text-center rounded-3xl border border-[#E6DFD3] text-slate-400">
+                  <Receipt className="w-12 h-12 mx-auto mb-3 opacity-30 text-teal-600" />
+                  <p className="font-bold text-slate-600">No active room bills or tabs open.</p>
+                  <p className="text-xs text-slate-400 mt-1">Check in a guest at the Front Desk to open an active room folio.</p>
+                </div>
+              )}
             </div>
           )}
 
@@ -3571,7 +3649,7 @@ export default function App() {
                                 </button>
                               </td>
 
-                              {/* RESTORED: One-Click Working Payslip Print Button */}
+                              {/* One-Click Working Payslip Print Button */}
                               <td className="p-3.5 text-center">
                                 <button
                                   type="button"
@@ -4134,6 +4212,86 @@ export default function App() {
           )}
         </main>
       </div>
+
+      {/* MODAL: DIRECT ADD FOLIO ITEM TO ACTIVE BILL */}
+      {folioModalRoom && (
+        <div className="fixed inset-0 bg-[#06151E]/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-[#E6DFD3] my-8">
+            <div className="flex justify-between items-center mb-4 pb-2 border-b">
+              <div>
+                <span className="text-xs uppercase font-bold text-[#0F766E]">Post To Active Tab</span>
+                <h3 className="font-bold text-lg text-[#091D26]">Room #{folioModalRoom.number} - {folioModalRoom.guestName || "Guest"}</h3>
+              </div>
+              <button type="button" onClick={() => setFolioModalRoom(null)} className="text-slate-400 hover:text-black">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddFolioItemToRoom} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold mb-1">Item / Charge Description</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Seafood Dinner, Laundry Service, Extra Bed"
+                  value={folioItemForm.description}
+                  onChange={(e) => setFolioItemForm({ ...folioItemForm, description: e.target.value })}
+                  className="w-full border rounded-xl p-2.5"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1">Unit Price ({settings.currency})</label>
+                  <input
+                    type="number"
+                    step="any"
+                    required
+                    placeholder="0.00"
+                    value={folioItemForm.unitPrice}
+                    onChange={(e) => setFolioItemForm({ ...folioItemForm, unitPrice: e.target.value })}
+                    className="w-full border rounded-xl p-2.5 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Quantity</label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={folioItemForm.quantity}
+                    onChange={(e) => setFolioItemForm({ ...folioItemForm, quantity: e.target.value })}
+                    className="w-full border rounded-xl p-2.5"
+                  />
+                </div>
+              </div>
+
+              <div className="p-3 bg-[#FAF9F5] rounded-xl border flex justify-between items-center">
+                <span className="font-bold text-slate-600">Total Charge To Post:</span>
+                <span className="text-base font-black text-[#0D9488]">
+                  {settings.currency}{( (parseFloat(folioItemForm.unitPrice) || 0) * (parseInt(folioItemForm.quantity, 10) || 1) ).toFixed(2)}
+                </span>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setFolioModalRoom(null)}
+                  className="flex-1 bg-slate-100 py-3 rounded-xl font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-[#14B8A6] hover:bg-[#0D9488] text-white py-3 rounded-xl font-bold shadow-md"
+                >
+                  Post To Bill
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* MODAL: IMAGE VIEWER / LIGHTBOX */}
       {viewPhotoModalData && (
