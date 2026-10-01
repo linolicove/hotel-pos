@@ -1706,20 +1706,6 @@ export default function App() {
     setCashTendered("");
   };
 
-  const handlePrintPayslip = (staffMember) => {
-    try {
-      const html = buildPayslipHtml({
-        settings,
-        staffMember,
-        payPeriodStr: `${selectedDate.slice(0, 7)} Monthly Cycle`
-      });
-      printIsolatedDocument(html, "a4");
-    } catch (err) {
-      console.error("Error generating payslip:", err);
-      alert("Unable to generate payslip document. Please ensure all employee fields are populated.");
-    }
-  };
-
   const handlePrintDailyAttendanceReport = () => {
     const reportList = filteredArchivedReports.map(rec => ({
       date: rec.date,
@@ -1799,106 +1785,6 @@ export default function App() {
     update(ref(rtdb, `rooms/${roomId}`), { status });
   };
 
-  const handleOpenOrderAndCheckIn = (e) => {
-    e.preventDefault();
-    if (!checkInModalRoom || !guestForm.name) return;
-    stopCamera();
-
-    const nights = guestForm.nights || 1;
-    const now = new Date();
-    const orderId = `ORD-${checkInModalRoom.number}-${Date.now().toString().slice(-4)}`;
-    const itemId = `itm_${Date.now()}`;
-    const dynamicRate = parseFloat(guestForm.customRate) || getDynamicRoomRate(checkInModalRoom, rooms);
-
-    const initialOrderItem = {
-      id: itemId,
-      description: `Room Stay (${nights} Night${nights > 1 ? "s" : ""} @ ${checkInModalRoom.rateStrategy?.toUpperCase() || "STANDARD"} Rate)`,
-      quantity: nights,
-      unitPrice: dynamicRate,
-      total: dynamicRate * nights,
-      timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
-    };
-    const roomPayload = {
-      status: "occupied",
-      orderId,
-      openedAt: now.toLocaleString(),
-      guestName: sanitizeInput(guestForm.name),
-      guestPhone: sanitizeInput(guestForm.phone),
-      guestPhoto: guestPhoto || null,
-      checkIn: now.toISOString().split("T")[0],
-      checkOut: new Date(Date.now() + nights * 86400000).toISOString().split("T")[0],
-      orderItems: { [itemId]: initialOrderItem },
-    };
-    update(ref(rtdb, `rooms/${checkInModalRoom.id}`), roomPayload);
-    setGuestPhoto(null);
-    setCheckInModalRoom(null);
-    setGuestForm({ name: "", phone: "", nights: 1, customRate: "" });
-  };
-
-  const handleInitiateSettleOrder = (room) => {
-    setSelectedRoomId(room.id);
-    setActiveTab("frontdesk");
-    setSettleOrderRoom(room);
-    setCashTendered("");
-  };
-
-  const handleDeleteActiveBill = (room) => {
-    if (!isGeneralManager) {
-      alert("Access Denied: Only General Manager can void an active bill.");
-      return;
-    }
-    if (window.confirm(`Void active bill for Room #${room.number}?`)) {
-      update(ref(rtdb, `rooms/${room.id}`), {
-        status: "available",
-        orderId: null,
-        openedAt: null,
-        guestName: "",
-        guestPhone: "",
-        guestPhoto: null,
-        checkIn: "",
-        checkOut: "",
-        orderItems: null,
-      });
-    }
-  };
-
-  const handleCreateRoom = (e) => {
-    e.preventDefault();
-    if (!isGeneralManager) {
-      alert("Access Denied: Only General Manager can create rooms.");
-      return;
-    }
-    if (!newRoomForm.number) return;
-    const roomId = String(newRoomForm.number).trim();
-    const baseVal = Number(newRoomForm.rate) || 18000;
-    const wkndVal = Number(newRoomForm.weekendRate) || Math.round(baseVal * 1.2);
-    const peakVal = Number(newRoomForm.peakRate) || Math.round(baseVal * 1.4);
-
-    const newRoomData = {
-      id: roomId,
-      number: roomId,
-      type: sanitizeInput(newRoomForm.type),
-      rate: baseVal,
-      weekendRate: wkndVal,
-      peakRate: peakVal,
-      rateStrategy: newRoomForm.rateStrategy || "standard",
-      status: newRoomForm.status,
-    };
-    set(ref(rtdb, `rooms/${roomId}`), newRoomData);
-    setShowAddRoomModal(false);
-    setNewRoomForm({ number: "", type: "Ocean Breeze King", rate: 18000, weekendRate: 22000, peakRate: 26000, rateStrategy: "standard", status: "available" });
-  };
-
-  const handleDeleteRoom = (roomId, roomNumber) => {
-    if (!isGeneralManager) {
-      alert("Access Denied: Only General Manager can delete rooms.");
-      return;
-    }
-    if (window.confirm(`Delete Room #${roomNumber}?`)) {
-      remove(ref(rtdb, `rooms/${roomId}`));
-    }
-  };
-
   const filteredStaff = staff.filter((s) => {
     const q = staffSearchQuery.toLowerCase();
     return s.name.toLowerCase().includes(q) || s.role.toLowerCase().includes(q);
@@ -1970,181 +1856,6 @@ export default function App() {
     );
   }
 
-  // --- PIN TERMINAL LOCK SCREEN ---
-  if (!currentUser) {
-    const keypadButtons = [
-      { key: "1", sub: "" },
-      { key: "2", sub: "ABC" },
-      { key: "3", sub: "DEF" },
-      { key: "4", sub: "GHI" },
-      { key: "5", sub: "JKL" },
-      { key: "6", sub: "MNO" },
-      { key: "7", sub: "PQRS" },
-      { key: "8", sub: "TUV" },
-      { key: "9", sub: "WXYZ" },
-      { key: "Clear", sub: "" },
-      { key: "0", sub: "+" },
-      { key: "Del", sub: "" },
-    ];
-
-    const isLockedOut = Date.now() < pinLockoutUntil;
-
-    const safeOperationalStaff = staff.filter(s => {
-      const r = (s.role || "").toLowerCase();
-      return !r.includes("admin") && !r.includes("general manager");
-    });
-
-    return (
-      <div className="relative min-h-screen w-full flex items-center justify-center p-4 sm:p-6 overflow-hidden bg-[#040D14] text-white select-none">
-        <div className="absolute -top-32 -left-32 w-96 h-96 bg-[#0D9488]/20 rounded-full blur-[130px] pointer-events-none" />
-        <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-[#14B8A6]/15 rounded-full blur-[130px] pointer-events-none" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[550px] h-[550px] bg-[#0284C7]/10 rounded-full blur-[160px] pointer-events-none" />
-
-        <div className="relative z-10 w-full max-w-sm bg-white/[0.04] backdrop-blur-2xl border border-white/10 rounded-[32px] p-6 sm:p-8 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.7)] flex flex-col items-center">
-          <div className="w-full flex items-center justify-between pb-4 mb-4 border-b border-white/[0.08] text-[11px] text-slate-400">
-            <div className="flex items-center gap-2">
-              <span className={`w-2 h-2 rounded-full ${isLockedOut ? "bg-rose-500 animate-ping" : "bg-emerald-400 animate-pulse"}`} />
-              <span className="font-mono tracking-wider text-slate-300">
-                {settings.terminalId || "TERMINAL-01"}
-              </span>
-            </div>
-            <span className={`text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-full border ${
-              isLockedOut ? "text-rose-400 bg-rose-500/10 border-rose-500/30" : "text-[#2DD4BF] bg-[#2DD4BF]/10 border-[#2DD4BF]/20"
-            }`}>
-              {isLockedOut ? "Lockdown" : "Protected"}
-            </span>
-          </div>
-
-          <div className="relative mb-3 group">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#0F766E] to-[#2DD4BF] p-[2px] shadow-lg shadow-[#14B8A6]/25 transition-transform duration-300 group-hover:scale-105">
-              <div className="w-full h-full bg-[#071923] rounded-[14px] flex items-center justify-center">
-                <Waves className="w-8 h-8 text-[#2DD4BF]" />
-              </div>
-            </div>
-          </div>
-
-          <h1 className="text-xl font-black tracking-tight text-white text-center">
-            {settings.hotelName || "Thalassa Resort"}
-          </h1>
-          <p className="text-[10px] font-bold text-[#2DD4BF] uppercase tracking-widest mt-0.5">
-            {settings.tagline || "Hospitality OS & POS"}
-          </p>
-
-          <div className="my-6 flex flex-col items-center w-full">
-            <div className="flex items-center gap-3.5 h-10">
-              {[0, 1, 2, 3].map((idx) => {
-                const isFilled = pinInput.length > idx;
-                return (
-                  <div
-                    key={idx}
-                    className={`transition-all duration-200 rounded-full flex items-center justify-center ${
-                      isFilled
-                        ? "w-4 h-4 bg-[#14B8A6] shadow-[0_0_16px_#14B8A6] scale-125 border-none"
-                        : "w-3.5 h-3.5 border-2 border-white/20 bg-transparent"
-                    }`}
-                  />
-                );
-              })}
-            </div>
-            <div className="h-6 flex items-center mt-2 text-center">
-              {pinError ? (
-                <span className="text-xs font-bold text-rose-400 flex items-center gap-1.5 animate-pulse">
-                  <ShieldAlert className="w-3.5 h-3.5 shrink-0" /> {pinError}
-                </span>
-              ) : (
-                <span className="text-[11px] text-slate-400 font-medium tracking-wide">
-                  Enter 4-Digit Security PIN
-                </span>
-              )}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-2.5 w-full max-w-[280px]">
-            {keypadButtons.map(({ key, sub }) => {
-              const isAction = key === "Clear" || key === "Del";
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  disabled={isLockedOut}
-                  onClick={() => {
-                    if (key === "Clear") {
-                      setPinInput("");
-                      setPinError("");
-                    } else if (key === "Del") {
-                      setPinInput((prev) => prev.slice(0, -1));
-                      setPinError("");
-                    } else {
-                      handlePinDigit(key);
-                    }
-                  }}
-                  className={`h-15 rounded-2xl active:scale-95 transition-all flex flex-col items-center justify-center border shadow-sm ${
-                    isLockedOut
-                      ? "opacity-30 cursor-not-allowed border-white/5 bg-white/[0.02]"
-                      : isAction
-                      ? "bg-white/[0.03] hover:bg-white/[0.08] border-white/5 text-slate-400 hover:text-white"
-                      : "bg-white/[0.06] hover:bg-white/[0.14] active:bg-[#14B8A6]/20 border-white/10 hover:border-white/20 text-slate-100"
-                  }`}
-                >
-                  {key === "Del" ? (
-                    <Delete className="w-5 h-5 text-slate-300" />
-                  ) : (
-                    <>
-                      <span className={`font-bold ${isAction ? "text-xs uppercase tracking-wider text-rose-300" : "text-xl leading-none"}`}>
-                        {key}
-                      </span>
-                      {sub && (
-                        <span className="text-[8px] font-semibold tracking-widest text-slate-400 mt-1">
-                          {sub}
-                        </span>
-                      )}
-                    </>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          {safeOperationalStaff && safeOperationalStaff.length > 0 && !isLockedOut && (
-            <div className="mt-6 pt-4 border-t border-white/[0.08] w-full">
-              <div className="flex justify-between items-center mb-2 px-1">
-                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                  Operational Staff Quick-Login:
-                </span>
-                <span className="text-[9px] text-slate-500">Staff Only</span>
-              </div>
-              <div className="grid grid-cols-2 gap-1.5">
-                {safeOperationalStaff.slice(0, 4).map((s) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => {
-                      setPinInput(String(s.pin));
-                      verifyPin(s.pin);
-                    }}
-                    className="flex items-center gap-2 p-1.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-[#14B8A6]/40 transition-all text-left group"
-                  >
-                    <div className="w-6 h-6 rounded-lg bg-[#0F766E]/50 border border-[#2DD4BF]/30 flex items-center justify-center text-[10px] font-bold text-[#2DD4BF] shrink-0 group-hover:scale-105 transition-transform">
-                      {s.name.charAt(0)}
-                    </div>
-                    <div className="truncate">
-                      <div className="text-[10px] font-bold text-slate-200 truncate group-hover:text-white leading-tight">
-                        {s.name.split(" ")[0]}
-                      </div>
-                      <div className="text-[8px] text-slate-400 font-mono leading-none">
-                        {s.role}
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex h-screen overflow-hidden bg-[#FAF9F5] text-[#091D26]">
       {/* DESKTOP SIDEBAR */}
@@ -2203,25 +1914,112 @@ export default function App() {
         </nav>
       </aside>
 
+      {/* MOBILE DRAWER OVERLAY & SLIDE-OUT MENU */}
+      {mobileMenuOpen && (
+        <div className="md:hidden fixed inset-0 z-50 flex">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+
+          {/* Drawer Menu Panel */}
+          <div className="relative w-72 max-w-[80vw] bg-[#091D26] text-white h-full flex flex-col z-10 shadow-2xl border-r border-[#0F2D3C]">
+            <div className="p-4 border-b border-[#0F2D3C] flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-[#2DD4BF]" />
+                <span className="font-bold text-sm truncate">{settings.hotelName}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="p-4 border-b border-[#0F2D3C] bg-white/5 flex items-center justify-between">
+              <div className="truncate">
+                <span className="text-[10px] uppercase font-bold text-[#2DD4BF] flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3" /> {currentUser.role}
+                </span>
+                <div className="text-sm font-bold text-white truncate">{currentUser.name}</div>
+              </div>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="p-1.5 rounded-lg bg-white/10 hover:bg-[#F43F5E] text-slate-300 hover:text-white"
+                title="Lock Terminal"
+              >
+                <Lock className="w-4 h-4" />
+              </button>
+            </div>
+
+            <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto" style={{ WebkitOverflowScrolling: "touch" }}>
+              {[
+                { id: "frontdesk", label: "Front Desk & Status", icon: Bed },
+                { id: "active-orders", label: "Active Bills & Tabs", icon: Receipt },
+                { id: "inventory", label: "Stock & Minibar", icon: Boxes },
+                { id: "reports", label: "Reports & Analytics", icon: BarChart3 },
+                { id: "room-admin", label: "Room Management", icon: SlidersHorizontal },
+                { id: "staff", label: "Staff & Attendance", icon: Users },
+                { id: "settings", label: "Hotel Settings", icon: Settings },
+              ].map(({ id, label, icon: Icon }) => {
+                if (!canAccessTab(id)) return null;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => {
+                      setActiveTab(id);
+                      setMobileMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-bold transition-all ${
+                      activeTab === id ? "bg-[#0D9488] text-white shadow-sm" : "text-slate-300 hover:bg-[#0F2D3C] hover:text-white"
+                    }`}
+                  >
+                    <Icon className="w-4 h-4 text-[#2DD4BF]" /> {label}
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
+        </div>
+      )}
+
       {/* VIEWPORT */}
       <div className="flex-1 flex flex-col h-full overflow-hidden w-full">
         {/* MOBILE TOPBAR */}
-        <header className="no-print md:hidden flex items-center justify-between p-4 bg-[#091D26] text-white border-b border-[#0F2D3C]">
+        <header className="no-print md:hidden flex items-center justify-between p-4 bg-[#091D26] text-white border-b border-[#0F2D3C] shrink-0">
           <div className="flex items-center gap-2">
             <Building2 className="w-5 h-5 text-[#2DD4BF]" />
             <span className="font-bold text-sm truncate">{settings.hotelName}</span>
           </div>
           <div className="flex items-center gap-2">
-            <button type="button" onClick={handleLogout} className="p-1 rounded bg-white/10 text-slate-300">
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="p-1.5 rounded-lg bg-white/10 text-slate-300 hover:text-white"
+              title="Lock Terminal"
+            >
               <Lock className="w-4 h-4" />
             </button>
-            <button type="button" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-1 rounded text-slate-300">
-              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(true)}
+              className="p-1.5 rounded-lg bg-white/10 text-slate-300 hover:text-white"
+              title="Open Navigation Menu"
+            >
+              <Menu className="w-6 h-6" />
             </button>
           </div>
         </header>
 
-        <main className="no-print flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+        <main
+          className="no-print flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8"
+          style={{ WebkitOverflowScrolling: "touch" }}
+        >
           {/* TAB 1: FRONT DESK */}
           {activeTab === "frontdesk" && (
             <div className="max-w-7xl mx-auto space-y-6 pb-12">
@@ -2538,9 +2336,7 @@ export default function App() {
             </div>
           )}
 
-          {/* =========================================================
-              TAB 2: ACTIVE BILLS & TABS (WITH ACTIVE FOLIO ITEM POSTING)
-              ========================================================= */}
+          {/* TAB 2: ACTIVE BILLS & TABS */}
           {activeTab === "active-orders" && canAccessTab("active-orders") && (
             <div className="max-w-7xl mx-auto space-y-6">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
@@ -2767,7 +2563,7 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB: REPORTS & ANALYTICS (RESTRICTED TO GENERAL MANAGER) */}
+          {/* TAB: REPORTS & ANALYTICS */}
           {activeTab === "reports" && isGeneralManager && (
             <div className="max-w-7xl mx-auto space-y-6 pb-16">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
