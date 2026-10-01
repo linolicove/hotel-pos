@@ -217,67 +217,77 @@ const calculateDurationFromMs = (inMs, outMs) => {
 
 // --- 2. PROGRAMMATIC ISOLATED PRINT ENGINE ---
 function printIsolatedDocument(htmlBody, mode = "thermal") {
-  const existingFrame = document.getElementById("pos-print-frame");
-  if (existingFrame) existingFrame.remove();
+  try {
+    const existingFrame = document.getElementById("pos-print-frame");
+    if (existingFrame) existingFrame.remove();
 
-  const iframe = document.createElement("iframe");
-  iframe.id = "pos-print-frame";
-  iframe.style.position = "fixed";
-  iframe.style.right = "0";
-  iframe.style.bottom = "0";
-  iframe.style.width = "0px";
-  iframe.style.height = "0px";
-  iframe.style.border = "none";
-  document.body.appendChild(iframe);
+    const iframe = document.createElement("iframe");
+    iframe.id = "pos-print-frame";
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0px";
+    iframe.style.height = "0px";
+    iframe.style.border = "none";
+    document.body.appendChild(iframe);
 
-  const doc = iframe.contentWindow.document;
+    const doc = iframe.contentWindow.document;
 
-  const styles = `
-    <style>
-      @page {
-        size: ${mode === "thermal" ? "72mm auto" : "A4 portrait"};
-        margin: ${mode === "thermal" ? "0mm" : "15mm"};
-      }
-      html, body {
-        margin: 0;
-        padding: 0;
-        background: #ffffff !important;
-        color: #000000 !important;
-        font-family: ${mode === "thermal" ? "'Courier New', Courier, monospace" : "system-ui, -apple-system, sans-serif"};
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
-      }
-      .thermal-container {
-        width: 68mm;
-        margin: 0 auto;
-        padding: 2mm 0;
-        font-size: 11px;
-        line-height: 1.25;
-      }
-      .a4-container {
-        width: 100%;
-        max-width: 210mm;
-        margin: 0 auto;
-        font-size: 12px;
-        line-height: 1.4;
-        color: #091D26;
-      }
-      table {
-        width: 100%;
-        border-collapse: collapse;
-      }
-    </style>
-  `;
+    const styles = `
+      <style>
+        @page {
+          size: ${mode === "thermal" ? "72mm auto" : "A4 portrait"};
+          margin: ${mode === "thermal" ? "0mm" : "12mm"};
+        }
+        html, body {
+          margin: 0;
+          padding: 0;
+          background: #ffffff !important;
+          color: #000000 !important;
+          font-family: ${mode === "thermal" ? "'Courier New', Courier, monospace" : "system-ui, -apple-system, sans-serif"};
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+        .thermal-container {
+          width: 68mm;
+          margin: 0 auto;
+          padding: 2mm 0;
+          font-size: 11px;
+          line-height: 1.25;
+        }
+        .a4-container {
+          width: 100%;
+          max-width: 210mm;
+          margin: 0 auto;
+          font-size: 12px;
+          line-height: 1.4;
+          color: #091D26;
+        }
+        table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+      </style>
+    `;
 
-  doc.open();
-  doc.write(`<!DOCTYPE html><html><head><title>Print Preview</title>${styles}</head><body>${htmlBody}</body></html>`);
-  doc.close();
+    doc.open();
+    doc.write(`<!DOCTYPE html><html><head><title>Print Preview</title>${styles}</head><body>${htmlBody}</body></html>`);
+    doc.close();
 
-  setTimeout(() => {
-    iframe.contentWindow.focus();
-    iframe.contentWindow.print();
-    setTimeout(() => iframe.remove(), 1000);
-  }, 250);
+    setTimeout(() => {
+      try {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+      } catch (err) {
+        console.error("Print invocation error:", err);
+      }
+      setTimeout(() => {
+        if (iframe && iframe.parentNode) iframe.parentNode.removeChild(iframe);
+      }, 1500);
+    }, 300);
+  } catch (e) {
+    console.error("Failed to generate isolated print frame:", e);
+  }
 }
 
 function buildThermalHtml({ settings, room, isTemporary, settlementMethod, total, cashTendered = 0, changeDue = 0 }) {
@@ -348,6 +358,89 @@ function buildThermalHtml({ settings, room, isTemporary, settlementMethod, total
   `;
 }
 
+function buildA4Html({ settings, room, isTemporary, settlementMethod, total, cashTendered = 0, changeDue = 0 }) {
+  const items = room?.orderItems || [];
+  const isCash = settlementMethod === "Cash" && !isTemporary;
+
+  return `
+    <div class="a4-container">
+      <div style="border-bottom: 3px double #091D26; padding-bottom: 16px; display: flex; justify-content: space-between;">
+        <div>
+          <h1 style="font-size: 24px; font-weight: 900; text-transform: uppercase; margin: 0; color: #091D26;">${settings.hotelName}</h1>
+          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; text-transform: uppercase; color: #555;">${settings.tagline}</p>
+          <p style="margin: 4px 0 0 0; font-size: 11px; color: #333;">${settings.address} | Tel: ${settings.phone}</p>
+          <p style="margin: 2px 0 0 0; font-size: 11px; color: #333;">Tax Reg: ${settings.taxNumber} | BRN: ${settings.companyRegNo}</p>
+        </div>
+        <div style="text-align: right;">
+          <div style="display: inline-block; border: 2px solid #091D26; padding: 6px 14px; font-weight: bold; font-size: 12px;">
+            ${isTemporary ? "GUEST STATEMENT" : "OFFICIAL TAX INVOICE"}
+          </div>
+          <p style="margin: 8px 0 0 0; font-size: 12px;"><b>Date:</b> ${new Date().toLocaleDateString()}</p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;"><b>Folio No:</b> ${room?.orderId || `ORD-${room?.number}`}</p>
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 20px 0; padding: 12px 16px; border: 1px solid #091D26; border-radius: 4px;">
+        <div>
+          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Guest Information</p>
+          <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold;">${room?.guestName || "Unregistered Guest"}</p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;">Contact: ${room?.guestPhone || "No contact recorded"}</p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;">Settlement: <b>${isTemporary ? "Pending" : settlementMethod}</b></p>
+        </div>
+        <div style="text-align: right;">
+          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Stay Details</p>
+          <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold;">Room #${room?.number} (${room?.type})</p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;">Duration: ${room?.checkIn} to ${room?.checkOut}</p>
+        </div>
+      </div>
+      <table style="margin: 20px 0; font-size: 12px;">
+        <thead>
+          <tr style="border-bottom: 2px solid #091D26; text-align: left;">
+            <th style="padding: 10px 4px;">Description</th>
+            <th style="padding: 10px 4px; text-align: center;">Qty</th>
+            <th style="padding: 10px 4px; text-align: right;">Rate</th>
+            <th style="padding: 10px 4px; text-align: right;">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${items.map(item => `
+            <tr style="border-bottom: 1px solid #ddd;">
+              <td style="padding: 10px 4px;">${item.description}</td>
+              <td style="padding: 10px 4px; text-align: center;">${item.quantity}</td>
+              <td style="padding: 10px 4px; text-align: right;">${settings.currency}${Number(item.unitPrice).toFixed(2)}</td>
+              <td style="padding: 10px 4px; text-align: right; font-weight: bold;">${settings.currency}${Number(item.total).toFixed(2)}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+      <div style="border-top: 2px solid #091D26; border-bottom: 2px solid #091D26; padding: 12px 4px; margin: 24px 0;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 14px; font-weight: bold;">Total Bill Amount:</span>
+          <span style="font-size: 20px; font-weight: 900;">${settings.currency}${Number(total).toFixed(2)}</span>
+        </div>
+        ${isCash ? `
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 13px; color: #444;">
+            <span>Amount Given (Cash Tendered):</span>
+            <span style="font-weight: bold;">${settings.currency}${Number(cashTendered).toFixed(2)}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: 14px; font-weight: bold; border-top: 1px dotted #ccc; padding-top: 6px; color: #0D9488;">
+            <span>Balance Returned (Change Due):</span>
+            <span style="font-size: 18px; font-weight: 900;">${settings.currency}${Number(changeDue).toFixed(2)}</span>
+          </div>
+        ` : `
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: 12px; color: #666;">
+            <span>Payment Method:</span>
+            <span style="font-weight: bold;">${settlementMethod}</span>
+          </div>
+        `}
+      </div>
+      <div style="margin-top: 50px; text-align: center; font-size: 11px; border-top: 1px solid #ddd; padding-top: 12px;">
+        <p style="margin: 0; font-weight: 500;">${settings.footerNote}</p>
+      </div>
+    </div>
+  `;
+}
+
+// --- RESTORED & OPTIMIZED PAYSLIP GENERATION ENGINE ---
 function buildPayslipHtml({ settings, staffMember, payPeriodStr = "Current Pay Period" }) {
   const base = Number(staffMember.baseSalary) || 0;
   const allowances = Number(staffMember.allowances) || 0;
@@ -367,17 +460,20 @@ function buildPayslipHtml({ settings, staffMember, payPeriodStr = "Current Pay P
 
   return `
     <div class="a4-container">
-      <div style="border-bottom: 3px double #091D26; padding-bottom: 16px; display: flex; justify-content: space-between;">
+      <div style="border-bottom: 3px double #091D26; padding-bottom: 16px; display: flex; justify-content: space-between; align-items: flex-start;">
         <div>
           <h1 style="font-size: 24px; font-weight: 900; text-transform: uppercase; margin: 0; color: #091D26;">${settings.hotelName}</h1>
-          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; text-transform: uppercase; color: #555;">Monthly Remuneration Statement</p>
+          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; text-transform: uppercase; color: #555;">${settings.tagline}</p>
+          <p style="margin: 4px 0 0 0; font-size: 11px; color: #333;">${settings.address} | Tel: ${settings.phone}</p>
+          <p style="margin: 2px 0 0 0; font-size: 11px; color: #333;">Tax ID / VAT: ${settings.taxNumber} | BRN: ${settings.companyRegNo}</p>
         </div>
         <div style="text-align: right;">
-          <div style="display: inline-block; border: 2px solid #091D26; padding: 6px 14px; font-weight: bold; font-size: 12px; background: #F3EFE6;">
+          <div style="display: inline-block; border: 2px solid #091D26; padding: 6px 14px; font-weight: bold; font-size: 12px; text-transform: uppercase; background: #F3EFE6;">
             CONFIDENTIAL PAYSLIP
           </div>
           <p style="margin: 8px 0 0 0; font-size: 12px;"><b>Pay Cycle:</b> ${payPeriodStr}</p>
           <p style="margin: 2px 0 0 0; font-size: 12px;"><b>Date:</b> ${new Date().toLocaleDateString()}</p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;"><b>Ref:</b> PAY-${String(staffMember.id).toUpperCase()}</p>
         </div>
       </div>
 
@@ -387,12 +483,12 @@ function buildPayslipHtml({ settings, staffMember, payPeriodStr = "Current Pay P
           <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold; color: #091D26;">${staffMember.name}</p>
           <p style="margin: 2px 0 0 0; font-size: 12px;">Designation: <b>${staffMember.role}</b></p>
           <p style="margin: 2px 0 0 0; font-size: 12px;">Employment Type: <b>${staffMember.type || "Full-Time"}</b></p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;">Bank A/C: <b>${staffMember.bankAccount || "Cash Remittance"}</b></p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;">Bank A/C: <b>${staffMember.bankAccount || "Cash Remittance / Check"}</b></p>
         </div>
         <div style="text-align: right;">
-          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Staff Code / ID</p>
+          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Employment Details</p>
           <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold; color: #091D26;">${staffMember.id}</p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;">Phone: <b>${staffMember.phone || "--"}</b></p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;">Contact: <b>${staffMember.phone || "--"}</b></p>
           <p style="margin: 2px 0 0 0; font-size: 12px;">Payment Status: <b>${staffMember.paid ? "DISBURSED / PAID" : "PENDING DISBURSEMENT"}</b></p>
         </div>
       </div>
@@ -440,7 +536,10 @@ function buildPayslipHtml({ settings, staffMember, payPeriodStr = "Current Pay P
       </div>
 
       <div style="border: 2px solid #091D26; background: #CCFBF1; padding: 14px 18px; margin: 18px 0; display: flex; justify-content: space-between; align-items: center; border-radius: 4px;">
-        <span style="font-size: 13px; font-weight: bold; text-transform: uppercase; color: #0F766E;">NET TAKE-HOME PAYABLE:</span>
+        <div>
+          <span style="font-size: 13px; font-weight: bold; text-transform: uppercase; color: #0F766E;">NET TAKE-HOME PAYABLE:</span>
+          <span style="display: block; font-size: 10px; color: #555;">(Gross Earnings - Total Deductions)</span>
+        </div>
         <span style="font-size: 26px; font-weight: 900; color: #0D9488;">${settings.currency}${netPay.toFixed(2)}</span>
       </div>
 
@@ -448,6 +547,18 @@ function buildPayslipHtml({ settings, staffMember, payPeriodStr = "Current Pay P
         <span><b>Employer Statutory:</b></span>
         <span>EPF (12%): <b>${settings.currency}${epfEmployer.toFixed(2)}</b></span>
         <span>ETF (3%): <b>${settings.currency}${etfEmployer.toFixed(2)}</b></span>
+        <span>Total Contributions: <b>${settings.currency}${(epfEmployer + etfEmployer).toFixed(2)}</b></span>
+      </div>
+
+      <div style="margin-top: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; font-size: 11px;">
+        <div>
+          <p style="font-weight: bold; text-transform: uppercase; margin-bottom: 30px;">Employee Acknowledgment:</p>
+          <div style="border-bottom: 1px solid #000; width: 85%;"></div>
+        </div>
+        <div style="text-align: right;">
+          <p style="font-weight: bold; text-transform: uppercase; margin-bottom: 30px;">Authorized General Manager / HR:</p>
+          <div style="border-bottom: 1px solid #000; width: 85%; margin-left: auto;"></div>
+        </div>
       </div>
     </div>
   `;
@@ -752,22 +863,19 @@ export default function App() {
   });
 
   // STRICT ACCESS ROLES:
-  // General Manager & Admin have full authority (settings, room management, staff modification, deletion)
   const roleLower = (currentUser?.role || "").toLowerCase();
   const isGeneralManager = roleLower.includes("admin") || roleLower.includes("general manager");
   const isFrontDesk = roleLower.includes("front desk") || roleLower.includes("supervisor");
   const isHousekeeping = roleLower.includes("housekeeping");
 
-  // Front Desk Supervisor is NOT General Manager / Admin. They have operational access only.
   const canAccessTab = (tabId) => {
     if (!currentUser) return false;
-    if (isGeneralManager) return true; // Full GM/Admin access
+    if (isGeneralManager) return true;
     if (tabId === "frontdesk") return true;
     if (tabId === "active-orders" && (isFrontDesk || isGeneralManager)) return true;
     if (tabId === "inventory" && (isFrontDesk || isGeneralManager || isHousekeeping)) return true;
     if (tabId === "reports" && isGeneralManager) return true;
-    if (tabId === "staff") return true; // View daily shift attendance
-    // Room-Admin and Settings are strictly restricted to isGeneralManager
+    if (tabId === "staff") return true;
     return false;
   };
 
@@ -1034,7 +1142,7 @@ export default function App() {
   // Dynamic Room Rates Management (Restricted to General Manager)
   const handleStartEditDynamicRoom = (room) => {
     if (!isGeneralManager) {
-      alert("Access Denied: Only General Manager or Admin can modify room rates.");
+      alert("Access Denied: Only General Manager can modify room rates.");
       return;
     }
     setEditingDynamicRoom(room);
@@ -1499,6 +1607,7 @@ export default function App() {
     printIsolatedDocument(html, printFormat);
   };
 
+  // Settle Order & Save into Permanent Sales Ledger
   const handleConfirmOrderSettlement = () => {
     if (!settleOrderRoom) return;
     const total = calculateTotal(settleOrderRoom);
@@ -1564,6 +1673,21 @@ export default function App() {
     setCashTendered("");
   };
 
+  // FIXED: Reliable Payslip Printing Invocation
+  const handlePrintPayslip = (staffMember) => {
+    try {
+      const html = buildPayslipHtml({
+        settings,
+        staffMember,
+        payPeriodStr: `${selectedDate.slice(0, 7)} Monthly Cycle`
+      });
+      printIsolatedDocument(html, "a4");
+    } catch (err) {
+      console.error("Error generating payslip:", err);
+      alert("Unable to generate payslip document. Please ensure all employee fields are populated.");
+    }
+  };
+
   const handlePrintDailyAttendanceReport = () => {
     const reportList = filteredArchivedReports.map(rec => ({
       date: rec.date,
@@ -1597,7 +1721,7 @@ export default function App() {
     printIsolatedDocument(html, "a4");
   };
 
-  // Staff Creation (General Manager / Admin only)
+  // Staff Creation (General Manager only)
   const handleCreateStaff = (e) => {
     e.preventDefault();
     if (!isGeneralManager) {
@@ -1841,7 +1965,7 @@ export default function App() {
     );
   }
 
-  // --- PIN TERMINAL LOCK SCREEN (ADMIN & MANAGER SECURELY HIDDEN) ---
+  // --- PIN TERMINAL LOCK SCREEN ---
   if (!currentUser) {
     const keypadButtons = [
       { key: "1", sub: "" },
@@ -1860,10 +1984,10 @@ export default function App() {
 
     const isLockedOut = Date.now() < pinLockoutUntil;
 
-    // Filter quick buttons to NEVER display Admin or Manager accounts
+    // Filter quick buttons to NEVER display General Manager or Admin accounts
     const safeOperationalStaff = staff.filter(s => {
       const r = (s.role || "").toLowerCase();
-      return !r.includes("admin") && !r.includes("manager");
+      return !r.includes("admin") && !r.includes("general manager");
     });
 
     return (
@@ -1977,6 +2101,7 @@ export default function App() {
             })}
           </div>
 
+          {/* Quick Operational Staff Login Buttons (General Manager / Admin are hidden) */}
           {safeOperationalStaff && safeOperationalStaff.length > 0 && !isLockedOut && (
             <div className="mt-6 pt-4 border-t border-white/[0.08] w-full">
               <div className="flex justify-between items-center mb-2 px-1">
@@ -2564,8 +2689,8 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB: REPORTS & ANALYTICS (GM ONLY) */}
-          {activeTab === "reports" && canAccessTab("reports") && (
+          {/* TAB: REPORTS & ANALYTICS (RESTRICTED TO GENERAL MANAGER) */}
+          {activeTab === "reports" && isGeneralManager && (
             <div className="max-w-7xl mx-auto space-y-6 pb-16">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
@@ -3358,7 +3483,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* VIEW 3: COMPREHENSIVE PAYROLL MANAGEMENT & PAYSLIPS (GM ONLY) */}
+              {/* VIEW 3: COMPREHENSIVE PAYROLL MANAGEMENT & PAYSLIPS (GENERAL MANAGER ONLY) */}
               {staffViewSubTab === "roster" && isGeneralManager && (
                 <div className="bg-white rounded-3xl border border-[#E6DFD3] shadow-sm overflow-hidden">
                   <div className="p-4 border-b border-[#F3EFE6] flex justify-between items-center bg-[#FAF9F5]">
@@ -3446,11 +3571,13 @@ export default function App() {
                                 </button>
                               </td>
 
+                              {/* RESTORED: One-Click Working Payslip Print Button */}
                               <td className="p-3.5 text-center">
                                 <button
                                   type="button"
                                   onClick={() => handlePrintPayslip(member)}
-                                  className="px-2.5 py-1 bg-[#0F2D3C] hover:bg-[#091D26] text-white rounded-lg text-xs font-bold inline-flex items-center gap-1"
+                                  className="px-2.5 py-1 bg-[#0F2D3C] hover:bg-[#091D26] text-white rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-sm transition-all"
+                                  title="Print Official A4 Payslip"
                                 >
                                   <Printer className="w-3.5 h-3.5 text-[#2DD4BF]" /> Slip
                                 </button>
@@ -4397,7 +4524,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: EDIT STAFF MEMBER (RESTRICTED TO GENERAL MANAGER) */}
+      {/* MODAL: EDIT STAFF MEMBER */}
       {editingStaffMember && isGeneralManager && (
         <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border my-8">
@@ -4599,7 +4726,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: ADD STAFF (RESTRICTED TO GENERAL MANAGER) */}
+      {/* MODAL: ADD STAFF */}
       {showAddStaffModal && isGeneralManager && (
         <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-[#E6DFD3]">
