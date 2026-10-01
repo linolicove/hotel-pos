@@ -876,15 +876,15 @@ export default function App() {
   const isHousekeeping = roleLower.includes("housekeeping");
 
   const canAccessTab = (tabId) => {
-    if (!currentUser) return false;
-    if (isGeneralManager) return true;
-    if (tabId === "frontdesk") return true;
-    if (tabId === "active-orders" && (isFrontDesk || isGeneralManager)) return true;
-    if (tabId === "inventory" && (isFrontDesk || isGeneralManager || isHousekeeping)) return true;
-    if (tabId === "reports" && isGeneralManager) return true;
-    if (tabId === "staff") return true;
-    return false;
-  };
+  if (!currentUser || !currentUser.role) return false;
+  if (isGeneralManager) return true;
+  if (tabId === "frontdesk") return true;
+  if (tabId === "active-orders" && (isFrontDesk || isGeneralManager)) return true;
+  if (tabId === "inventory" && (isFrontDesk || isGeneralManager || isHousekeeping)) return true;
+  if (tabId === "reports" && isGeneralManager) return true;
+  if (tabId === "staff") return true;
+  return false;
+};
 
   // --- CAMERA & FILE UPLOAD ENGINE ---
   const startCamera = async () => {
@@ -2012,12 +2012,12 @@ export default function App() {
         </div>
 
         <div className="p-4 border-b border-[#0F2D3C] bg-white/5 flex items-center justify-between">
-          <div className="truncate">
-            <span className="text-[10px] uppercase font-bold text-[#2DD4BF] flex items-center gap-1">
-              <ShieldCheck className="w-3 h-3" /> {currentUser.role}
-            </span>
-            <div className="text-sm font-bold text-white truncate">{currentUser.name}</div>
-          </div>
+  <div className="truncate">
+    <span className="text-[10px] uppercase font-bold text-[#2DD4BF] flex items-center gap-1">
+      <ShieldCheck className="w-3 h-3" /> {currentUser?.role || "Staff"}
+    </span>
+    <div className="text-sm font-bold text-white truncate">{currentUser?.name || "Guest"}</div>
+  </div>
           <button
             type="button"
             onClick={handleLogout}
@@ -2084,16 +2084,16 @@ export default function App() {
         </header>
 
         {/* MOBILE & TABLET EXPANDED DRAWER MENU */}
-        {mobileMenuOpen && (
-          <div className="md:hidden fixed inset-0 top-[61px] z-50 bg-[#091D26]/95 backdrop-blur-xl flex flex-col justify-between p-5 text-white animate-in slide-in-from-top-4 duration-200">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-white/10">
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-[#2DD4BF] flex items-center gap-1">
-                    <ShieldCheck className="w-3.5 h-3.5" /> {currentUser.role}
-                  </span>
-                  <div className="text-sm font-bold text-white">{currentUser.name}</div>
-                </div>
+{mobileMenuOpen && (
+  <div className="md:hidden fixed inset-0 top-[61px] z-50 bg-[#091D26]/95 backdrop-blur-xl flex flex-col justify-between p-5 text-white animate-in slide-in-from-top-4 duration-200">
+    <div className="space-y-4">
+      <div className="flex items-center justify-between pb-3 border-b border-white/10">
+        <div>
+          <span className="text-[10px] uppercase font-bold text-[#2DD4BF] flex items-center gap-1">
+            <ShieldCheck className="w-3.5 h-3.5" /> {currentUser?.role || "Staff"}
+          </span>
+          <div className="text-sm font-bold text-white">{currentUser?.name || "Guest"}</div>
+        </div>
                 <button
                   type="button"
                   onClick={() => setMobileMenuOpen(false)}
