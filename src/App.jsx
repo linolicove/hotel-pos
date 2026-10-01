@@ -673,29 +673,18 @@ function buildSalesReportHtml({ settings, salesList, prebookingsList, titleStr, 
   `;
 }
 
-// --- 3. DYNAMIC PRICING ENGINE ---
-function getDynamicRoomRate(room, allRooms = []) {
-  if (!room) return 0;
-  const baseRate = Number(room.rate) || 18000;
-  const weekendRate = Number(room.weekendRate) || Math.round(baseRate * 1.2);
-  const peakRate = Number(room.peakRate) || Math.round(baseRate * 1.4);
-  const strategy = room.rateStrategy || "standard";
+// --- ALL NAVIGATION TABS ---
+const NAVIGATION_ITEMS = [
+  { id: "frontdesk", label: "Front Desk & Status", icon: Bed },
+  { id: "active-orders", label: "Active Bills & Tabs", icon: Receipt },
+  { id: "inventory", label: "Stock & Minibar", icon: Boxes },
+  { id: "reports", label: "Reports & Analytics", icon: BarChart3 },
+  { id: "room-admin", label: "Room Management", icon: SlidersHorizontal },
+  { id: "staff", label: "Staff & Attendance", icon: Users },
+  { id: "settings", label: "Hotel Settings", icon: Settings },
+];
 
-  if (strategy === "weekend") return weekendRate;
-  if (strategy === "peak") return peakRate;
-  if (strategy === "auto") {
-    const totalRooms = allRooms.length || 1;
-    const occupiedCount = allRooms.filter(r => r.status === "occupied").length;
-    const occupancyPercent = (occupiedCount / totalRooms) * 100;
-
-    if (occupancyPercent >= 75) return peakRate;
-    if (occupancyPercent >= 50) return weekendRate;
-    return baseRate;
-  }
-  return baseRate;
-}
-
-// --- 4. MAIN COMPONENT ---
+// --- MAIN COMPONENT ---
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [pinInput, setPinInput] = useState("");
@@ -1008,6 +997,7 @@ export default function App() {
     setCurrentUser(null);
     setPinInput("");
     setPinError("");
+    setMobileMenuOpen(false);
   };
 
   // --- REALTIME DATABASE LISTENERS ---
@@ -1146,7 +1136,7 @@ export default function App() {
   const calculateStaffGross = (s) => (Number(s.baseSalary) || 0) + (Number(s.allowances) || 0) + (Number(s.serviceCharge) || 0) + (Number(s.bonus) || 0) + (Number(s.overtimePay) || 0);
   const calculateStaffDeductions = (s) => (Number(s.epfDeduction) || Math.round((Number(s.baseSalary) || 0) * 0.08)) + (Number(s.taxDeduction) || 0) + (Number(s.advanceDeduction) || 0);
 
-  // Dynamic Room Rates Management (Restricted to General Manager)
+  // Dynamic Room Rates Management
   const handleStartEditDynamicRoom = (room) => {
     if (!isGeneralManager) {
       alert("Access Denied: Only General Manager or Admin can modify room rates.");
@@ -1191,7 +1181,7 @@ export default function App() {
     update(ref(rtdb, `rooms/${room.id}`), { rateStrategy: nextStrategy });
   };
 
-  // Staff Remuneration Editor: Restricted to General Manager / Admin
+  // Staff Remuneration Editor
   const handleStartEditStaff = (member) => {
     if (!isGeneralManager) {
       alert("Access Denied: Only General Manager can modify staff employment and remuneration profiles.");
@@ -1259,7 +1249,7 @@ export default function App() {
       });
   };
 
-  // Staff Deletion: Restricted to General Manager / Admin
+  // Staff Deletion
   const handleDeleteStaff = (member) => {
     if (!isGeneralManager) {
       alert("Access Denied: Only General Manager can delete staff profiles.");
@@ -1835,6 +1825,32 @@ export default function App() {
     setGuestForm({ name: "", phone: "", nights: 1, customRate: "" });
   };
 
+  const handleAddItemToOrder = (e) => {
+    e.preventDefault();
+    if (!newItemDesc || !newItemPrice || !currentRoom) return;
+    const unitPrice = parseFloat(newItemPrice);
+    const quantity = parseInt(newItemQty, 10) || 1;
+    const now = new Date();
+    const itemId = `itm_${Date.now()}`;
+    const newItem = {
+      id: itemId,
+      description: sanitizeInput(newItemDesc),
+      quantity,
+      unitPrice,
+      total: unitPrice * quantity,
+      timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
+    };
+    set(ref(rtdb, `rooms/${currentRoom.id}/orderItems/${itemId}`), newItem);
+    setNewItemDesc("");
+    setNewItemPrice("");
+    setNewItemQty("1");
+  };
+
+  const handleRemoveOrderItem = (itemId) => {
+    if (!currentRoom) return;
+    remove(ref(rtdb, `rooms/${currentRoom.id}/orderItems/${itemId}`));
+  };
+
   const handleInitiateSettleOrder = (room) => {
     setSelectedRoomId(room.id);
     setActiveTab("frontdesk");
@@ -1970,185 +1986,10 @@ export default function App() {
     );
   }
 
-  // --- PIN TERMINAL LOCK SCREEN ---
-  if (!currentUser) {
-    const keypadButtons = [
-      { key: "1", sub: "" },
-      { key: "2", sub: "ABC" },
-      { key: "3", sub: "DEF" },
-      { key: "4", sub: "GHI" },
-      { key: "5", sub: "JKL" },
-      { key: "6", sub: "MNO" },
-      { key: "7", sub: "PQRS" },
-      { key: "8", sub: "TUV" },
-      { key: "9", sub: "WXYZ" },
-      { key: "Clear", sub: "" },
-      { key: "0", sub: "+" },
-      { key: "Del", sub: "" },
-    ];
-
-    const isLockedOut = Date.now() < pinLockoutUntil;
-
-    const safeOperationalStaff = staff.filter(s => {
-      const r = (s.role || "").toLowerCase();
-      return !r.includes("admin") && !r.includes("general manager");
-    });
-
-    return (
-      <div className="relative min-h-screen w-full flex items-center justify-center p-4 sm:p-6 overflow-hidden bg-[#040D14] text-white select-none">
-        <div className="absolute -top-32 -left-32 w-96 h-96 bg-[#0D9488]/20 rounded-full blur-[130px] pointer-events-none" />
-        <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-[#14B8A6]/15 rounded-full blur-[130px] pointer-events-none" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[550px] h-[550px] bg-[#0284C7]/10 rounded-full blur-[160px] pointer-events-none" />
-
-        <div className="relative z-10 w-full max-w-sm bg-white/[0.04] backdrop-blur-2xl border border-white/10 rounded-[32px] p-6 sm:p-8 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.7)] flex flex-col items-center">
-          <div className="w-full flex items-center justify-between pb-4 mb-4 border-b border-white/[0.08] text-[11px] text-slate-400">
-            <div className="flex items-center gap-2">
-              <span className={`w-2 h-2 rounded-full ${isLockedOut ? "bg-rose-500 animate-ping" : "bg-emerald-400 animate-pulse"}`} />
-              <span className="font-mono tracking-wider text-slate-300">
-                {settings.terminalId || "TERMINAL-01"}
-              </span>
-            </div>
-            <span className={`text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-full border ${
-              isLockedOut ? "text-rose-400 bg-rose-500/10 border-rose-500/30" : "text-[#2DD4BF] bg-[#2DD4BF]/10 border-[#2DD4BF]/20"
-            }`}>
-              {isLockedOut ? "Lockdown" : "Protected"}
-            </span>
-          </div>
-
-          <div className="relative mb-3 group">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#0F766E] to-[#2DD4BF] p-[2px] shadow-lg shadow-[#14B8A6]/25 transition-transform duration-300 group-hover:scale-105">
-              <div className="w-full h-full bg-[#071923] rounded-[14px] flex items-center justify-center">
-                <Waves className="w-8 h-8 text-[#2DD4BF]" />
-              </div>
-            </div>
-          </div>
-
-          <h1 className="text-xl font-black tracking-tight text-white text-center">
-            {settings.hotelName || "Thalassa Resort"}
-          </h1>
-          <p className="text-[10px] font-bold text-[#2DD4BF] uppercase tracking-widest mt-0.5">
-            {settings.tagline || "Hospitality OS & POS"}
-          </p>
-
-          <div className="my-6 flex flex-col items-center w-full">
-            <div className="flex items-center gap-3.5 h-10">
-              {[0, 1, 2, 3].map((idx) => {
-                const isFilled = pinInput.length > idx;
-                return (
-                  <div
-                    key={idx}
-                    className={`transition-all duration-200 rounded-full flex items-center justify-center ${
-                      isFilled
-                        ? "w-4 h-4 bg-[#14B8A6] shadow-[0_0_16px_#14B8A6] scale-125 border-none"
-                        : "w-3.5 h-3.5 border-2 border-white/20 bg-transparent"
-                    }`}
-                  />
-                );
-              })}
-            </div>
-            <div className="h-6 flex items-center mt-2 text-center">
-              {pinError ? (
-                <span className="text-xs font-bold text-rose-400 flex items-center gap-1.5 animate-pulse">
-                  <ShieldAlert className="w-3.5 h-3.5 shrink-0" /> {pinError}
-                </span>
-              ) : (
-                <span className="text-[11px] text-slate-400 font-medium tracking-wide">
-                  Enter 4-Digit Security PIN
-                </span>
-              )}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-2.5 w-full max-w-[280px]">
-            {keypadButtons.map(({ key, sub }) => {
-              const isAction = key === "Clear" || key === "Del";
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  disabled={isLockedOut}
-                  onClick={() => {
-                    if (key === "Clear") {
-                      setPinInput("");
-                      setPinError("");
-                    } else if (key === "Del") {
-                      setPinInput((prev) => prev.slice(0, -1));
-                      setPinError("");
-                    } else {
-                      handlePinDigit(key);
-                    }
-                  }}
-                  className={`h-15 rounded-2xl active:scale-95 transition-all flex flex-col items-center justify-center border shadow-sm ${
-                    isLockedOut
-                      ? "opacity-30 cursor-not-allowed border-white/5 bg-white/[0.02]"
-                      : isAction
-                      ? "bg-white/[0.03] hover:bg-white/[0.08] border-white/5 text-slate-400 hover:text-white"
-                      : "bg-white/[0.06] hover:bg-white/[0.14] active:bg-[#14B8A6]/20 border-white/10 hover:border-white/20 text-slate-100"
-                  }`}
-                >
-                  {key === "Del" ? (
-                    <Delete className="w-5 h-5 text-slate-300" />
-                  ) : (
-                    <>
-                      <span className={`font-bold ${isAction ? "text-xs uppercase tracking-wider text-rose-300" : "text-xl leading-none"}`}>
-                        {key}
-                      </span>
-                      {sub && (
-                        <span className="text-[8px] font-semibold tracking-widest text-slate-400 mt-1">
-                          {sub}
-                        </span>
-                      )}
-                    </>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          {safeOperationalStaff && safeOperationalStaff.length > 0 && !isLockedOut && (
-            <div className="mt-6 pt-4 border-t border-white/[0.08] w-full">
-              <div className="flex justify-between items-center mb-2 px-1">
-                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                  Operational Staff Quick-Login:
-                </span>
-                <span className="text-[9px] text-slate-500">Staff Only</span>
-              </div>
-              <div className="grid grid-cols-2 gap-1.5">
-                {safeOperationalStaff.slice(0, 4).map((s) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => {
-                      setPinInput(String(s.pin));
-                      verifyPin(s.pin);
-                    }}
-                    className="flex items-center gap-2 p-1.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-[#14B8A6]/40 transition-all text-left group"
-                  >
-                    <div className="w-6 h-6 rounded-lg bg-[#0F766E]/50 border border-[#2DD4BF]/30 flex items-center justify-center text-[10px] font-bold text-[#2DD4BF] shrink-0 group-hover:scale-105 transition-transform">
-                      {s.name.charAt(0)}
-                    </div>
-                    <div className="truncate">
-                      <div className="text-[10px] font-bold text-slate-200 truncate group-hover:text-white leading-tight">
-                        {s.name.split(" ")[0]}
-                      </div>
-                      <div className="text-[8px] text-slate-400 font-mono leading-none">
-                        {s.role}
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex h-screen overflow-hidden bg-[#FAF9F5] text-[#091D26]">
-      {/* DESKTOP SIDEBAR */}
-      <aside className="no-print hidden md:flex flex-col w-64 bg-[#091D26] border-r border-[#0F2D3C] text-white shrink-0">
+      {/* DESKTOP SIDEBAR (Visible on screens >= 1024px / lg) */}
+      <aside className="no-print hidden lg:flex flex-col w-64 bg-[#091D26] border-r border-[#0F2D3C] text-white shrink-0">
         <div className="p-6 border-b border-[#0F2D3C] flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-[#14B8A6] flex items-center justify-center text-white font-bold">
             <Building2 className="w-5 h-5" />
@@ -2177,15 +2018,7 @@ export default function App() {
         </div>
 
         <nav className="flex-1 px-3 py-6 space-y-1.5 overflow-y-auto">
-          {[
-            { id: "frontdesk", label: "Front Desk & Status", icon: Bed },
-            { id: "active-orders", label: "Active Bills & Tabs", icon: Receipt },
-            { id: "inventory", label: "Stock & Minibar", icon: Boxes },
-            { id: "reports", label: "Reports & Analytics", icon: BarChart3 },
-            { id: "room-admin", label: "Room Management", icon: SlidersHorizontal },
-            { id: "staff", label: "Staff & Attendance", icon: Users },
-            { id: "settings", label: "Hotel Settings", icon: Settings },
-          ].map(({ id, label, icon: Icon }) => {
+          {NAVIGATION_ITEMS.map(({ id, label, icon: Icon }) => {
             if (!canAccessTab(id)) return null;
             return (
               <button
@@ -2203,20 +2036,124 @@ export default function App() {
         </nav>
       </aside>
 
+      {/* MOBILE & TABLET SLIDE-OVER DRAWER OVERLAY */}
+      {mobileMenuOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 lg:hidden transition-opacity"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* MOBILE & TABLET SLIDE-OVER MENU DRAWER */}
+      <div
+        className={`fixed top-0 left-0 bottom-0 w-72 bg-[#091D26] text-white z-50 lg:hidden flex flex-col transform transition-transform duration-300 ease-in-out ${
+          mobileMenuOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"
+        }`}
+      >
+        <div className="p-5 border-b border-[#0F2D3C] flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-[#14B8A6] flex items-center justify-center text-white">
+              <Building2 className="w-4 h-4" />
+            </div>
+            <div className="truncate">
+              <h2 className="text-sm font-bold truncate leading-tight">{settings.hotelName}</h2>
+              <span className="text-[10px] text-[#2DD4BF] font-mono block">Resort POS</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(false)}
+            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-4 border-b border-[#0F2D3C] bg-white/5 flex items-center justify-between">
+          <div className="truncate">
+            <span className="text-[9px] uppercase font-bold text-[#2DD4BF] flex items-center gap-1">
+              <ShieldCheck className="w-3 h-3" /> {currentUser.role}
+            </span>
+            <div className="text-xs font-bold text-white truncate">{currentUser.name}</div>
+          </div>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="p-1.5 rounded-lg bg-white/10 hover:bg-rose-600 text-slate-300 hover:text-white"
+            title="Lock Terminal"
+          >
+            <Lock className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto">
+          {NAVIGATION_ITEMS.map(({ id, label, icon: Icon }) => {
+            if (!canAccessTab(id)) return null;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => {
+                  setActiveTab(id);
+                  setMobileMenuOpen(false);
+                }}
+                className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-bold transition-all text-left ${
+                  activeTab === id
+                    ? "bg-[#0D9488] text-white shadow-md"
+                    : "text-slate-300 hover:bg-[#0F2D3C] hover:text-white"
+                }`}
+              >
+                <Icon className="w-4 h-4 shrink-0 text-[#2DD4BF]" />
+                <span className="truncate">{label}</span>
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="p-4 border-t border-[#0F2D3C]">
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white/5 hover:bg-rose-600 text-xs font-bold text-slate-300 hover:text-white transition-colors"
+          >
+            <Lock className="w-4 h-4" /> Lock Out Terminal
+          </button>
+        </div>
+      </div>
+
       {/* VIEWPORT */}
       <div className="flex-1 flex flex-col h-full overflow-hidden w-full">
-        {/* MOBILE TOPBAR */}
-        <header className="no-print md:hidden flex items-center justify-between p-4 bg-[#091D26] text-white border-b border-[#0F2D3C]">
-          <div className="flex items-center gap-2">
-            <Building2 className="w-5 h-5 text-[#2DD4BF]" />
-            <span className="font-bold text-sm truncate">{settings.hotelName}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={handleLogout} className="p-1 rounded bg-white/10 text-slate-300">
-              <Lock className="w-4 h-4" />
+        {/* MOBILE & TABLET TOPBAR (Visible on screens < 1024px) */}
+        <header className="no-print lg:hidden flex items-center justify-between p-3.5 sm:p-4 bg-[#091D26] text-white border-b border-[#0F2D3C] shrink-0">
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(true)}
+              className="p-2 -ml-1 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-[#2DD4BF] focus:outline-none"
+              aria-label="Open Navigation Menu"
+            >
+              <Menu className="w-5 h-5" />
             </button>
-            <button type="button" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-1 rounded text-slate-300">
-              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            <div className="truncate">
+              <span className="font-bold text-sm block leading-tight truncate">{settings.hotelName}</span>
+              <span className="text-[10px] text-[#2DD4BF] font-mono block leading-tight">
+                {NAVIGATION_ITEMS.find((n) => n.id === activeTab)?.label}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="text-right hidden sm:block">
+              <span className="text-[10px] text-slate-400 block leading-tight">{currentUser.name}</span>
+              <span className="text-[9px] text-[#2DD4BF] font-bold block leading-tight">{currentUser.role}</span>
+            </div>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="p-2 rounded-xl bg-white/10 hover:bg-rose-600 text-slate-300 hover:text-white"
+              title="Lock Terminal"
+            >
+              <Lock className="w-4 h-4" />
             </button>
           </div>
         </header>
@@ -2538,9 +2475,7 @@ export default function App() {
             </div>
           )}
 
-          {/* =========================================================
-              TAB 2: ACTIVE BILLS & TABS (WITH ACTIVE FOLIO ITEM POSTING)
-              ========================================================= */}
+          {/* TAB 2: ACTIVE BILLS */}
           {activeTab === "active-orders" && canAccessTab("active-orders") && (
             <div className="max-w-7xl mx-auto space-y-6">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
@@ -2571,7 +2506,7 @@ export default function App() {
                           </span>
                         </div>
 
-                        {/* List of current folio items */}
+                        {/* Current Folio Items list */}
                         <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
                           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Current Folio Items:</p>
                           {room.orderItems && room.orderItems.length > 0 ? (
@@ -2599,7 +2534,7 @@ export default function App() {
                           )}
                         </div>
 
-                        {/* Quick-add Minibar Chips */}
+                        {/* Quick Add Minibar */}
                         <div className="pt-2 border-t border-[#F3EFE6]">
                           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Quick Add Minibar:</p>
                           <div className="flex flex-wrap gap-1.5">
@@ -2617,7 +2552,6 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* Card Bottom Actions */}
                       <div className="space-y-2 pt-3 border-t border-[#F3EFE6]">
                         <button
                           type="button"
@@ -2767,7 +2701,7 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB: REPORTS & ANALYTICS (RESTRICTED TO GENERAL MANAGER) */}
+          {/* TAB: REPORTS & ANALYTICS (GM ONLY) */}
           {activeTab === "reports" && isGeneralManager && (
             <div className="max-w-7xl mx-auto space-y-6 pb-16">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -3649,7 +3583,6 @@ export default function App() {
                                 </button>
                               </td>
 
-                              {/* One-Click Working Payslip Print Button */}
                               <td className="p-3.5 text-center">
                                 <button
                                   type="button"
