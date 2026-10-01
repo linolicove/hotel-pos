@@ -876,15 +876,15 @@ export default function App() {
   const isHousekeeping = roleLower.includes("housekeeping");
 
   const canAccessTab = (tabId) => {
-  if (!currentUser || !currentUser.role) return false;
-  if (isGeneralManager) return true;
-  if (tabId === "frontdesk") return true;
-  if (tabId === "active-orders" && (isFrontDesk || isGeneralManager)) return true;
-  if (tabId === "inventory" && (isFrontDesk || isGeneralManager || isHousekeeping)) return true;
-  if (tabId === "reports" && isGeneralManager) return true;
-  if (tabId === "staff") return true;
-  return false;
-};
+    if (!currentUser) return false;
+    if (isGeneralManager) return true;
+    if (tabId === "frontdesk") return true;
+    if (tabId === "active-orders" && (isFrontDesk || isGeneralManager)) return true;
+    if (tabId === "inventory" && (isFrontDesk || isGeneralManager || isHousekeeping)) return true;
+    if (tabId === "reports" && isGeneralManager) return true;
+    if (tabId === "staff") return true;
+    return false;
+  };
 
   // --- CAMERA & FILE UPLOAD ENGINE ---
   const startCamera = async () => {
@@ -1483,7 +1483,7 @@ export default function App() {
     setActiveTab("frontdesk");
   };
 
-  // Settings & Database Backup (Strictly General Manager / Admin)
+  // Settings & Database Backup
   const handleSaveAllSettings = () => {
     if (!isGeneralManager) {
       alert("Access Denied: Only General Manager can save system settings.");
@@ -1753,7 +1753,6 @@ export default function App() {
     printIsolatedDocument(html, "a4");
   };
 
-  // Staff Creation (General Manager only)
   const handleCreateStaff = (e) => {
     e.preventDefault();
     if (!isGeneralManager) {
@@ -1834,32 +1833,6 @@ export default function App() {
     setGuestPhoto(null);
     setCheckInModalRoom(null);
     setGuestForm({ name: "", phone: "", nights: 1, customRate: "" });
-  };
-
-  const handleAddItemToOrder = (e) => {
-    e.preventDefault();
-    if (!newItemDesc || !newItemPrice || !currentRoom) return;
-    const unitPrice = parseFloat(newItemPrice);
-    const quantity = parseInt(newItemQty, 10) || 1;
-    const now = new Date();
-    const itemId = `itm_${Date.now()}`;
-    const newItem = {
-      id: itemId,
-      description: sanitizeInput(newItemDesc),
-      quantity,
-      unitPrice,
-      total: unitPrice * quantity,
-      timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
-    };
-    set(ref(rtdb, `rooms/${currentRoom.id}/orderItems/${itemId}`), newItem);
-    setNewItemDesc("");
-    setNewItemPrice("");
-    setNewItemQty("1");
-  };
-
-  const handleRemoveOrderItem = (itemId) => {
-    if (!currentRoom) return;
-    remove(ref(rtdb, `rooms/${currentRoom.id}/orderItems/${itemId}`));
   };
 
   const handleInitiateSettleOrder = (room) => {
@@ -1997,8 +1970,183 @@ export default function App() {
     );
   }
 
+  // --- PIN TERMINAL LOCK SCREEN ---
+  if (!currentUser) {
+    const keypadButtons = [
+      { key: "1", sub: "" },
+      { key: "2", sub: "ABC" },
+      { key: "3", sub: "DEF" },
+      { key: "4", sub: "GHI" },
+      { key: "5", sub: "JKL" },
+      { key: "6", sub: "MNO" },
+      { key: "7", sub: "PQRS" },
+      { key: "8", sub: "TUV" },
+      { key: "9", sub: "WXYZ" },
+      { key: "Clear", sub: "" },
+      { key: "0", sub: "+" },
+      { key: "Del", sub: "" },
+    ];
+
+    const isLockedOut = Date.now() < pinLockoutUntil;
+
+    const safeOperationalStaff = staff.filter(s => {
+      const r = (s.role || "").toLowerCase();
+      return !r.includes("admin") && !r.includes("general manager");
+    });
+
+    return (
+      <div className="relative min-h-screen w-full flex items-center justify-center p-4 sm:p-6 overflow-hidden bg-[#040D14] text-white select-none">
+        <div className="absolute -top-32 -left-32 w-96 h-96 bg-[#0D9488]/20 rounded-full blur-[130px] pointer-events-none" />
+        <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-[#14B8A6]/15 rounded-full blur-[130px] pointer-events-none" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[550px] h-[550px] bg-[#0284C7]/10 rounded-full blur-[160px] pointer-events-none" />
+
+        <div className="relative z-10 w-full max-w-sm bg-white/[0.04] backdrop-blur-2xl border border-white/10 rounded-[32px] p-6 sm:p-8 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.7)] flex flex-col items-center">
+          <div className="w-full flex items-center justify-between pb-4 mb-4 border-b border-white/[0.08] text-[11px] text-slate-400">
+            <div className="flex items-center gap-2">
+              <span className={`w-2 h-2 rounded-full ${isLockedOut ? "bg-rose-500 animate-ping" : "bg-emerald-400 animate-pulse"}`} />
+              <span className="font-mono tracking-wider text-slate-300">
+                {settings.terminalId || "TERMINAL-01"}
+              </span>
+            </div>
+            <span className={`text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-full border ${
+              isLockedOut ? "text-rose-400 bg-rose-500/10 border-rose-500/30" : "text-[#2DD4BF] bg-[#2DD4BF]/10 border-[#2DD4BF]/20"
+            }`}>
+              {isLockedOut ? "Lockdown" : "Protected"}
+            </span>
+          </div>
+
+          <div className="relative mb-3 group">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#0F766E] to-[#2DD4BF] p-[2px] shadow-lg shadow-[#14B8A6]/25 transition-transform duration-300 group-hover:scale-105">
+              <div className="w-full h-full bg-[#071923] rounded-[14px] flex items-center justify-center">
+                <Waves className="w-8 h-8 text-[#2DD4BF]" />
+              </div>
+            </div>
+          </div>
+
+          <h1 className="text-xl font-black tracking-tight text-white text-center">
+            {settings.hotelName || "Thalassa Resort"}
+          </h1>
+          <p className="text-[10px] font-bold text-[#2DD4BF] uppercase tracking-widest mt-0.5">
+            {settings.tagline || "Hospitality OS & POS"}
+          </p>
+
+          <div className="my-6 flex flex-col items-center w-full">
+            <div className="flex items-center gap-3.5 h-10">
+              {[0, 1, 2, 3].map((idx) => {
+                const isFilled = pinInput.length > idx;
+                return (
+                  <div
+                    key={idx}
+                    className={`transition-all duration-200 rounded-full flex items-center justify-center ${
+                      isFilled
+                        ? "w-4 h-4 bg-[#14B8A6] shadow-[0_0_16px_#14B8A6] scale-125 border-none"
+                        : "w-3.5 h-3.5 border-2 border-white/20 bg-transparent"
+                    }`}
+                  />
+                );
+              })}
+            </div>
+            <div className="h-6 flex items-center mt-2 text-center">
+              {pinError ? (
+                <span className="text-xs font-bold text-rose-400 flex items-center gap-1.5 animate-pulse">
+                  <ShieldAlert className="w-3.5 h-3.5 shrink-0" /> {pinError}
+                </span>
+              ) : (
+                <span className="text-[11px] text-slate-400 font-medium tracking-wide">
+                  Enter 4-Digit Security PIN
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2.5 w-full max-w-[280px]">
+            {keypadButtons.map(({ key, sub }) => {
+              const isAction = key === "Clear" || key === "Del";
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  disabled={isLockedOut}
+                  onClick={() => {
+                    if (key === "Clear") {
+                      setPinInput("");
+                      setPinError("");
+                    } else if (key === "Del") {
+                      setPinInput((prev) => prev.slice(0, -1));
+                      setPinError("");
+                    } else {
+                      handlePinDigit(key);
+                    }
+                  }}
+                  className={`h-15 rounded-2xl active:scale-95 transition-all flex flex-col items-center justify-center border shadow-sm ${
+                    isLockedOut
+                      ? "opacity-30 cursor-not-allowed border-white/5 bg-white/[0.02]"
+                      : isAction
+                      ? "bg-white/[0.03] hover:bg-white/[0.08] border-white/5 text-slate-400 hover:text-white"
+                      : "bg-white/[0.06] hover:bg-white/[0.14] active:bg-[#14B8A6]/20 border-white/10 hover:border-white/20 text-slate-100"
+                  }`}
+                >
+                  {key === "Del" ? (
+                    <Delete className="w-5 h-5 text-slate-300" />
+                  ) : (
+                    <>
+                      <span className={`font-bold ${isAction ? "text-xs uppercase tracking-wider text-rose-300" : "text-xl leading-none"}`}>
+                        {key}
+                      </span>
+                      {sub && (
+                        <span className="text-[8px] font-semibold tracking-widest text-slate-400 mt-1">
+                          {sub}
+                        </span>
+                      )}
+                    </>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {safeOperationalStaff && safeOperationalStaff.length > 0 && !isLockedOut && (
+            <div className="mt-6 pt-4 border-t border-white/[0.08] w-full">
+              <div className="flex justify-between items-center mb-2 px-1">
+                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                  Operational Staff Quick-Login:
+                </span>
+                <span className="text-[9px] text-slate-500">Staff Only</span>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {safeOperationalStaff.slice(0, 4).map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => {
+                      setPinInput(String(s.pin));
+                      verifyPin(s.pin);
+                    }}
+                    className="flex items-center gap-2 p-1.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-[#14B8A6]/40 transition-all text-left group"
+                  >
+                    <div className="w-6 h-6 rounded-lg bg-[#0F766E]/50 border border-[#2DD4BF]/30 flex items-center justify-center text-[10px] font-bold text-[#2DD4BF] shrink-0 group-hover:scale-105 transition-transform">
+                      {s.name.charAt(0)}
+                    </div>
+                    <div className="truncate">
+                      <div className="text-[10px] font-bold text-slate-200 truncate group-hover:text-white leading-tight">
+                        {s.name.split(" ")[0]}
+                      </div>
+                      <div className="text-[8px] text-slate-400 font-mono leading-none">
+                        {s.role}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="relative min-h-screen md:h-screen flex flex-col md:flex-row bg-[#FAF9F5] text-[#091D26] overflow-x-hidden">
+    <div className="flex h-screen overflow-hidden bg-[#FAF9F5] text-[#091D26]">
       {/* DESKTOP SIDEBAR */}
       <aside className="no-print hidden md:flex flex-col w-64 bg-[#091D26] border-r border-[#0F2D3C] text-white shrink-0">
         <div className="p-6 border-b border-[#0F2D3C] flex items-center gap-3">
@@ -2012,12 +2160,12 @@ export default function App() {
         </div>
 
         <div className="p-4 border-b border-[#0F2D3C] bg-white/5 flex items-center justify-between">
-  <div className="truncate">
-    <span className="text-[10px] uppercase font-bold text-[#2DD4BF] flex items-center gap-1">
-      <ShieldCheck className="w-3 h-3" /> {currentUser?.role || "Staff"}
-    </span>
-    <div className="text-sm font-bold text-white truncate">{currentUser?.name || "Guest"}</div>
-  </div>
+          <div className="truncate">
+            <span className="text-[10px] uppercase font-bold text-[#2DD4BF] flex items-center gap-1">
+              <ShieldCheck className="w-3 h-3" /> {currentUser.role}
+            </span>
+            <div className="text-sm font-bold text-white truncate">{currentUser.name}</div>
+          </div>
           <button
             type="button"
             onClick={handleLogout}
@@ -2055,100 +2203,25 @@ export default function App() {
         </nav>
       </aside>
 
-      {/* VIEWPORT & MOBILE CONTAINER */}
-      <div className="flex-1 flex flex-col min-w-0 md:h-screen md:overflow-hidden">
-        {/* MOBILE & TABLET TOPBAR */}
-        <header className="no-print md:hidden flex items-center justify-between p-4 bg-[#091D26] text-white border-b border-[#0F2D3C] sticky top-0 z-40 shadow-md">
+      {/* VIEWPORT */}
+      <div className="flex-1 flex flex-col h-full overflow-hidden w-full">
+        {/* MOBILE TOPBAR */}
+        <header className="no-print md:hidden flex items-center justify-between p-4 bg-[#091D26] text-white border-b border-[#0F2D3C]">
           <div className="flex items-center gap-2">
             <Building2 className="w-5 h-5 text-[#2DD4BF]" />
-            <span className="font-bold text-sm truncate max-w-[180px]">{settings.hotelName}</span>
+            <span className="font-bold text-sm truncate">{settings.hotelName}</span>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="p-1.5 rounded-lg bg-white/10 text-slate-300 hover:text-white"
-              title="Lock Terminal"
-            >
+            <button type="button" onClick={handleLogout} className="p-1 rounded bg-white/10 text-slate-300">
               <Lock className="w-4 h-4" />
             </button>
-            <button
-              type="button"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-1.5 rounded-lg bg-[#0F2D3C] text-white active:scale-95 transition-all"
-              aria-label="Toggle navigation menu"
-            >
-              {mobileMenuOpen ? <X className="w-6 h-6 text-[#2DD4BF]" /> : <Menu className="w-6 h-6 text-white" />}
+            <button type="button" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-1 rounded text-slate-300">
+              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
           </div>
         </header>
 
-        {/* MOBILE & TABLET EXPANDED DRAWER MENU */}
-{mobileMenuOpen && (
-  <div className="md:hidden fixed inset-0 top-[61px] z-50 bg-[#091D26]/95 backdrop-blur-xl flex flex-col justify-between p-5 text-white animate-in slide-in-from-top-4 duration-200">
-    <div className="space-y-4">
-      <div className="flex items-center justify-between pb-3 border-b border-white/10">
-        <div>
-          <span className="text-[10px] uppercase font-bold text-[#2DD4BF] flex items-center gap-1">
-            <ShieldCheck className="w-3.5 h-3.5" /> {currentUser?.role || "Staff"}
-          </span>
-          <div className="text-sm font-bold text-white">{currentUser?.name || "Guest"}</div>
-        </div>
-                <button
-                  type="button"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="p-1.5 rounded-lg bg-white/10 text-slate-300"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <nav className="space-y-1.5 max-h-[70vh] overflow-y-auto pr-1">
-                {[
-                  { id: "frontdesk", label: "Front Desk & Status", icon: Bed },
-                  { id: "active-orders", label: "Active Bills & Tabs", icon: Receipt },
-                  { id: "inventory", label: "Stock & Minibar", icon: Boxes },
-                  { id: "reports", label: "Reports & Analytics", icon: BarChart3 },
-                  { id: "room-admin", label: "Room Management", icon: SlidersHorizontal },
-                  { id: "staff", label: "Staff & Attendance", icon: Users },
-                  { id: "settings", label: "Hotel Settings", icon: Settings },
-                ].map(({ id, label, icon: Icon }) => {
-                  if (!canAccessTab(id)) return null;
-                  return (
-                    <button
-                      key={id}
-                      type="button"
-                      onClick={() => {
-                        setActiveTab(id);
-                        setMobileMenuOpen(false);
-                      }}
-                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-bold transition-all ${
-                        activeTab === id
-                          ? "bg-[#0D9488] text-white shadow-md shadow-[#0D9488]/30"
-                          : "text-slate-200 hover:bg-[#0F2D3C] hover:text-white"
-                      }`}
-                    >
-                      <Icon className="w-5 h-5" /> {label}
-                    </button>
-                  );
-                })}
-              </nav>
-            </div>
-
-            <div className="pt-4 border-t border-white/10">
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-rose-600/20 text-rose-300 border border-rose-500/30 rounded-2xl text-xs font-bold"
-              >
-                <Lock className="w-4 h-4" /> Lock & Exit Terminal
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* MAIN SCROLLABLE DASHBOARD VIEWPORT */}
-        <main className="no-print flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 lg:p-8">
+        <main className="no-print flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           {/* TAB 1: FRONT DESK */}
           {activeTab === "frontdesk" && (
             <div className="max-w-7xl mx-auto space-y-6 pb-12">
@@ -2465,7 +2538,9 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 2: ACTIVE BILLS & TABS */}
+          {/* =========================================================
+              TAB 2: ACTIVE BILLS & TABS (WITH ACTIVE FOLIO ITEM POSTING)
+              ========================================================= */}
           {activeTab === "active-orders" && canAccessTab("active-orders") && (
             <div className="max-w-7xl mx-auto space-y-6">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
@@ -3574,7 +3649,7 @@ export default function App() {
                                 </button>
                               </td>
 
-                              {/* Working Payslip Print Button */}
+                              {/* One-Click Working Payslip Print Button */}
                               <td className="p-3.5 text-center">
                                 <button
                                   type="button"
