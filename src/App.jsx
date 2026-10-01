@@ -1483,7 +1483,7 @@ export default function App() {
     setActiveTab("frontdesk");
   };
 
-  // Settings & Database Backup
+  // Settings & Database Backup (Strictly General Manager / Admin)
   const handleSaveAllSettings = () => {
     if (!isGeneralManager) {
       alert("Access Denied: Only General Manager can save system settings.");
@@ -1706,6 +1706,20 @@ export default function App() {
     setCashTendered("");
   };
 
+  const handlePrintPayslip = (staffMember) => {
+    try {
+      const html = buildPayslipHtml({
+        settings,
+        staffMember,
+        payPeriodStr: `${selectedDate.slice(0, 7)} Monthly Cycle`
+      });
+      printIsolatedDocument(html, "a4");
+    } catch (err) {
+      console.error("Error generating payslip:", err);
+      alert("Unable to generate payslip document. Please ensure all employee fields are populated.");
+    }
+  };
+
   const handlePrintDailyAttendanceReport = () => {
     const reportList = filteredArchivedReports.map(rec => ({
       date: rec.date,
@@ -1739,6 +1753,7 @@ export default function App() {
     printIsolatedDocument(html, "a4");
   };
 
+  // Staff Creation (General Manager only)
   const handleCreateStaff = (e) => {
     e.preventDefault();
     if (!isGeneralManager) {
@@ -1783,6 +1798,132 @@ export default function App() {
 
   const updateRoomStatus = (roomId, status) => {
     update(ref(rtdb, `rooms/${roomId}`), { status });
+  };
+
+  const handleOpenOrderAndCheckIn = (e) => {
+    e.preventDefault();
+    if (!checkInModalRoom || !guestForm.name) return;
+    stopCamera();
+
+    const nights = guestForm.nights || 1;
+    const now = new Date();
+    const orderId = `ORD-${checkInModalRoom.number}-${Date.now().toString().slice(-4)}`;
+    const itemId = `itm_${Date.now()}`;
+    const dynamicRate = parseFloat(guestForm.customRate) || getDynamicRoomRate(checkInModalRoom, rooms);
+
+    const initialOrderItem = {
+      id: itemId,
+      description: `Room Stay (${nights} Night${nights > 1 ? "s" : ""} @ ${checkInModalRoom.rateStrategy?.toUpperCase() || "STANDARD"} Rate)`,
+      quantity: nights,
+      unitPrice: dynamicRate,
+      total: dynamicRate * nights,
+      timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
+    };
+    const roomPayload = {
+      status: "occupied",
+      orderId,
+      openedAt: now.toLocaleString(),
+      guestName: sanitizeInput(guestForm.name),
+      guestPhone: sanitizeInput(guestForm.phone),
+      guestPhoto: guestPhoto || null,
+      checkIn: now.toISOString().split("T")[0],
+      checkOut: new Date(Date.now() + nights * 86400000).toISOString().split("T")[0],
+      orderItems: { [itemId]: initialOrderItem },
+    };
+    update(ref(rtdb, `rooms/${checkInModalRoom.id}`), roomPayload);
+    setGuestPhoto(null);
+    setCheckInModalRoom(null);
+    setGuestForm({ name: "", phone: "", nights: 1, customRate: "" });
+  };
+
+  const handleAddItemToOrder = (e) => {
+    e.preventDefault();
+    if (!newItemDesc || !newItemPrice || !currentRoom) return;
+    const unitPrice = parseFloat(newItemPrice);
+    const quantity = parseInt(newItemQty, 10) || 1;
+    const now = new Date();
+    const itemId = `itm_${Date.now()}`;
+    const newItem = {
+      id: itemId,
+      description: sanitizeInput(newItemDesc),
+      quantity,
+      unitPrice,
+      total: unitPrice * quantity,
+      timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
+    };
+    set(ref(rtdb, `rooms/${currentRoom.id}/orderItems/${itemId}`), newItem);
+    setNewItemDesc("");
+    setNewItemPrice("");
+    setNewItemQty("1");
+  };
+
+  const handleRemoveOrderItem = (itemId) => {
+    if (!currentRoom) return;
+    remove(ref(rtdb, `rooms/${currentRoom.id}/orderItems/${itemId}`));
+  };
+
+  const handleInitiateSettleOrder = (room) => {
+    setSelectedRoomId(room.id);
+    setActiveTab("frontdesk");
+    setSettleOrderRoom(room);
+    setCashTendered("");
+  };
+
+  const handleDeleteActiveBill = (room) => {
+    if (!isGeneralManager) {
+      alert("Access Denied: Only General Manager can void an active bill.");
+      return;
+    }
+    if (window.confirm(`Void active bill for Room #${room.number}?`)) {
+      update(ref(rtdb, `rooms/${room.id}`), {
+        status: "available",
+        orderId: null,
+        openedAt: null,
+        guestName: "",
+        guestPhone: "",
+        guestPhoto: null,
+        checkIn: "",
+        checkOut: "",
+        orderItems: null,
+      });
+    }
+  };
+
+  const handleCreateRoom = (e) => {
+    e.preventDefault();
+    if (!isGeneralManager) {
+      alert("Access Denied: Only General Manager can create rooms.");
+      return;
+    }
+    if (!newRoomForm.number) return;
+    const roomId = String(newRoomForm.number).trim();
+    const baseVal = Number(newRoomForm.rate) || 18000;
+    const wkndVal = Number(newRoomForm.weekendRate) || Math.round(baseVal * 1.2);
+    const peakVal = Number(newRoomForm.peakRate) || Math.round(baseVal * 1.4);
+
+    const newRoomData = {
+      id: roomId,
+      number: roomId,
+      type: sanitizeInput(newRoomForm.type),
+      rate: baseVal,
+      weekendRate: wkndVal,
+      peakRate: peakVal,
+      rateStrategy: newRoomForm.rateStrategy || "standard",
+      status: newRoomForm.status,
+    };
+    set(ref(rtdb, `rooms/${roomId}`), newRoomData);
+    setShowAddRoomModal(false);
+    setNewRoomForm({ number: "", type: "Ocean Breeze King", rate: 18000, weekendRate: 22000, peakRate: 26000, rateStrategy: "standard", status: "available" });
+  };
+
+  const handleDeleteRoom = (roomId, roomNumber) => {
+    if (!isGeneralManager) {
+      alert("Access Denied: Only General Manager can delete rooms.");
+      return;
+    }
+    if (window.confirm(`Delete Room #${roomNumber}?`)) {
+      remove(ref(rtdb, `rooms/${roomId}`));
+    }
   };
 
   const filteredStaff = staff.filter((s) => {
@@ -1857,7 +1998,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#FAF9F5] text-[#091D26]">
+    <div className="relative min-h-screen md:h-screen flex flex-col md:flex-row bg-[#FAF9F5] text-[#091D26] overflow-x-hidden">
       {/* DESKTOP SIDEBAR */}
       <aside className="no-print hidden md:flex flex-col w-64 bg-[#091D26] border-r border-[#0F2D3C] text-white shrink-0">
         <div className="p-6 border-b border-[#0F2D3C] flex items-center gap-3">
@@ -1914,87 +2055,13 @@ export default function App() {
         </nav>
       </aside>
 
-      {/* MOBILE DRAWER OVERLAY & SLIDE-OUT MENU */}
-      {mobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 z-50 flex">
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
-            onClick={() => setMobileMenuOpen(false)}
-          />
-
-          {/* Drawer Menu Panel */}
-          <div className="relative w-72 max-w-[80vw] bg-[#091D26] text-white h-full flex flex-col z-10 shadow-2xl border-r border-[#0F2D3C]">
-            <div className="p-4 border-b border-[#0F2D3C] flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-[#2DD4BF]" />
-                <span className="font-bold text-sm truncate">{settings.hotelName}</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setMobileMenuOpen(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            <div className="p-4 border-b border-[#0F2D3C] bg-white/5 flex items-center justify-between">
-              <div className="truncate">
-                <span className="text-[10px] uppercase font-bold text-[#2DD4BF] flex items-center gap-1">
-                  <ShieldCheck className="w-3 h-3" /> {currentUser.role}
-                </span>
-                <div className="text-sm font-bold text-white truncate">{currentUser.name}</div>
-              </div>
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="p-1.5 rounded-lg bg-white/10 hover:bg-[#F43F5E] text-slate-300 hover:text-white"
-                title="Lock Terminal"
-              >
-                <Lock className="w-4 h-4" />
-              </button>
-            </div>
-
-            <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto" style={{ WebkitOverflowScrolling: "touch" }}>
-              {[
-                { id: "frontdesk", label: "Front Desk & Status", icon: Bed },
-                { id: "active-orders", label: "Active Bills & Tabs", icon: Receipt },
-                { id: "inventory", label: "Stock & Minibar", icon: Boxes },
-                { id: "reports", label: "Reports & Analytics", icon: BarChart3 },
-                { id: "room-admin", label: "Room Management", icon: SlidersHorizontal },
-                { id: "staff", label: "Staff & Attendance", icon: Users },
-                { id: "settings", label: "Hotel Settings", icon: Settings },
-              ].map(({ id, label, icon: Icon }) => {
-                if (!canAccessTab(id)) return null;
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => {
-                      setActiveTab(id);
-                      setMobileMenuOpen(false);
-                    }}
-                    className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-bold transition-all ${
-                      activeTab === id ? "bg-[#0D9488] text-white shadow-sm" : "text-slate-300 hover:bg-[#0F2D3C] hover:text-white"
-                    }`}
-                  >
-                    <Icon className="w-4 h-4 text-[#2DD4BF]" /> {label}
-                  </button>
-                );
-              })}
-            </nav>
-          </div>
-        </div>
-      )}
-
-      {/* VIEWPORT */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden w-full">
-        {/* MOBILE TOPBAR */}
-        <header className="no-print md:hidden flex items-center justify-between p-4 bg-[#091D26] text-white border-b border-[#0F2D3C] shrink-0">
+      {/* VIEWPORT & MOBILE CONTAINER */}
+      <div className="flex-1 flex flex-col min-w-0 md:h-screen md:overflow-hidden">
+        {/* MOBILE & TABLET TOPBAR */}
+        <header className="no-print md:hidden flex items-center justify-between p-4 bg-[#091D26] text-white border-b border-[#0F2D3C] sticky top-0 z-40 shadow-md">
           <div className="flex items-center gap-2">
             <Building2 className="w-5 h-5 text-[#2DD4BF]" />
-            <span className="font-bold text-sm truncate">{settings.hotelName}</span>
+            <span className="font-bold text-sm truncate max-w-[180px]">{settings.hotelName}</span>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -2007,19 +2074,81 @@ export default function App() {
             </button>
             <button
               type="button"
-              onClick={() => setMobileMenuOpen(true)}
-              className="p-1.5 rounded-lg bg-white/10 text-slate-300 hover:text-white"
-              title="Open Navigation Menu"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="p-1.5 rounded-lg bg-[#0F2D3C] text-white active:scale-95 transition-all"
+              aria-label="Toggle navigation menu"
             >
-              <Menu className="w-6 h-6" />
+              {mobileMenuOpen ? <X className="w-6 h-6 text-[#2DD4BF]" /> : <Menu className="w-6 h-6 text-white" />}
             </button>
           </div>
         </header>
 
-        <main
-          className="no-print flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8"
-          style={{ WebkitOverflowScrolling: "touch" }}
-        >
+        {/* MOBILE & TABLET EXPANDED DRAWER MENU */}
+        {mobileMenuOpen && (
+          <div className="md:hidden fixed inset-0 top-[61px] z-50 bg-[#091D26]/95 backdrop-blur-xl flex flex-col justify-between p-5 text-white animate-in slide-in-from-top-4 duration-200">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-[#2DD4BF] flex items-center gap-1">
+                    <ShieldCheck className="w-3.5 h-3.5" /> {currentUser.role}
+                  </span>
+                  <div className="text-sm font-bold text-white">{currentUser.name}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="p-1.5 rounded-lg bg-white/10 text-slate-300"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <nav className="space-y-1.5 max-h-[70vh] overflow-y-auto pr-1">
+                {[
+                  { id: "frontdesk", label: "Front Desk & Status", icon: Bed },
+                  { id: "active-orders", label: "Active Bills & Tabs", icon: Receipt },
+                  { id: "inventory", label: "Stock & Minibar", icon: Boxes },
+                  { id: "reports", label: "Reports & Analytics", icon: BarChart3 },
+                  { id: "room-admin", label: "Room Management", icon: SlidersHorizontal },
+                  { id: "staff", label: "Staff & Attendance", icon: Users },
+                  { id: "settings", label: "Hotel Settings", icon: Settings },
+                ].map(({ id, label, icon: Icon }) => {
+                  if (!canAccessTab(id)) return null;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => {
+                        setActiveTab(id);
+                        setMobileMenuOpen(false);
+                      }}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-bold transition-all ${
+                        activeTab === id
+                          ? "bg-[#0D9488] text-white shadow-md shadow-[#0D9488]/30"
+                          : "text-slate-200 hover:bg-[#0F2D3C] hover:text-white"
+                      }`}
+                    >
+                      <Icon className="w-5 h-5" /> {label}
+                    </button>
+                  );
+                })}
+              </nav>
+            </div>
+
+            <div className="pt-4 border-t border-white/10">
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="w-full flex items-center justify-center gap-2 py-3 bg-rose-600/20 text-rose-300 border border-rose-500/30 rounded-2xl text-xs font-bold"
+              >
+                <Lock className="w-4 h-4" /> Lock & Exit Terminal
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* MAIN SCROLLABLE DASHBOARD VIEWPORT */}
+        <main className="no-print flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 lg:p-8">
           {/* TAB 1: FRONT DESK */}
           {activeTab === "frontdesk" && (
             <div className="max-w-7xl mx-auto space-y-6 pb-12">
@@ -2563,7 +2692,7 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB: REPORTS & ANALYTICS */}
+          {/* TAB: REPORTS & ANALYTICS (RESTRICTED TO GENERAL MANAGER) */}
           {activeTab === "reports" && isGeneralManager && (
             <div className="max-w-7xl mx-auto space-y-6 pb-16">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -3445,7 +3574,7 @@ export default function App() {
                                 </button>
                               </td>
 
-                              {/* One-Click Working Payslip Print Button */}
+                              {/* Working Payslip Print Button */}
                               <td className="p-3.5 text-center">
                                 <button
                                   type="button"
