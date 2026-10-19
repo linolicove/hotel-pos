@@ -799,6 +799,7 @@ export default function App() {
     if (tabId === "frontdesk") return true;
     if (tabId === "active-orders" && (isFrontDesk || isGeneralManager)) return true;
     if (tabId === "inventory" && (isFrontDesk || isGeneralManager || isHousekeeping)) return true;
+    if (tabId === "room-admin" && isGeneralManager) return true; // <-- ADD THIS LINE
     if (tabId === "reports" && isGeneralManager) return true;
     if (tabId === "staff") return true;
     return false;
@@ -1105,13 +1106,27 @@ export default function App() {
       rate: baseVal,
       weekendRate: weekendVal,
       peakRate: peakVal,
-      rateStrategy: editRoomForm.rateStrategy
+      rateStrategy: editRoomForm.rateStrategy || "standard"
     };
 
-    update(ref(rtdb, `rooms/${editingDynamicRoom.id}`), updated);
+    // 1. Immediately update local state so the table reflects the change without waiting for RTDB
+    setRooms((prev) =>
+      prev.map((room) =>
+        room.id === editingDynamicRoom.id ? { ...room, ...updated } : room
+      )
+    );
+
+    // 2. Persist to Firebase Realtime Database
+    update(ref(rtdb, `rooms/${editingDynamicRoom.id}`), updated)
+      .catch((err) => {
+        console.error("Failed to update room rates:", err);
+        alert("Failed to save room rates to database: " + err.message);
+      });
+
+    // 3. Close the modal
     setEditingDynamicRoom(null);
   };
-
+  
   const handleQuickToggleStrategy = (room, nextStrategy) => {
     if (!isGeneralManager) {
       alert("Access Denied: Only General Manager can alter pricing strategies.");
@@ -4942,6 +4957,214 @@ export default function App() {
               <button type="submit" className="w-full bg-[#14B8A6] text-white font-bold py-3 rounded-lg">
                 Register Employee
               </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 1: EDIT DYNAMIC ROOM RATES */}
+      {editingDynamicRoom && isGeneralManager && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
+            <div className="flex justify-between items-center mb-4 pb-2 border-b">
+              <div>
+                <span className="text-xs uppercase font-bold text-[#0F766E]">Dynamic Pricing Setup</span>
+                <h3 className="font-bold text-lg text-[#091D26]">Room #{editingDynamicRoom.number}</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingDynamicRoom(null)}
+                className="text-slate-400 hover:text-black"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveDynamicRoomRates} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold mb-1 text-slate-700">Room Category / Type</label>
+                <input
+                  type="text"
+                  required
+                  value={editRoomForm.type}
+                  onChange={(e) => setEditRoomForm({ ...editRoomForm, type: e.target.value })}
+                  className="w-full border border-slate-300 rounded-xl p-2.5 bg-white font-medium"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Base (Weekday)</label>
+                  <input
+                    type="number"
+                    required
+                    value={editRoomForm.rate}
+                    onChange={(e) => setEditRoomForm({ ...editRoomForm, rate: e.target.value })}
+                    className="w-full border border-slate-300 rounded-xl p-2 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Weekend Tier</label>
+                  <input
+                    type="number"
+                    required
+                    value={editRoomForm.weekendRate}
+                    onChange={(e) => setEditRoomForm({ ...editRoomForm, weekendRate: e.target.value })}
+                    className="w-full border border-slate-300 rounded-xl p-2 font-bold text-amber-700"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Peak Season</label>
+                  <input
+                    type="number"
+                    required
+                    value={editRoomForm.peakRate}
+                    onChange={(e) => setEditRoomForm({ ...editRoomForm, peakRate: e.target.value })}
+                    className="w-full border border-slate-300 rounded-xl p-2 font-bold text-rose-700"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1 text-slate-700">Active Pricing Strategy</label>
+                <select
+                  value={editRoomForm.rateStrategy}
+                  onChange={(e) => setEditRoomForm({ ...editRoomForm, rateStrategy: e.target.value })}
+                  className="w-full border border-slate-300 rounded-xl p-2.5 bg-white font-bold"
+                >
+                  <option value="standard">Standard (Use Base Rate)</option>
+                  <option value="weekend">Weekend Surge Tier</option>
+                  <option value="peak">Peak Season Surge Tier</option>
+                  <option value="auto">Auto Occupancy-Based Dynamic Surge</option>
+                </select>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingDynamicRoom(null)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 py-3 rounded-xl font-bold text-slate-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-[#14B8A6] hover:bg-[#0D9488] text-white py-3 rounded-xl font-bold shadow-md"
+                >
+                  Save Rates
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: ADD ROOM UNIT */}
+      {showAddRoomModal && isGeneralManager && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 border border-slate-200 shadow-2xl">
+            <div className="flex justify-between items-center mb-4 pb-2 border-b">
+              <div>
+                <span className="text-xs uppercase font-bold text-[#0F766E]">Room Catalog</span>
+                <h3 className="font-bold text-lg text-[#091D26]">Add Room & Dynamic Rates</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddRoomModal(false)}
+                className="text-slate-400 hover:text-black"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateRoom} className="space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Room Number</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. 301"
+                    value={newRoomForm.number}
+                    onChange={(e) => setNewRoomForm({ ...newRoomForm, number: e.target.value })}
+                    className="w-full border border-slate-300 rounded-xl p-2.5 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Room Category / Type</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Ocean Breeze King"
+                    value={newRoomForm.type}
+                    onChange={(e) => setNewRoomForm({ ...newRoomForm, type: e.target.value })}
+                    className="w-full border border-slate-300 rounded-xl p-2.5"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Base ({settings.currency})</label>
+                  <input
+                    type="number"
+                    required
+                    value={newRoomForm.rate}
+                    onChange={(e) => setNewRoomForm({ ...newRoomForm, rate: e.target.value })}
+                    className="w-full border border-slate-300 rounded-xl p-2 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Weekend ({settings.currency})</label>
+                  <input
+                    type="number"
+                    required
+                    value={newRoomForm.weekendRate}
+                    onChange={(e) => setNewRoomForm({ ...newRoomForm, weekendRate: e.target.value })}
+                    className="w-full border border-slate-300 rounded-xl p-2 font-bold text-amber-700"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Peak ({settings.currency})</label>
+                  <input
+                    type="number"
+                    required
+                    value={newRoomForm.peakRate}
+                    onChange={(e) => setNewRoomForm({ ...newRoomForm, peakRate: e.target.value })}
+                    className="w-full border border-slate-300 rounded-xl p-2 font-bold text-rose-700"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1 text-slate-700">Initial Pricing Strategy</label>
+                <select
+                  value={newRoomForm.rateStrategy}
+                  onChange={(e) => setNewRoomForm({ ...newRoomForm, rateStrategy: e.target.value })}
+                  className="w-full border border-slate-300 rounded-xl p-2.5 bg-white font-bold"
+                >
+                  <option value="standard">Standard (Base Rate)</option>
+                  <option value="weekend">Weekend Surge Tier</option>
+                  <option value="peak">Peak Season Surge Tier</option>
+                  <option value="auto">Auto Occupancy-Based Dynamic Surge</option>
+                </select>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddRoomModal(false)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 py-3 rounded-xl font-bold text-slate-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-[#14B8A6] hover:bg-[#0D9488] text-white py-3 rounded-xl font-bold shadow-md"
+                >
+                  Register Room
+                </button>
+              </div>
             </form>
           </div>
         </div>
