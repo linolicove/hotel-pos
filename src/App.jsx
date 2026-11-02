@@ -272,17 +272,19 @@ function printIsolatedDocument(htmlBody, mode = "thermal") {
     iframe.style.position = "fixed";
     iframe.style.right = "0";
     iframe.style.bottom = "0";
-    iframe.style.width = "0px";
-    iframe.style.height = "0px";
+    iframe.style.width = "1px";
+    iframe.style.height = "1px";
     iframe.style.border = "none";
+    iframe.style.opacity = "0.01";
     document.body.appendChild(iframe);
 
-    const doc = iframe.contentWindow.document;
+    const doc = iframe.contentWindow || iframe.contentDocument;
+    const targetDoc = doc.document ? doc.document : doc;
 
     const styles = `
       <style>
         @page {
-          size: ${mode === "thermal" ? "72mm auto" : "A4 portrait"};
+          size: ${mode === "thermal" ? "80mm auto" : "A4 portrait"};
           margin: ${mode === "thermal" ? "0mm" : "12mm"};
         }
         html, body {
@@ -295,9 +297,9 @@ function printIsolatedDocument(htmlBody, mode = "thermal") {
           print-color-adjust: exact !important;
         }
         .thermal-container {
-          width: 68mm;
+          width: 72mm;
           margin: 0 auto;
-          padding: 2mm 0;
+          padding: 3mm 0;
           font-size: 11px;
           line-height: 1.25;
         }
@@ -316,23 +318,26 @@ function printIsolatedDocument(htmlBody, mode = "thermal") {
       </style>
     `;
 
-    doc.open();
-    doc.write(`<!DOCTYPE html><html><head><title>Print Preview</title>${styles}</head><body>${htmlBody}</body></html>`);
-    doc.close();
+    targetDoc.open();
+    targetDoc.write(`<!DOCTYPE html><html><head><title>Print Invoice</title>${styles}</head><body>${htmlBody}</body></html>`);
+    targetDoc.close();
 
+    // Give iframe time to mount DOM before calling native print
     setTimeout(() => {
       try {
         iframe.contentWindow.focus();
         iframe.contentWindow.print();
       } catch (err) {
-        console.error("Print invocation error:", err);
+        console.warn("Iframe direct print failed, trying window fallback:", err);
+        window.print();
       }
       setTimeout(() => {
         if (iframe && iframe.parentNode) iframe.parentNode.removeChild(iframe);
-      }, 1500);
-    }, 300);
+      }, 2500);
+    }, 450);
   } catch (e) {
-    console.error("Failed to generate isolated print frame:", e);
+    console.error("Print generation error:", e);
+    window.print();
   }
 }
 
@@ -408,6 +413,92 @@ function buildThermalHtml({ settings, room, isTemporary, settlementMethod, total
       </div>
       <div style="text-align: center; margin-top: 14px; padding-top: 8px; border-top: 1px dashed #000; font-size: 10px;">
         <div>${settings.footerNote}</div>
+      </div>
+    </div>
+  `;
+}
+function buildA4Html({ settings, room, isTemporary, settlementMethod, total, cashTendered = 0, changeDue = 0, usdEquivalent = 0, exchangeRate = 337.50 }) {
+  const items = room?.orderItems || [];
+  const isCash = settlementMethod === "Cash" && !isTemporary;
+
+  return `
+    <div class="a4-container">
+      <div style="border-bottom: 3px double #091D26; padding-bottom: 16px; display: flex; justify-content: space-between; align-items: flex-start;">
+        <div>
+          <h1 style="font-size: 24px; font-weight: 900; text-transform: uppercase; margin: 0; color: #091D26;">${settings.hotelName}</h1>
+          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; text-transform: uppercase; color: #555;">${settings.tagline}</p>
+          <p style="margin: 4px 0 0 0; font-size: 11px; color: #333;">${settings.address} | Tel: ${settings.phone}</p>
+          <p style="margin: 2px 0 0 0; font-size: 11px; color: #333;">Tax ID / VAT: ${settings.taxNumber} | BRN: ${settings.companyRegNo}</p>
+        </div>
+        <div style="text-align: right;">
+          <div style="display: inline-block; border: 2px solid #091D26; padding: 6px 14px; font-weight: bold; font-size: 12px; text-transform: uppercase; background: #F3EFE6;">
+            ${isTemporary ? "PRE-CHECK FOLIO" : "TAX INVOICE"}
+          </div>
+          <p style="margin: 8px 0 0 0; font-size: 12px;"><b>Folio #:</b> ${room?.orderId || `ORD-${room?.number}`}</p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;"><b>Date:</b> ${new Date().toLocaleDateString()}</p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;"><b>Room:</b> #${room?.number}</p>
+        </div>
+      </div>
+
+      <div style="margin: 18px 0; padding: 12px 16px; border: 1px solid #091D26; border-radius: 4px; background: #FAF9F5; display: flex; justify-content: space-between;">
+        <div>
+          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Guest Information</p>
+          <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold; color: #091D26;">${room?.guestName || "Walk-In Guest"}</p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;">Phone: <b>${room?.guestPhone || "--"}</b></p>
+        </div>
+        <div style="text-align: right;">
+          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Settlement Details</p>
+          <p style="margin: 4px 0 0 0; font-size: 14px; font-weight: bold;">Status: ${isTemporary ? "PENDING" : `PAID (${settlementMethod})`}</p>
+          <p style="margin: 2px 0 0 0; font-size: 12px;">Rate Applied: <b>1 USD = Rs. ${Number(exchangeRate).toFixed(2)}</b></p>
+        </div>
+      </div>
+
+      <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px;">
+        <thead>
+          <tr style="border-bottom: 2px solid #091D26; background: #E6DFD3;">
+            <th style="padding: 8px 6px; text-align: left;">Description</th>
+            <th style="padding: 8px 6px; text-align: center;">Qty</th>
+            <th style="padding: 8px 6px; text-align: right;">Unit Price (LKR)</th>
+            <th style="padding: 8px 6px; text-align: right;">Total (LKR)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${items.map(item => `
+            <tr style="border-bottom: 1px solid #eee;">
+              <td style="padding: 8px 6px;">${item.description}</td>
+              <td style="padding: 8px 6px; text-align: center;">${item.quantity}</td>
+              <td style="padding: 8px 6px; text-align: right;">Rs. ${Number(item.unitPrice || 0).toFixed(2)}</td>
+              <td style="padding: 8px 6px; text-align: right; font-weight: bold;">Rs. ${Number(item.total).toFixed(2)}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+
+      <div style="margin-top: 16px; border-top: 2px solid #091D26; padding-top: 10px; display: flex; justify-content: flex-end;">
+        <div style="width: 280px; font-size: 13px; line-height: 1.6;">
+          <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 15px; color: #0D9488;">
+            <span>TOTAL DUE (LKR):</span>
+            <span>Rs. ${Number(total).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 12px; color: #555;">
+            <span>USD EQUIVALENT:</span>
+            <span>$${(total / exchangeRate).toFixed(2)} USD</span>
+          </div>
+          ${isCash ? `
+            <div style="display: flex; justify-content: space-between; margin-top: 6px;">
+              <span>CASH TENDERED:</span>
+              <span>Rs. ${Number(cashTendered).toFixed(2)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-weight: bold;">
+              <span>CHANGE DUE:</span>
+              <span>Rs. ${Number(changeDue).toFixed(2)}</span>
+            </div>
+          ` : ""}
+        </div>
+      </div>
+
+      <div style="margin-top: 40px; text-align: center; border-top: 1px dashed #999; padding-top: 12px; font-size: 11px; color: #666;">
+        ${settings.footerNote}
       </div>
     </div>
   `;
@@ -1719,29 +1810,21 @@ export default function App() {
     };
     set(ref(rtdb, `sales_records/${saleId}`), saleRecord);
 
+    const printParams = {
+      settings,
+      room: settleOrderRoom,
+      isTemporary: false,
+      settlementMethod,
+      total: totalLkr,
+      cashTendered: tenderAmount,
+      changeDue: balanceReturned,
+      usdEquivalent: totalUsd,
+      exchangeRate: usdRate
+    };
+
     const html = printFormat === "thermal"
-      ? buildThermalHtml({
-          settings,
-          room: settleOrderRoom,
-          isTemporary: false,
-          settlementMethod,
-          total: totalLkr,
-          cashTendered: tenderAmount,
-          changeDue: balanceReturned,
-          usdEquivalent: totalUsd,
-          exchangeRate: usdRate
-        })
-      : buildA4Html({
-          settings,
-          room: settleOrderRoom,
-          isTemporary: false,
-          settlementMethod,
-          total: totalLkr,
-          cashTendered: tenderAmount,
-          changeDue: balanceReturned,
-          usdEquivalent: totalUsd,
-          exchangeRate: usdRate
-        });
+      ? buildThermalHtml(printParams)
+      : buildA4Html(printParams);
 
     printIsolatedDocument(html, printFormat);
 
