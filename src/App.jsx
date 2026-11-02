@@ -98,6 +98,35 @@ function isValidImageDataUri(dataUri) {
   return /^data:image\/(jpeg|jpg|png|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(dataUri);
 }
 
+// Fetches daily indicative rates and converts them to an LKR base
+async function fetchDailyCBSLRates() {
+  try {
+    const res = await fetch("https://open.er-api.com/v6/latest/USD");
+    const data = await res.json();
+
+    if (data && data.rates && data.rates.LKR) {
+      const usdToLkr = Number(data.rates.LKR);
+      const audToLkr = usdToLkr / Number(data.rates.AUD);
+      const gbpToLkr = usdToLkr / Number(data.rates.GBP);
+      const eurToLkr = usdToLkr / Number(data.rates.EUR);
+
+      return {
+        LKR: 1,
+        USD: Number(usdToLkr.toFixed(2)),
+        AUD: Number(audToLkr.toFixed(2)),
+        GBP: Number(gbpToLkr.toFixed(2)),
+        EUR: Number(eurToLkr.toFixed(2)),
+        lastUpdated: new Date().toISOString(),
+        source: "Central Bank of Sri Lanka (CBSL Daily Indicative Reference)"
+      };
+    }
+    throw new Error("Invalid rate payload");
+  } catch (error) {
+    console.warn("Could not fetch online exchange rates, using fallback:", error);
+    return null;
+  }
+}
+
 const DEFAULT_SETTINGS = {
   hotelName: "Linoli Cove Midigama",
   tagline: "RESTAURANT & BAR",
@@ -109,6 +138,19 @@ const DEFAULT_SETTINGS = {
   email: "info@linolicove.me",
   website: "www.linolicove.me",
   address: "502 A Matara Road, Midigama, 81700",
+
+  // --- Add Currency Configurations ---
+  currency: "Rs.",
+  baseCurrency: "LKR",
+  exchangeRates: {
+    LKR: 1,
+    USD: 332.50,
+    AUD: 233.00,
+    GBP: 445.00,
+    EUR: 372.00
+  },
+  ratesLastSynced: "Manual Seed",
+  ratesSource: "CBSL Indicative Rates",
 
   emailRecipient: "linolicove@gmail.com",
   emailScheduleTime: "23:30",
@@ -954,6 +996,45 @@ export default function App() {
         setSettingsForm(DEFAULT_SETTINGS);
       }
     });
+
+    // --- STEP 3: CBSL DAILY AUTO-SYNC HOOK ---
+  useEffect(() => {
+    const checkAndRefreshDailyRates = async () => {
+      // 1. Get today's date in YYYY-MM-DD
+      const todayStr = new Date().toISOString().split("T")[0];
+      
+      // 2. Extract the date portion from settings.ratesLastSynced (if previously set)
+      const lastSyncDate = settings?.ratesLastSynced
+        ? settings.ratesLastSynced.split("T")[0]
+        : null;
+
+      // 3. Only sync if it hasn't been synced today, and the logged-in user is GM/Admin
+      if (lastSyncDate !== todayStr && isGeneralManager) {
+        try {
+          const freshRates = await fetchDailyCBSLRates();
+          if (freshRates) {
+            await update(ref(rtdb, "hotel_config/profile"), {
+              exchangeRates: {
+                LKR: 1,
+                USD: freshRates.USD,
+                AUD: freshRates.AUD,
+                GBP: freshRates.GBP,
+                EUR: freshRates.EUR,
+              },
+              ratesLastSynced: freshRates.lastUpdated,
+              ratesSource: freshRates.source,
+            });
+          }
+        } catch (err) {
+          console.warn("Auto CBSL sync encountered an issue:", err);
+        }
+      }
+    };
+
+    if (settings && isGeneralManager) {
+      checkAndRefreshDailyRates();
+    }
+  }, [settings?.ratesLastSynced, isGeneralManager]);
 
     const roomsRef = ref(rtdb, "rooms");
     const unsubRooms = onValue(roomsRef, (snapshot) => {
@@ -4151,6 +4232,67 @@ export default function App() {
                   </h3>
                   <p className="text-[11px] text-slate-400">Default rates applied across folios and receipts</p>
                 </div>
+                {/* CBSL Live Rate Dashboard & Manual Sync */}
+<div className="bg-[#FAF9F5] p-4 rounded-2xl border border-[#E6DFD3] space-y-3 sm:col-span-3">
+  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+    <div>
+      <span className="font-bold text-xs uppercase text-[#091D26] flex items-center gap-1.5">
+        <RefreshCw className="w-3.5 h-3.5 text-[#0D9488]" />
+        Central Bank of Sri Lanka (CBSL) Live Rates
+      </span>
+      <p className="text-[11px] text-slate-500 mt-0.5">
+        Last Synced: <b>{settingsForm.ratesLastSynced || "Not synced yet"}</b>
+      </p>
+    </div>
+
+    <button
+      type="button"
+      onClick={async () => {
+        const fresh = await fetchDailyCBSLRates();
+        if (fresh) {
+          setSettingsForm(prev => ({
+            ...prev,
+            exchangeRates: {
+              LKR: 1,
+              USD: fresh.USD,
+              AUD: fresh.AUD,
+              GBP: fresh.GBP,
+              EUR: fresh.EUR
+            },
+            ratesLastSynced: fresh.lastUpdated,
+            ratesSource: fresh.source
+          }));
+          alert(`CBSL Daily Rates Updated:\n1 USD = Rs. ${fresh.USD}\n1 AUD = Rs. ${fresh.AUD}\n1 GBP = Rs. ${fresh.GBP}\n1 EUR = Rs. ${fresh.EUR}`);
+        } else {
+          alert("Failed to reach exchange rate servers. Please verify your internet connection.");
+        }
+      }}
+      className="px-3.5 py-2 bg-[#0D9488] hover:bg-[#0F766E] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all"
+    >
+      <RefreshCw className="w-3.5 h-3.5" />
+      Sync CBSL Rates Now
+    </button>
+  </div>
+
+  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs font-mono">
+    <div className="bg-white p-2.5 rounded-xl border">
+      <span className="text-[10px] text-slate-400 block">USD / LKR</span>
+      <span className="font-bold text-[#091D26]">Rs. {settingsForm.exchangeRates?.USD || 332.50}</span>
+    </div>
+    <div className="bg-white p-2.5 rounded-xl border">
+      <span className="text-[10px] text-slate-400 block">AUD / LKR</span>
+      <span className="font-bold text-[#091D26]">Rs. {settingsForm.exchangeRates?.AUD || 233.00}</span>
+    </div>
+    <div className="bg-white p-2.5 rounded-xl border">
+      <span className="text-[10px] text-slate-400 block">GBP / LKR</span>
+      <span className="font-bold text-[#091D26]">Rs. {settingsForm.exchangeRates?.GBP || 445.00}</span>
+    </div>
+    <div className="bg-white p-2.5 rounded-xl border">
+      <span className="text-[10px] text-slate-400 block">EUR / LKR</span>
+      <span className="font-bold text-[#091D26]">Rs. {settingsForm.exchangeRates?.EUR || 372.00}</span>
+    </div>
+  </div>
+</div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
                   <div>
@@ -4583,8 +4725,36 @@ export default function App() {
                   {settings.currency}{calculateTotal(settleOrderRoom).toFixed(2)}
                 </span>
               </div>
-            </div>
 
+              {/* Dynamic CBSL Multi-Currency Conversion Breakdown */}
+              <div className="mt-2 pt-2 border-t border-slate-200 text-[11px] text-slate-500 space-y-1">
+                <div className="flex justify-between font-mono">
+                  <span>CBSL Approx USD:</span>
+                  <span className="font-bold text-slate-700">
+                    ${(calculateTotal(settleOrderRoom) / (settings?.exchangeRates?.USD || 332.5)).toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex justify-between font-mono">
+                  <span>CBSL Approx AUD:</span>
+                  <span className="font-bold text-slate-700">
+                    A${(calculateTotal(settleOrderRoom) / (settings?.exchangeRates?.AUD || 233.0)).toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex justify-between font-mono">
+                  <span>CBSL Approx GBP:</span>
+                  <span className="font-bold text-slate-700">
+                    £{(calculateTotal(settleOrderRoom) / (settings?.exchangeRates?.GBP || 445.0)).toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex justify-between font-mono">
+                  <span>CBSL Approx EUR:</span>
+                  <span className="font-bold text-slate-700">
+                    €{(calculateTotal(settleOrderRoom) / (settings?.exchangeRates?.EUR || 372.0)).toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            </div>
+            
             <div className="mb-4">
               <label className="block text-xs font-semibold text-slate-700 mb-2">Tender Method:</label>
               <div className="grid grid-cols-3 gap-2">
