@@ -391,7 +391,7 @@ function buildThermalHtml({
             <span>$${Number(usdEquivalent).toFixed(2)} USD</span>
           </div>
           <div style="font-size: 9px; color: #555; text-align: right;">
-            (Conversion Rate: 1 USD = Rs. ${Number(exchangeRate || 337.50).toFixed(2)})
+            (Selling Rate: 1 USD = Rs. ${Number(exchangeRate || 337.50).toFixed(2)})
           </div>
         ` : ""}
         ${isCash ? `
