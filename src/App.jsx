@@ -1993,7 +1993,32 @@ export default function App() {
   const totalPayrollGross = staff.reduce((acc, s) => acc + calculateStaffGross(s), 0);
   const totalPayrollNet = staff.reduce((acc, s) => acc + Math.max(0, calculateStaffGross(s) - calculateStaffDeductions(s)), 0);
   const totalServiceCharges = staff.reduce((acc, s) => acc + (Number(s.serviceCharge) || 0), 0);
+  // Delete a settled sales record from the database (GM/Admin Only)
+  const handleDeleteSalesRecord = (saleId, orderId) => {
+    if (!isGeneralManager) {
+      alert("Access Denied: Only General Manager or Admin can delete settled sales orders.");
+      return;
+    }
 
+    if (window.confirm(`Permanently delete Sales Order #${orderId}? This cannot be undone.`)) {
+      // 1. Immediately remove from local state so UI updates
+      setSalesRecords((prev) => {
+        const next = { ...prev };
+        delete next[saleId];
+        return next;
+      });
+
+      // 2. Permanently delete from Firebase Realtime Database
+      remove(ref(rtdb, `sales_records/${saleId}`))
+        .then(() => {
+          console.log(`Sales record ${saleId} deleted successfully.`);
+        })
+        .catch((err) => {
+          console.error("Failed to delete sales order:", err);
+          alert("Error deleting record from database: " + err.message);
+        });
+    }
+  };
   // Monitor Reports Array
   const allArchivedReports = Object.keys(allAttendanceRecords).flatMap((dateKey) => {
     const dayRecords = allAttendanceRecords[dateKey] || {};
@@ -3124,6 +3149,7 @@ export default function App() {
                           <th className="p-3.5 text-center">Tender</th>
                           <th className="p-3.5 text-right font-black">Total Paid</th>
                           <th className="p-3.5 text-center">Receipt</th>
+                          {isGeneralManager && <th className="p-3.5 text-center text-rose-600">Delete</th>}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#F3EFE6]">
@@ -3196,15 +3222,27 @@ export default function App() {
                                 <Printer className="w-4 h-4" />
                               </button>
                             </td>
+                            {isGeneralManager && (
+                              <td className="p-3.5 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteSalesRecord(sale.id, sale.orderId)}
+                                  className="p-1.5 text-rose-600 hover:text-rose-800 rounded hover:bg-rose-100"
+                                  title="Delete Sales Record"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </td>
+                            )}
                           </tr>
                         ))}
                         {filteredSalesList.length === 0 && (
-                          <tr>
-                            <td colSpan={8} className="p-8 text-center text-slate-400">
-                              No settled sales transactions found for this date range.
-                            </td>
-                          </tr>
-                        )}
+  <tr>
+    <td colSpan={isGeneralManager ? 9 : 8} className="p-8 text-center text-slate-400">
+      No settled sales transactions found for this date range.
+    </td>
+  </tr>
+)}
                       </tbody>
                     </table>
                   </div>
