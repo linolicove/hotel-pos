@@ -264,28 +264,27 @@ const calculateDurationFromMs = (inMs, outMs) => {
 // --- 2. PROGRAMMATIC ISOLATED PRINT ENGINE ---
 function printIsolatedDocument(htmlBody, mode = "thermal") {
   try {
-    const existingFrame = document.getElementById("pos-print-frame");
-    if (existingFrame) existingFrame.remove();
+    const width = mode === "thermal" ? 380 : 850;
+    const height = 700;
+    const left = (window.screen.width - width) / 2;
+    const top = (window.screen.height - height) / 2;
 
-    const iframe = document.createElement("iframe");
-    iframe.id = "pos-print-frame";
-    iframe.style.position = "fixed";
-    iframe.style.right = "0";
-    iframe.style.bottom = "0";
-    iframe.style.width = "1px";
-    iframe.style.height = "1px";
-    iframe.style.border = "none";
-    iframe.style.opacity = "0.01";
-    document.body.appendChild(iframe);
+    const printWin = window.open(
+      "",
+      "_blank",
+      `width=${width},height=${height},top=${top},left=${left},scrollbars=yes,status=no,resizable=yes`
+    );
 
-    const doc = iframe.contentWindow || iframe.contentDocument;
-    const targetDoc = doc.document ? doc.document : doc;
+    if (!printWin) {
+      alert("Pop-up blocker prevented printing. Please allow pop-ups for this website in your browser settings.");
+      return;
+    }
 
     const styles = `
       <style>
         @page {
           size: ${mode === "thermal" ? "80mm auto" : "A4 portrait"};
-          margin: ${mode === "thermal" ? "0mm" : "12mm"};
+          margin: ${mode === "thermal" ? "2mm" : "12mm"};
         }
         html, body {
           margin: 0;
@@ -299,9 +298,9 @@ function printIsolatedDocument(htmlBody, mode = "thermal") {
         .thermal-container {
           width: 72mm;
           margin: 0 auto;
-          padding: 3mm 0;
+          padding: 4mm 0;
           font-size: 11px;
-          line-height: 1.25;
+          line-height: 1.3;
         }
         .a4-container {
           width: 100%;
@@ -315,26 +314,60 @@ function printIsolatedDocument(htmlBody, mode = "thermal") {
           width: 100%;
           border-collapse: collapse;
         }
+        .no-print-bar {
+          background: #091D26;
+          color: #fff;
+          padding: 8px 12px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          font-family: sans-serif;
+          font-size: 12px;
+          margin-bottom: 12px;
+        }
+        .btn-print {
+          background: #0D9488;
+          color: white;
+          border: none;
+          padding: 6px 12px;
+          font-weight: bold;
+          border-radius: 6px;
+          cursor: pointer;
+        }
+        @media print {
+          .no-print-bar { display: none !important; }
+        }
       </style>
     `;
 
-    targetDoc.open();
-    targetDoc.write(`<!DOCTYPE html><html><head><title>Print Invoice</title>${styles}</head><body>${htmlBody}</body></html>`);
-    targetDoc.close();
+    const fullHtml = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>POS Invoice Print</title>
+          ${styles}
+        </head>
+        <body>
+          <div class="no-print-bar">
+            <span>Print Preview</span>
+            <button class="btn-print" onclick="window.print()">Print Now</button>
+          </div>
+          ${htmlBody}
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                window.focus();
+                window.print();
+              }, 300);
+            };
+          </script>
+        </body>
+      </html>
+    `;
 
-    // Give iframe time to mount DOM before calling native print
-    setTimeout(() => {
-      try {
-        iframe.contentWindow.focus();
-        iframe.contentWindow.print();
-      } catch (err) {
-        console.warn("Iframe direct print failed, trying window fallback:", err);
-        window.print();
-      }
-      setTimeout(() => {
-        if (iframe && iframe.parentNode) iframe.parentNode.removeChild(iframe);
-      }, 2500);
-    }, 450);
+    printWin.document.open();
+    printWin.document.write(fullHtml);
+    printWin.document.close();
   } catch (e) {
     console.error("Print generation error:", e);
     window.print();
@@ -1767,10 +1800,26 @@ export default function App() {
   // Print Handlers
   const handlePrintTemporaryBill = (room) => {
     setSelectedRoomId(room.id);
-    const total = calculateTotal(room);
+    const usdRate = Number(settings?.exchangeRates?.USD) || 337.50;
+    const rawTotal = calculateTotal(room);
+    const isUsdTotal = rawTotal < 1000;
+    const totalLkr = isUsdTotal ? rawTotal * usdRate : rawTotal;
+    const totalUsd = isUsdTotal ? rawTotal : rawTotal / usdRate;
+
+    const printParams = {
+      settings,
+      room,
+      isTemporary: true,
+      settlementMethod: "Pending",
+      total: totalLkr,
+      usdEquivalent: totalUsd,
+      exchangeRate: usdRate
+    };
+
     const html = printFormat === "thermal"
-      ? buildThermalHtml({ settings, room, isTemporary: true, settlementMethod: "Pending", total })
-      : buildA4Html({ settings, room, isTemporary: true, settlementMethod: "Pending", total });
+      ? buildThermalHtml(printParams)
+      : buildA4Html(printParams);
+
     printIsolatedDocument(html, printFormat);
   };
 
