@@ -737,7 +737,7 @@ export default function App() {
   const [settleOrderRoom, setSettleOrderRoom] = useState(null);
   const [settlementMethod, setSettlementMethod] = useState("Credit Card");
   const [cashTendered, setCashTendered] = useState("");
-  const [guestForm, setGuestForm] = useState({ name: "", phone: "", nights: 1, customRate: "" });
+  const [guestForm, setGuestForm] = useState({ name: "", phone: "", nights: 1, customRate: "", checkInDate: getTodayKey() });
   const [guestPhoto, setGuestPhoto] = useState(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
 
@@ -1864,11 +1864,16 @@ export default function App() {
     if (!checkInModalRoom || !guestForm.name) return;
     stopCamera();
 
-    const nights = guestForm.nights || 1;
+    const nights = parseInt(guestForm.nights, 10) || 1;
     const now = new Date();
     const orderId = `ORD-${checkInModalRoom.number}-${Date.now().toString().slice(-4)}`;
     const itemId = `itm_${Date.now()}`;
     const dynamicRate = parseFloat(guestForm.customRate) || getDynamicRoomRate(checkInModalRoom, rooms);
+
+    // Calculate check-in and check-out dates
+    const checkInDateStr = guestForm.checkInDate || getTodayKey();
+    const checkInTime = new Date(checkInDateStr).getTime();
+    const computedCheckOutStr = new Date(checkInTime + nights * 86400000).toISOString().split("T")[0];
 
     const initialOrderItem = {
       id: itemId,
@@ -1878,6 +1883,7 @@ export default function App() {
       total: dynamicRate * nights,
       timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
     };
+
     const roomPayload = {
       status: "occupied",
       orderId,
@@ -1885,14 +1891,15 @@ export default function App() {
       guestName: sanitizeInput(guestForm.name),
       guestPhone: sanitizeInput(guestForm.phone),
       guestPhoto: guestPhoto || null,
-      checkIn: now.toISOString().split("T")[0],
-      checkOut: new Date(Date.now() + nights * 86400000).toISOString().split("T")[0],
+      checkIn: checkInDateStr,
+      checkOut: computedCheckOutStr,
       orderItems: { [itemId]: initialOrderItem },
     };
+
     update(ref(rtdb, `rooms/${checkInModalRoom.id}`), roomPayload);
     setGuestPhoto(null);
     setCheckInModalRoom(null);
-    setGuestForm({ name: "", phone: "", nights: 1, customRate: "" });
+    setGuestForm({ name: "", phone: "", nights: 1, customRate: "", checkInDate: getTodayKey() });
   };
 
   const handleAddItemToOrder = (e) => {
@@ -2651,16 +2658,22 @@ export default function App() {
                         <div className="p-4 pt-0">
                           {isAvailable && (
                             <button
-                              type="button"
-                              onClick={() => {
-                                setCheckInModalRoom(room);
-                                setGuestPhoto(null);
-                                setGuestForm({ name: "", phone: "", nights: 1, customRate: String(activeDynamicRate) });
-                              }}
-                              className="w-full bg-[#14B8A6] hover:bg-[#0D9488] active:scale-[0.98] text-white py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all"
-                            >
-                              <Camera className="w-4 h-4" /> Check In & Photo ID
-                            </button>
+  type="button"
+  onClick={() => {
+    setCheckInModalRoom(room);
+    setGuestPhoto(null);
+    setGuestForm({ 
+      name: "", 
+      phone: "", 
+      nights: 1, 
+      customRate: String(activeDynamicRate),
+      checkInDate: getTodayKey() // <-- Sets default check-in to today
+    });
+  }}
+  className="w-full bg-[#14B8A6] hover:bg-[#0D9488] active:scale-[0.98] text-white py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all"
+>
+  <Camera className="w-4 h-4" /> Check In & Photo ID
+</button>
                           )}
 
                           {isOccupied && (
@@ -4601,73 +4614,66 @@ export default function App() {
                   />
                 </div>
                 <div>
+                <label className="block font-semibold mb-1">Guest Full Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Alexander Vance"
+                  value={guestForm.name}
+                  onChange={(e) => setGuestForm({ ...guestForm, name: e.target.value })}
+                  className="w-full border rounded-lg p-2.5"
+                />
+              </div>
+
+              {/* Contact Phone & Check-In Date */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
                   <label className="block font-semibold mb-1">Contact Phone</label>
                   <input
                     type="tel"
-                    required
                     placeholder="+94 77 ..."
-                    value={newBookingForm.guestPhone}
-                    onChange={(e) => setNewBookingForm({ ...newBookingForm, guestPhone: e.target.value })}
-                    className="w-full border rounded-xl p-2.5"
+                    value={guestForm.phone}
+                    onChange={(e) => setGuestForm({ ...guestForm, phone: e.target.value })}
+                    className="w-full border rounded-lg p-2.5"
                   />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="block font-semibold mb-1">Room #</label>
-                  <select
-                    required
-                    value={newBookingForm.roomNumber}
-                    onChange={(e) => {
-                      const selRoom = rooms.find(r => String(r.number) === e.target.value);
-                      setNewBookingForm({
-                        ...newBookingForm,
-                        roomNumber: e.target.value,
-                        totalRate: selRoom ? String(selRoom.rate) : newBookingForm.totalRate
-                      });
-                    }}
-                    className="w-full border rounded-xl p-2 bg-white font-bold"
-                  >
-                    <option value="">Select Room</option>
-                    {rooms.map(r => (
-                      <option key={r.id} value={r.number}>#{r.number} ({r.type})</option>
-                    ))}
-                  </select>
                 </div>
                 <div>
                   <label className="block font-semibold mb-1">Check-In Date</label>
                   <input
                     type="date"
                     required
-                    value={newBookingForm.checkInDate}
-                    onChange={(e) => setNewBookingForm({ ...newBookingForm, checkInDate: e.target.value })}
-                    className="w-full border rounded-xl p-2 font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1">Check-Out Date</label>
-                  <input
-                    type="date"
-                    required
-                    value={newBookingForm.checkOutDate}
-                    onChange={(e) => setNewBookingForm({ ...newBookingForm, checkOutDate: e.target.value })}
-                    className="w-full border rounded-xl p-2 font-mono"
+                    value={guestForm.checkInDate || getTodayKey()}
+                    onChange={(e) => setGuestForm({ ...guestForm, checkInDate: e.target.value })}
+                    className="w-full border rounded-lg p-2.5 font-mono text-xs bg-white"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
+              {/* Nights Duration & Auto Departure Preview */}
+              <div className="grid grid-cols-2 gap-3 items-center">
                 <div>
-                  <label className="block font-semibold mb-1">Estimated Rate ({settings.currency})</label>
+                  <label className="block font-semibold mb-1">Nights Duration</label>
                   <input
                     type="number"
+                    min="1"
                     required
-                    value={newBookingForm.totalRate}
-                    onChange={(e) => setNewBookingForm({ ...newBookingForm, totalRate: e.target.value })}
-                    className="w-full border rounded-xl p-2 font-bold"
+                    value={guestForm.nights}
+                    onChange={(e) => setGuestForm({ ...guestForm, nights: parseInt(e.target.value, 10) || 1 })}
+                    className="w-full border rounded-lg p-2.5 font-bold"
                   />
                 </div>
+                <div className="pt-5">
+                  <div className="p-2 bg-slate-100 rounded-lg text-[11px] text-slate-600 font-mono">
+                    <span className="block text-[9px] uppercase text-slate-400">Departure:</span>
+                    <b className="text-teal-700">
+                      {new Date(
+                        (new Date(guestForm.checkInDate || getTodayKey()).getTime()) + 
+                        ((parseInt(guestForm.nights, 10) || 1) * 86400000)
+                      ).toISOString().split("T")[0]}
+                    </b>
+                  </div>
+                </div>
+              </div>
                 <div>
                   <label className="block font-semibold mb-1">Deposit Paid ({settings.currency})</label>
                   <input
