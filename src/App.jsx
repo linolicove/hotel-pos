@@ -98,29 +98,30 @@ function isValidImageDataUri(dataUri) {
   return /^data:image\/(jpeg|jpg|png|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(dataUri);
 }
 
-// Fetches daily indicative rates and converts them to an LKR base
+// Fetches daily indicative rates, adds Rs. 5 commercial selling margin to USD
 async function fetchDailyCBSLRates() {
   try {
     const res = await fetch("https://open.er-api.com/v6/latest/USD");
     const data = await res.json();
 
     if (data && data.rates && data.rates.LKR) {
-      const baseUsdToLkr = Number(data.rates.LKR);
-      // Add Rs. 5 commercial selling margin to the base USD rate
-      const usdSellingRate = baseUsdToLkr + 5.00;
+      const rawUsdToLkr = Number(data.rates.LKR);
+      // Always add Rs. 5.00 margin to the base USD rate
+      const usdSellingRate = Number((rawUsdToLkr + 5.00).toFixed(2));
 
-      const audToLkr = baseUsdToLkr / Number(data.rates.AUD);
-      const gbpToLkr = baseUsdToLkr / Number(data.rates.GBP);
-      const eurToLkr = baseUsdToLkr / Number(data.rates.EUR);
+      const audToLkr = rawUsdToLkr / Number(data.rates.AUD);
+      const gbpToLkr = rawUsdToLkr / Number(data.rates.GBP);
+      const eurToLkr = rawUsdToLkr / Number(data.rates.EUR);
 
       return {
         LKR: 1,
-        USD: Number(usdSellingRate.toFixed(2)),
+        USD: usdSellingRate, // e.g. 332.39 + 5.00 = 337.39
         AUD: Number(audToLkr.toFixed(2)),
         GBP: Number(gbpToLkr.toFixed(2)),
         EUR: Number(eurToLkr.toFixed(2)),
+        rawUsdRate: Number(rawUsdToLkr.toFixed(2)),
         lastUpdated: new Date().toISOString(),
-        source: "Central Bank of Sri Lanka (CBSL + Rs. 5 Selling Margin)"
+        source: "CBSL Reference (+ Rs. 5 Commercial Selling Margin)"
       };
     }
     throw new Error("Invalid rate payload");
@@ -4311,19 +4312,30 @@ export default function App() {
       onClick={async () => {
         const fresh = await fetchDailyCBSLRates();
         if (fresh) {
+          const updatedRates = {
+            LKR: 1,
+            USD: fresh.USD, // Already has + Rs. 5 included
+            AUD: fresh.AUD,
+            GBP: fresh.GBP,
+            EUR: fresh.EUR
+          };
+
+          // 1. Update local Settings Form
           setSettingsForm(prev => ({
             ...prev,
-            exchangeRates: {
-              LKR: 1,
-              USD: fresh.USD,
-              AUD: fresh.AUD,
-              GBP: fresh.GBP,
-              EUR: fresh.EUR
-            },
+            exchangeRates: updatedRates,
             ratesLastSynced: fresh.lastUpdated,
             ratesSource: fresh.source
           }));
-          alert(`CBSL Daily Rates Updated:\n1 USD = Rs. ${fresh.USD}\n1 AUD = Rs. ${fresh.AUD}\n1 GBP = Rs. ${fresh.GBP}\n1 EUR = Rs. ${fresh.EUR}`);
+
+          // 2. Persist immediately to Firebase RTDB so all active bills and terminals update instantly
+          await update(ref(rtdb, "hotel_config/profile"), {
+            exchangeRates: updatedRates,
+            ratesLastSynced: fresh.lastUpdated,
+            ratesSource: fresh.source
+          });
+
+          alert(`CBSL Daily Rates Synced (+ Rs. 5 Margin Applied):\n1 USD = Rs. ${fresh.USD} (Base: Rs. ${fresh.rawUsdRate} + Rs. 5.00)\n1 AUD = Rs. ${fresh.AUD}\n1 GBP = Rs. ${fresh.GBP}\n1 EUR = Rs. ${fresh.EUR}`);
         } else {
           alert("Failed to reach exchange rate servers. Please verify your internet connection.");
         }
@@ -4758,6 +4770,7 @@ export default function App() {
 
       {/* MODAL: DIRECT BILL SETTLEMENT CONSOLE */}
       {settleOrderRoom && (() => {
+        // Reads the saved selling rate (which includes + Rs. 5) or defaults to 337.50
         const usdRate = Number(settings?.exchangeRates?.USD) || 337.50;
         const rawTotal = calculateTotal(settleOrderRoom);
 
@@ -4796,7 +4809,7 @@ export default function App() {
                         <span className="font-semibold text-slate-800">{item.quantity}x {item.description}</span>
                         {isUsdTotal && (
                           <span className="block text-[10px] text-slate-500 font-mono">
-                            Base: ${itemUsd.toFixed(2)} USD @ Rs. {usdRate.toFixed(2)}
+                            Base: ${itemUsd.toFixed(2)} USD @ Rs. {usdRate.toFixed(2)} (+ Rs. 5 Margin)
                           </span>
                         )}
                       </div>
@@ -4817,7 +4830,7 @@ export default function App() {
                   <div>
                     <span className="text-xs uppercase font-black text-slate-700 block">Total Balance Due:</span>
                     <span className="text-[10px] font-mono font-bold text-teal-700">
-                      Rate: 1 USD = Rs. {usdRate.toFixed(2)}
+                      Rate: 1 USD = Rs. {usdRate.toFixed(2)} (Incl. Rs. 5 Margin)
                     </span>
                   </div>
                   <div className="text-right">
