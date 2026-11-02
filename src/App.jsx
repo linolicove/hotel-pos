@@ -2696,18 +2696,47 @@ export default function App() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                 {rooms.filter((r) => r.status === "occupied").map((room) => {
                   const billTotal = calculateTotal(room);
+                  const usdRate = settings?.exchangeRates?.USD || 332.50;
+                  const audRate = settings?.exchangeRates?.AUD || 233.00;
+                  const gbpRate = settings?.exchangeRates?.GBP || 445.00;
+                  const eurRate = settings?.exchangeRates?.EUR || 372.00;
+
                   return (
                     <div key={room.id} className="bg-white rounded-3xl border border-[#E6DFD3] p-5 shadow-sm space-y-4 flex flex-col justify-between">
                       <div className="space-y-3">
-                        <div className="flex justify-between items-start pb-2 border-b border-[#F3EFE6]">
-                          <div>
-                            <span className="text-[10px] uppercase font-bold text-[#0F766E]">{room.orderId}</span>
-                            <h3 className="text-xl font-black text-[#091D26]">Room #{room.number}</h3>
-                            <p className="text-xs text-slate-500">{room.guestName || "Walk-In Guest"}</p>
+                        {/* Header & Total Breakdown */}
+                        <div className="pb-3 border-b border-[#F3EFE6]">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <span className="text-[10px] uppercase font-bold text-[#0F766E]">{room.orderId}</span>
+                              <h3 className="text-xl font-black text-[#091D26]">Room #{room.number}</h3>
+                              <p className="text-xs text-slate-500">{room.guestName || "Walk-In Guest"}</p>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-xl font-black text-[#0D9488] block">
+                                {settings.currency}{billTotal.toFixed(2)}
+                              </span>
+                              <span className="text-[11px] font-mono font-bold text-slate-600 block">
+                                ≈ ${(billTotal / usdRate).toFixed(2)} USD
+                              </span>
+                            </div>
                           </div>
-                          <span className="text-xl font-black text-[#0D9488]">
-                            {settings.currency}{billTotal.toFixed(2)}
-                          </span>
+
+                          {/* Live Foreign Currency Conversion Sub-pills */}
+                          <div className="mt-2.5 pt-2 border-t border-dashed border-slate-200 grid grid-cols-3 gap-1.5 text-center font-mono text-[10px]">
+                            <div className="bg-[#FAF9F5] p-1.5 rounded-lg border border-slate-100">
+                              <span className="text-slate-400 block text-[9px]">AUD</span>
+                              <span className="font-bold text-slate-700">A${(billTotal / audRate).toFixed(2)}</span>
+                            </div>
+                            <div className="bg-[#FAF9F5] p-1.5 rounded-lg border border-slate-100">
+                              <span className="text-slate-400 block text-[9px]">GBP</span>
+                              <span className="font-bold text-slate-700">£{(billTotal / gbpRate).toFixed(2)}</span>
+                            </div>
+                            <div className="bg-[#FAF9F5] p-1.5 rounded-lg border border-slate-100">
+                              <span className="text-slate-400 block text-[9px]">EUR</span>
+                              <span className="font-bold text-slate-700">€{(billTotal / eurRate).toFixed(2)}</span>
+                            </div>
+                          </div>
                         </div>
 
                         {/* Current folio items */}
@@ -2721,7 +2750,10 @@ export default function App() {
                                   <span className="text-[10px] text-slate-400">Qty: {item.quantity} × {settings.currency}{Number(item.unitPrice || 0).toFixed(2)}</span>
                                 </div>
                                 <div className="flex items-center gap-2 shrink-0">
-                                  <span className="font-bold text-[#091D26]">{settings.currency}{Number(item.total).toFixed(2)}</span>
+                                  <div className="text-right">
+                                    <span className="font-bold text-[#091D26] block">{settings.currency}{Number(item.total).toFixed(2)}</span>
+                                    <span className="text-[9px] text-slate-400 font-mono block">≈ ${(Number(item.total) / usdRate).toFixed(2)}</span>
+                                  </div>
                                   <button
                                     type="button"
                                     onClick={() => handleRemoveItemFromAnyRoom(room.id, item.id)}
@@ -2737,7 +2769,6 @@ export default function App() {
                             <p className="text-xs text-slate-400 italic">No billable items on tab yet.</p>
                           )}
                         </div>
-
                         {/* Quick-add Minibar */}
                         <div className="pt-2 border-t border-[#F3EFE6]">
                           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Quick Add Minibar:</p>
@@ -4730,39 +4761,38 @@ export default function App() {
                 </div>
               ))}
               <div className="pt-2 flex justify-between font-black text-sm text-[#091D26]">
-                <span>Total Balance Due:</span>
-                <span className="text-[#0D9488] text-base">
-                  {settings.currency}{calculateTotal(settleOrderRoom).toFixed(2)}
-                </span>
-              </div>
+  <span>Total Balance Due:</span>
+  <div className="text-right">
+    <span className="text-[#0D9488] text-base block">
+      {settings.currency}{calculateTotal(settleOrderRoom).toFixed(2)}
+    </span>
+    <span className="text-[11px] font-mono text-slate-500 block">
+      ≈ ${(calculateTotal(settleOrderRoom) / (settings?.exchangeRates?.USD || 337.50)).toFixed(2)} USD
+    </span>
+  </div>
+</div>
 
-              {/* Dynamic CBSL Multi-Currency Conversion Breakdown */}
-              <div className="mt-2 pt-2 border-t border-slate-200 text-[11px] text-slate-500 space-y-1">
-                <div className="flex justify-between font-mono">
-                  <span>CBSL Approx USD:</span>
-                  <span className="font-bold text-slate-700">
-                    ${(calculateTotal(settleOrderRoom) / (settings?.exchangeRates?.USD || 332.5)).toFixed(2)}
-                  </span>
-                </div>
-                <div className="flex justify-between font-mono">
-                  <span>CBSL Approx AUD:</span>
-                  <span className="font-bold text-slate-700">
-                    A${(calculateTotal(settleOrderRoom) / (settings?.exchangeRates?.AUD || 233.0)).toFixed(2)}
-                  </span>
-                </div>
-                <div className="flex justify-between font-mono">
-                  <span>CBSL Approx GBP:</span>
-                  <span className="font-bold text-slate-700">
-                    £{(calculateTotal(settleOrderRoom) / (settings?.exchangeRates?.GBP || 445.0)).toFixed(2)}
-                  </span>
-                </div>
-                <div className="flex justify-between font-mono">
-                  <span>CBSL Approx EUR:</span>
-                  <span className="font-bold text-slate-700">
-                    €{(calculateTotal(settleOrderRoom) / (settings?.exchangeRates?.EUR || 372.0)).toFixed(2)}
-                  </span>
-                </div>
-              </div>
+{/* Live Multi-Currency Conversion Breakdown */}
+<div className="mt-2 pt-2 border-t border-slate-200 text-[11px] text-slate-500 space-y-1">
+  <div className="flex justify-between font-mono">
+    <span>CBSL Approx AUD:</span>
+    <span className="font-bold text-slate-700">
+      A${(calculateTotal(settleOrderRoom) / (settings?.exchangeRates?.AUD || 233.0)).toFixed(2)}
+    </span>
+  </div>
+  <div className="flex justify-between font-mono">
+    <span>CBSL Approx GBP:</span>
+    <span className="font-bold text-slate-700">
+      £{(calculateTotal(settleOrderRoom) / (settings?.exchangeRates?.GBP || 445.0)).toFixed(2)}
+    </span>
+  </div>
+  <div className="flex justify-between font-mono">
+    <span>CBSL Approx EUR:</span>
+    <span className="font-bold text-slate-700">
+      €{(calculateTotal(settleOrderRoom) / (settings?.exchangeRates?.EUR || 372.0)).toFixed(2)}
+    </span>
+  </div>
+</div>
             </div>
             
             <div className="mb-4">
@@ -5343,6 +5373,114 @@ export default function App() {
                   className="flex-1 bg-[#14B8A6] hover:bg-[#0D9488] text-white py-3 rounded-xl font-bold shadow-md"
                 >
                   Register Room
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* MODAL: ADD CUSTOM FOLIO ITEM */}
+      {folioModalRoom && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 border border-[#E6DFD3] shadow-2xl">
+            <div className="flex justify-between items-center mb-4 pb-2 border-b">
+              <div>
+                <span className="text-xs uppercase font-bold text-[#0F766E]">Direct Room Charge</span>
+                <h3 className="font-bold text-lg text-[#091D26]">Room #{folioModalRoom.number} - Add Item</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFolioModalRoom(null)}
+                className="text-slate-400 hover:text-black"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddFolioItemToRoom} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold mb-1 text-slate-700">Item Description</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Airport Taxi Transfer, Surfboard Rental"
+                  value={folioItemForm.description}
+                  onChange={(e) => setFolioItemForm({ ...folioItemForm, description: e.target.value })}
+                  className="w-full border border-slate-300 rounded-xl p-2.5 font-medium"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div className="col-span-2">
+                  <label className="block font-semibold mb-1 text-slate-700">Unit Price</label>
+                  <input
+                    type="number"
+                    step="any"
+                    required
+                    placeholder="0.00"
+                    value={folioItemForm.unitPrice}
+                    onChange={(e) => setFolioItemForm({ ...folioItemForm, unitPrice: e.target.value })}
+                    className="w-full border border-slate-300 rounded-xl p-2.5 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Currency</label>
+                  <select
+                    value={folioItemForm.currency || "LKR"}
+                    onChange={(e) => setFolioItemForm({ ...folioItemForm, currency: e.target.value })}
+                    className="w-full border border-slate-300 rounded-xl p-2.5 bg-white font-bold"
+                  >
+                    <option value="LKR">LKR (Rs.)</option>
+                    <option value="USD">USD ($)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1 text-slate-700">Quantity</label>
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  value={folioItemForm.quantity}
+                  onChange={(e) => setFolioItemForm({ ...folioItemForm, quantity: e.target.value })}
+                  className="w-full border border-slate-300 rounded-xl p-2.5 font-bold"
+                />
+              </div>
+
+              {/* Live Conversion Preview */}
+              {folioItemForm.currency === "USD" && folioItemForm.unitPrice && (
+                <div className="p-3 bg-teal-50 border border-teal-200 rounded-xl text-teal-800 text-[11px] font-mono space-y-0.5">
+                  <div className="flex justify-between">
+                    <span>Applied CBSL Rate:</span>
+                    <b>1 USD = Rs. {settings?.exchangeRates?.USD || 332.50}</b>
+                  </div>
+                  <div className="flex justify-between font-bold">
+                    <span>Total LKR Charge:</span>
+                    <span>
+                      Rs. {(
+                        (parseFloat(folioItemForm.unitPrice) || 0) *
+                        (parseInt(folioItemForm.quantity, 10) || 1) *
+                        (settings?.exchangeRates?.USD || 332.50)
+                      ).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setFolioModalRoom(null)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 py-3 rounded-xl font-bold text-slate-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-[#14B8A6] hover:bg-[#0D9488] text-white py-3 rounded-xl font-bold shadow-md"
+                >
+                  Add Charge
                 </button>
               </div>
             </form>
