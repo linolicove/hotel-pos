@@ -1870,7 +1870,7 @@ export default function App() {
     const itemId = `itm_${Date.now()}`;
     const dynamicRate = parseFloat(guestForm.customRate) || getDynamicRoomRate(checkInModalRoom, rooms);
 
-    // Use chosen check-in date (or today) and compute departure date
+    // Read chosen check-in date
     const checkInDateStr = guestForm.checkInDate || getTodayKey();
     const checkInTime = new Date(checkInDateStr).getTime();
     const checkOutDateStr = new Date(checkInTime + nights * 86400000).toISOString().split("T")[0];
@@ -4775,22 +4775,39 @@ export default function App() {
                 <input
                   type="text"
                   required
+                  placeholder="e.g. Thushara Perera"
                   value={guestForm.name}
                   onChange={(e) => setGuestForm({ ...guestForm, name: e.target.value })}
                   className="w-full border rounded-lg p-2.5"
                 />
               </div>
 
+              {/* Contact Phone & Check-In Date */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold mb-1">Contact Phone</label>
                   <input
                     type="tel"
+                    placeholder="+94 77 ..."
                     value={guestForm.phone}
                     onChange={(e) => setGuestForm({ ...guestForm, phone: e.target.value })}
                     className="w-full border rounded-lg p-2.5"
                   />
                 </div>
+                <div>
+                  <label className="block font-semibold mb-1">Check-In Date</label>
+                  <input
+                    type="date"
+                    required
+                    value={guestForm.checkInDate || getTodayKey()}
+                    onChange={(e) => setGuestForm({ ...guestForm, checkInDate: e.target.value })}
+                    className="w-full border rounded-lg p-2.5 font-mono text-xs bg-white font-bold text-slate-800"
+                  />
+                </div>
+              </div>
+
+              {/* Nights Duration & Auto Departure Preview */}
+              <div className="grid grid-cols-2 gap-3 items-center">
                 <div>
                   <label className="block font-semibold mb-1">Nights Duration</label>
                   <input
@@ -4799,8 +4816,19 @@ export default function App() {
                     required
                     value={guestForm.nights}
                     onChange={(e) => setGuestForm({ ...guestForm, nights: parseInt(e.target.value, 10) || 1 })}
-                    className="w-full border rounded-lg p-2.5"
+                    className="w-full border rounded-lg p-2.5 font-bold"
                   />
+                </div>
+                <div className="pt-5">
+                  <div className="p-2 bg-slate-100 border border-slate-200 rounded-lg text-[11px] text-slate-600 font-mono">
+                    <span className="block text-[9px] uppercase text-slate-400">Departure:</span>
+                    <b className="text-[#0D9488]">
+                      {new Date(
+                        (new Date(guestForm.checkInDate || getTodayKey()).getTime()) + 
+                        ((parseInt(guestForm.nights, 10) || 1) * 86400000)
+                      ).toISOString().split("T")[0]}
+                    </b>
+                  </div>
                 </div>
               </div>
 
