@@ -1870,10 +1870,10 @@ export default function App() {
     const itemId = `itm_${Date.now()}`;
     const dynamicRate = parseFloat(guestForm.customRate) || getDynamicRoomRate(checkInModalRoom, rooms);
 
-    // Calculate check-in and check-out dates
+    // Use chosen check-in date (or today) and compute departure date
     const checkInDateStr = guestForm.checkInDate || getTodayKey();
     const checkInTime = new Date(checkInDateStr).getTime();
-    const computedCheckOutStr = new Date(checkInTime + nights * 86400000).toISOString().split("T")[0];
+    const checkOutDateStr = new Date(checkInTime + nights * 86400000).toISOString().split("T")[0];
 
     const initialOrderItem = {
       id: itemId,
@@ -1892,7 +1892,7 @@ export default function App() {
       guestPhone: sanitizeInput(guestForm.phone),
       guestPhoto: guestPhoto || null,
       checkIn: checkInDateStr,
-      checkOut: computedCheckOutStr,
+      checkOut: checkOutDateStr,
       orderItems: { [itemId]: initialOrderItem },
     };
 
