@@ -269,7 +269,6 @@ function printIsolatedDocument(htmlBody) {
 
     const iframe = document.createElement("iframe");
     iframe.id = "pos-print-iframe";
-    // Keep off-screen with physical dimensions so the browser renderer paints it
     iframe.style.position = "fixed";
     iframe.style.left = "-9999px";
     iframe.style.top = "-9999px";
@@ -277,6 +276,8 @@ function printIsolatedDocument(htmlBody) {
     iframe.style.height = "600px";
     iframe.style.border = "none";
     document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow.document;
 
     const styles = `
       <style>
@@ -307,12 +308,10 @@ function printIsolatedDocument(htmlBody) {
       </style>
     `;
 
-    const doc = iframe.contentWindow.document;
     doc.open();
     doc.write(`<!DOCTYPE html><html><head><title>Thermal Receipt</title>${styles}</head><body>${htmlBody}</body></html>`);
     doc.close();
 
-    // Trigger print once the document finishes rendering
     setTimeout(() => {
       try {
         iframe.contentWindow.focus();
@@ -320,13 +319,23 @@ function printIsolatedDocument(htmlBody) {
       } catch (err) {
         console.error("Direct iframe print error:", err);
       }
-    }, 300);
+    }, 350);
   } catch (err) {
     console.error("Print invocation error:", err);
   }
 }
 
-function buildThermalHtml({ settings, room, isTemporary, settlementMethod, total, cashTendered = 0, changeDue = 0 }) {
+function buildThermalHtml({ 
+  settings, 
+  room, 
+  isTemporary, 
+  settlementMethod, 
+  total, 
+  cashTendered = 0, 
+  changeDue = 0, 
+  usdEquivalent = 0, 
+  exchangeRate = 337.50 
+}) {
   const items = room?.orderItems || [];
   const isCash = settlementMethod === "Cash" && !isTemporary;
 
@@ -358,7 +367,7 @@ function buildThermalHtml({ settings, room, isTemporary, settlementMethod, total
           <tr style="border-bottom: 1px solid #000;">
             <th style="text-align: left; padding: 4px 0;">ITEM</th>
             <th style="text-align: center; padding: 4px 0;">QTY</th>
-            <th style="text-align: right; padding: 4px 0;">AMT</th>
+            <th style="text-align: right; padding: 4px 0;">AMT (LKR)</th>
           </tr>
         </thead>
         <tbody>
@@ -366,7 +375,7 @@ function buildThermalHtml({ settings, room, isTemporary, settlementMethod, total
             <tr style="border-bottom: 1px dotted #ccc;">
               <td style="padding: 4px 0;">${item.description}</td>
               <td style="text-align: center; padding: 4px 0;">${item.quantity}</td>
-              <td style="text-align: right; padding: 4px 0;">${settings.currency}${Number(item.total).toFixed(2)}</td>
+              <td style="text-align: right; padding: 4px 0;">Rs. ${Number(item.total).toFixed(2)}</td>
             </tr>
           `).join("")}
         </tbody>
@@ -388,11 +397,11 @@ function buildThermalHtml({ settings, room, isTemporary, settlementMethod, total
         ${isCash ? `
           <div style="display: flex; justify-content: space-between; margin-top: 4px; font-size: 11px;">
             <span>CASH TENDERED:</span>
-            <span>${settings.currency}${Number(cashTendered).toFixed(2)}</span>
+            <span>Rs. ${Number(cashTendered).toFixed(2)}</span>
           </div>
           <div style="display: flex; justify-content: space-between; font-weight: bold; margin-top: 2px; font-size: 12px; border-top: 1px dotted #000; padding-top: 3px;">
             <span>CHANGE RETURNED:</span>
-            <span>${settings.currency}${Number(changeDue).toFixed(2)}</span>
+            <span>Rs. ${Number(changeDue).toFixed(2)}</span>
           </div>
         ` : ""}
       </div>
