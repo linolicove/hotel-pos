@@ -4405,7 +4405,7 @@ export default function App() {
             ratesSource: fresh.source
           });
 
-          alert(`CBSL Daily Rates Synced (+ Rs. 5 Margin Applied):\n1 USD = Rs. ${fresh.USD} (Base: Rs. ${fresh.rawUsdRate} + Rs. 5.00)\n1 AUD = Rs. ${fresh.AUD}\n1 GBP = Rs. ${fresh.GBP}\n1 EUR = Rs. ${fresh.EUR}`);
+          alert(`Daily Exchange Rates Synced:\n1 USD = Rs. ${fresh.USD}\n1 AUD = Rs. ${fresh.AUD}\n1 GBP = Rs. ${fresh.GBP}\n1 EUR = Rs. ${fresh.EUR}`);
         } else {
           alert("Failed to reach exchange rate servers. Please verify your internet connection.");
         }
@@ -4899,10 +4899,10 @@ export default function App() {
                       <div>
                         <span className="font-semibold text-slate-800">{item.quantity}x {item.description}</span>
                         {isUsdTotal && (
-                          <span className="block text-[10px] text-slate-500 font-mono">
-                            Base: ${itemUsd.toFixed(2)} USD @ Rs. {usdRate.toFixed(2)} (+ Rs. 5 Margin)
-                          </span>
-                        )}
+  <span className="block text-[10px] text-slate-500 font-mono">
+    Base: ${itemUsd.toFixed(2)} USD @ Rs. {usdRate.toFixed(2)}
+  </span>
+)}
                       </div>
                       <div className="text-right shrink-0">
                         <span className="font-bold text-[#091D26] block">
@@ -4921,8 +4921,8 @@ export default function App() {
                   <div>
                     <span className="text-xs uppercase font-black text-slate-700 block">Total Balance Due:</span>
                     <span className="text-[10px] font-mono font-bold text-teal-700">
-                      Rate: 1 USD = Rs. {usdRate.toFixed(2)} (Incl. Rs. 5 Margin)
-                    </span>
+  Rate: 1 USD = Rs. {usdRate.toFixed(2)}
+</span>
                   </div>
                   <div className="text-right">
                     <span className="text-xl font-black text-[#0D9488] block">
