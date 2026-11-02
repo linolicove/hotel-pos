@@ -261,14 +261,12 @@ const calculateDurationFromMs = (inMs, outMs) => {
   return `${hrs.toFixed(1)} hrs`;
 };
 
-// --- 2. BULLETPROOF POS PRINT ENGINE ---
-function printIsolatedDocument(htmlBody, mode = "thermal") {
+// --- 2. DEDICATED THERMAL POS PRINT ENGINE ---
+function printIsolatedDocument(htmlBody) {
   try {
-    // 1. Remove any old print frames
     const oldFrame = document.getElementById("pos-print-iframe");
     if (oldFrame) oldFrame.remove();
 
-    // 2. Create hidden iframe in the active page
     const iframe = document.createElement("iframe");
     iframe.id = "pos-print-iframe";
     iframe.style.position = "fixed";
@@ -284,15 +282,15 @@ function printIsolatedDocument(htmlBody, mode = "thermal") {
     const styles = `
       <style>
         @page {
-          size: ${mode === "thermal" ? "80mm auto" : "A4 portrait"};
-          margin: ${mode === "thermal" ? "0mm" : "12mm"};
+          size: 80mm auto;
+          margin: 0mm;
         }
         html, body {
           margin: 0;
           padding: 0;
           background: #ffffff !important;
           color: #000000 !important;
-          font-family: ${mode === "thermal" ? "'Courier New', Courier, monospace" : "system-ui, -apple-system, sans-serif"};
+          font-family: 'Courier New', Courier, monospace;
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;
         }
@@ -303,14 +301,6 @@ function printIsolatedDocument(htmlBody, mode = "thermal") {
           font-size: 11px;
           line-height: 1.3;
         }
-        .a4-container {
-          width: 100%;
-          max-width: 210mm;
-          margin: 0 auto;
-          font-size: 12px;
-          line-height: 1.4;
-          color: #091D26;
-        }
         table {
           width: 100%;
           border-collapse: collapse;
@@ -319,27 +309,24 @@ function printIsolatedDocument(htmlBody, mode = "thermal") {
     `;
 
     doc.open();
-    doc.write(`<!DOCTYPE html><html><head><title>Print Receipt</title>${styles}</head><body>${htmlBody}</body></html>`);
+    doc.write(`<!DOCTYPE html><html><head><title>Thermal Receipt</title>${styles}</head><body>${htmlBody}</body></html>`);
     doc.close();
 
-    // 3. Trigger print directly on the iframe window after styles paint
     setTimeout(() => {
       try {
         iframe.contentWindow.focus();
         iframe.contentWindow.print();
       } catch (err) {
-        console.warn("Direct iframe print error, falling back:", err);
+        console.warn("Direct iframe print failed:", err);
         window.print();
       }
-
-      // Cleanup iframe after printing dialog closes
       setTimeout(() => {
         const frameToDelete = document.getElementById("pos-print-iframe");
         if (frameToDelete) frameToDelete.remove();
       }, 3000);
     }, 350);
   } catch (err) {
-    console.error("Print engine failed:", err);
+    console.error("Print invocation error:", err);
     window.print();
   }
 }
@@ -416,92 +403,6 @@ function buildThermalHtml({ settings, room, isTemporary, settlementMethod, total
       </div>
       <div style="text-align: center; margin-top: 14px; padding-top: 8px; border-top: 1px dashed #000; font-size: 10px;">
         <div>${settings.footerNote}</div>
-      </div>
-    </div>
-  `;
-}
-function buildA4Html({ settings, room, isTemporary, settlementMethod, total, cashTendered = 0, changeDue = 0, usdEquivalent = 0, exchangeRate = 337.50 }) {
-  const items = room?.orderItems || [];
-  const isCash = settlementMethod === "Cash" && !isTemporary;
-
-  return `
-    <div class="a4-container">
-      <div style="border-bottom: 3px double #091D26; padding-bottom: 16px; display: flex; justify-content: space-between; align-items: flex-start;">
-        <div>
-          <h1 style="font-size: 24px; font-weight: 900; text-transform: uppercase; margin: 0; color: #091D26;">${settings.hotelName}</h1>
-          <p style="margin: 2px 0 0 0; font-size: 11px; font-weight: bold; text-transform: uppercase; color: #555;">${settings.tagline}</p>
-          <p style="margin: 4px 0 0 0; font-size: 11px; color: #333;">${settings.address} | Tel: ${settings.phone}</p>
-          <p style="margin: 2px 0 0 0; font-size: 11px; color: #333;">Tax ID / VAT: ${settings.taxNumber} | BRN: ${settings.companyRegNo}</p>
-        </div>
-        <div style="text-align: right;">
-          <div style="display: inline-block; border: 2px solid #091D26; padding: 6px 14px; font-weight: bold; font-size: 12px; text-transform: uppercase; background: #F3EFE6;">
-            ${isTemporary ? "PRE-CHECK FOLIO" : "TAX INVOICE"}
-          </div>
-          <p style="margin: 8px 0 0 0; font-size: 12px;"><b>Folio #:</b> ${room?.orderId || `ORD-${room?.number}`}</p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;"><b>Date:</b> ${new Date().toLocaleDateString()}</p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;"><b>Room:</b> #${room?.number}</p>
-        </div>
-      </div>
-
-      <div style="margin: 18px 0; padding: 12px 16px; border: 1px solid #091D26; border-radius: 4px; background: #FAF9F5; display: flex; justify-content: space-between;">
-        <div>
-          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Guest Information</p>
-          <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold; color: #091D26;">${room?.guestName || "Walk-In Guest"}</p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;">Phone: <b>${room?.guestPhone || "--"}</b></p>
-        </div>
-        <div style="text-align: right;">
-          <p style="margin: 0; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #555;">Settlement Details</p>
-          <p style="margin: 4px 0 0 0; font-size: 14px; font-weight: bold;">Status: ${isTemporary ? "PENDING" : `PAID (${settlementMethod})`}</p>
-          <p style="margin: 2px 0 0 0; font-size: 12px;">Rate Applied: <b>1 USD = Rs. ${Number(exchangeRate).toFixed(2)}</b></p>
-        </div>
-      </div>
-
-      <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px;">
-        <thead>
-          <tr style="border-bottom: 2px solid #091D26; background: #E6DFD3;">
-            <th style="padding: 8px 6px; text-align: left;">Description</th>
-            <th style="padding: 8px 6px; text-align: center;">Qty</th>
-            <th style="padding: 8px 6px; text-align: right;">Unit Price (LKR)</th>
-            <th style="padding: 8px 6px; text-align: right;">Total (LKR)</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${items.map(item => `
-            <tr style="border-bottom: 1px solid #eee;">
-              <td style="padding: 8px 6px;">${item.description}</td>
-              <td style="padding: 8px 6px; text-align: center;">${item.quantity}</td>
-              <td style="padding: 8px 6px; text-align: right;">Rs. ${Number(item.unitPrice || 0).toFixed(2)}</td>
-              <td style="padding: 8px 6px; text-align: right; font-weight: bold;">Rs. ${Number(item.total).toFixed(2)}</td>
-            </tr>
-          `).join("")}
-        </tbody>
-      </table>
-
-      <div style="margin-top: 16px; border-top: 2px solid #091D26; padding-top: 10px; display: flex; justify-content: flex-end;">
-        <div style="width: 280px; font-size: 13px; line-height: 1.6;">
-          <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 15px; color: #0D9488;">
-            <span>TOTAL DUE (LKR):</span>
-            <span>Rs. ${Number(total).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; font-size: 12px; color: #555;">
-            <span>USD EQUIVALENT:</span>
-            <span>$${(total / exchangeRate).toFixed(2)} USD</span>
-          </div>
-          ${isCash ? `
-            <div style="display: flex; justify-content: space-between; margin-top: 6px;">
-              <span>CASH TENDERED:</span>
-              <span>Rs. ${Number(cashTendered).toFixed(2)}</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; font-weight: bold;">
-              <span>CHANGE DUE:</span>
-              <span>Rs. ${Number(changeDue).toFixed(2)}</span>
-            </div>
-          ` : ""}
-        </div>
-      </div>
-
-      <div style="margin-top: 40px; text-align: center; border-top: 1px dashed #999; padding-top: 12px; font-size: 11px; color: #666;">
-        ${settings.footerNote}
       </div>
     </div>
   `;
@@ -1776,7 +1677,7 @@ export default function App() {
     const totalLkr = isUsdTotal ? rawTotal * usdRate : rawTotal;
     const totalUsd = isUsdTotal ? rawTotal : rawTotal / usdRate;
 
-    const printParams = {
+    const html = buildThermalHtml({
       settings,
       room,
       isTemporary: true,
@@ -1784,13 +1685,9 @@ export default function App() {
       total: totalLkr,
       usdEquivalent: totalUsd,
       exchangeRate: usdRate
-    };
+    });
 
-    const html = printFormat === "thermal"
-      ? buildThermalHtml(printParams)
-      : buildA4Html(printParams);
-
-    printIsolatedDocument(html, printFormat);
+    printIsolatedDocument(html);
   };
 
   const handleConfirmOrderSettlement = () => {
@@ -1829,7 +1726,7 @@ export default function App() {
     };
     set(ref(rtdb, `sales_records/${saleId}`), saleRecord);
 
-    const printParams = {
+    const html = buildThermalHtml({
       settings,
       room: settleOrderRoom,
       isTemporary: false,
@@ -1839,16 +1736,10 @@ export default function App() {
       changeDue: balanceReturned,
       usdEquivalent: totalUsd,
       exchangeRate: usdRate
-    };
+    });
 
-    const html = printFormat === "thermal"
-      ? buildThermalHtml(printParams)
-      : buildA4Html(printParams);
+    printIsolatedDocument(html);
 
-    // 1. Fire print immediately
-    printIsolatedDocument(html, printFormat);
-
-    // 2. Clear room status in database
     update(ref(rtdb, `rooms/${settleOrderRoom.id}`), {
       status: "cleaning",
       orderId: null,
@@ -1860,11 +1751,10 @@ export default function App() {
       checkOut: "",
       orderItems: null,
     });
-
-    // 3. Close the modal
     setSettleOrderRoom(null);
     setCashTendered("");
   };
+  
   const handlePrintPayslip = (staffMember) => {
     try {
       const html = buildPayslipHtml({
