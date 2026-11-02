@@ -997,45 +997,6 @@ export default function App() {
       }
     });
 
-    // --- STEP 3: CBSL DAILY AUTO-SYNC HOOK ---
-  useEffect(() => {
-    const checkAndRefreshDailyRates = async () => {
-      // 1. Get today's date in YYYY-MM-DD
-      const todayStr = new Date().toISOString().split("T")[0];
-      
-      // 2. Extract the date portion from settings.ratesLastSynced (if previously set)
-      const lastSyncDate = settings?.ratesLastSynced
-        ? settings.ratesLastSynced.split("T")[0]
-        : null;
-
-      // 3. Only sync if it hasn't been synced today, and the logged-in user is GM/Admin
-      if (lastSyncDate !== todayStr && isGeneralManager) {
-        try {
-          const freshRates = await fetchDailyCBSLRates();
-          if (freshRates) {
-            await update(ref(rtdb, "hotel_config/profile"), {
-              exchangeRates: {
-                LKR: 1,
-                USD: freshRates.USD,
-                AUD: freshRates.AUD,
-                GBP: freshRates.GBP,
-                EUR: freshRates.EUR,
-              },
-              ratesLastSynced: freshRates.lastUpdated,
-              ratesSource: freshRates.source,
-            });
-          }
-        } catch (err) {
-          console.warn("Auto CBSL sync encountered an issue:", err);
-        }
-      }
-    };
-
-    if (settings && isGeneralManager) {
-      checkAndRefreshDailyRates();
-    }
-  }, [settings?.ratesLastSynced, isGeneralManager]);
-
     const roomsRef = ref(rtdb, "rooms");
     const unsubRooms = onValue(roomsRef, (snapshot) => {
       if (snapshot.exists()) {
@@ -1148,6 +1109,41 @@ export default function App() {
       stopCamera();
     };
   }, [selectedRoomId]);
+
+  // --- CBSL DAILY AUTO-SYNC HOOK ---
+  useEffect(() => {
+    const checkAndRefreshDailyRates = async () => {
+      const todayStr = new Date().toISOString().split("T")[0];
+      const lastSyncDate = settings?.ratesLastSynced
+        ? settings.ratesLastSynced.split("T")[0]
+        : null;
+
+      if (lastSyncDate !== todayStr && isGeneralManager) {
+        try {
+          const freshRates = await fetchDailyCBSLRates();
+          if (freshRates) {
+            await update(ref(rtdb, "hotel_config/profile"), {
+              exchangeRates: {
+                LKR: 1,
+                USD: freshRates.USD,
+                AUD: freshRates.AUD,
+                GBP: freshRates.GBP,
+                EUR: freshRates.EUR,
+              },
+              ratesLastSynced: freshRates.lastUpdated,
+              ratesSource: freshRates.source,
+            });
+          }
+        } catch (err) {
+          console.warn("Auto CBSL sync encountered an issue:", err);
+        }
+      }
+    };
+
+    if (settings && isGeneralManager) {
+      checkAndRefreshDailyRates();
+    }
+  }, [settings?.ratesLastSynced, isGeneralManager]);
 
   const currentRoom = rooms.find((r) => r.id === selectedRoomId) || rooms[0];
   const calculateTotal = (room) => room?.orderItems?.reduce((acc, item) => acc + (Number(item.total) || 0), 0) || 0;
