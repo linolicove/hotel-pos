@@ -105,19 +105,22 @@ async function fetchDailyCBSLRates() {
     const data = await res.json();
 
     if (data && data.rates && data.rates.LKR) {
-      const usdToLkr = Number(data.rates.LKR);
-      const audToLkr = usdToLkr / Number(data.rates.AUD);
-      const gbpToLkr = usdToLkr / Number(data.rates.GBP);
-      const eurToLkr = usdToLkr / Number(data.rates.EUR);
+      const baseUsdToLkr = Number(data.rates.LKR);
+      // Add Rs. 5 commercial selling margin to the base USD rate
+      const usdSellingRate = baseUsdToLkr + 5.00;
+
+      const audToLkr = baseUsdToLkr / Number(data.rates.AUD);
+      const gbpToLkr = baseUsdToLkr / Number(data.rates.GBP);
+      const eurToLkr = baseUsdToLkr / Number(data.rates.EUR);
 
       return {
         LKR: 1,
-        USD: Number(usdToLkr.toFixed(2)),
+        USD: Number(usdSellingRate.toFixed(2)),
         AUD: Number(audToLkr.toFixed(2)),
         GBP: Number(gbpToLkr.toFixed(2)),
         EUR: Number(eurToLkr.toFixed(2)),
         lastUpdated: new Date().toISOString(),
-        source: "Central Bank of Sri Lanka (CBSL Daily Indicative Reference)"
+        source: "Central Bank of Sri Lanka (CBSL + Rs. 5 Selling Margin)"
       };
     }
     throw new Error("Invalid rate payload");
@@ -144,13 +147,13 @@ const DEFAULT_SETTINGS = {
   baseCurrency: "LKR",
   exchangeRates: {
     LKR: 1,
-    USD: 332.50,
+    USD: 337.50, // 332.50 base + Rs. 5 commercial selling rate
     AUD: 233.00,
     GBP: 445.00,
     EUR: 372.00
   },
   ratesLastSynced: "Manual Seed",
-  ratesSource: "CBSL Indicative Rates",
+  ratesSource: "CBSL Indicative Rates (+ Rs. 5 Selling Margin)",
 
   emailRecipient: "linolicove@gmail.com",
   emailScheduleTime: "23:30",
@@ -1397,20 +1400,31 @@ export default function App() {
   const handleAddFolioItemToRoom = (e) => {
     e.preventDefault();
     if (!folioModalRoom || !folioItemForm.description || !folioItemForm.unitPrice) return;
-    const unitPrice = parseFloat(folioItemForm.unitPrice) || 0;
+
+    const rawPrice = parseFloat(folioItemForm.unitPrice) || 0;
     const quantity = parseInt(folioItemForm.quantity, 10) || 1;
+    const isUSD = folioItemForm.currency === "USD";
+    // Uses the synced selling rate (with Rs. 5 markup) or fallback 337.50
+    const usdRate = settings.exchangeRates?.USD || 337.50;
+
+    const unitPriceLkr = isUSD ? rawPrice * usdRate : rawPrice;
+    const totalLkr = unitPriceLkr * quantity;
+
     const now = new Date();
     const itemId = `itm_${Date.now()}`;
     const newItem = {
       id: itemId,
-      description: sanitizeInput(folioItemForm.description),
+      description: isUSD 
+        ? `${sanitizeInput(folioItemForm.description)} ($${rawPrice.toFixed(2)} @ Rs. ${usdRate.toFixed(2)})` 
+        : sanitizeInput(folioItemForm.description),
       quantity,
-      unitPrice,
-      total: unitPrice * quantity,
+      unitPrice: unitPriceLkr,
+      total: totalLkr,
       timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
     };
+
     set(ref(rtdb, `rooms/${folioModalRoom.id}/orderItems/${itemId}`), newItem);
-    setFolioItemForm({ description: "", unitPrice: "", quantity: "1" });
+    setFolioItemForm({ description: "", unitPrice: "", quantity: "1", currency: "LKR" });
     setFolioModalRoom(null);
   };
 
