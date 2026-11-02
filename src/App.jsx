@@ -261,30 +261,31 @@ const calculateDurationFromMs = (inMs, outMs) => {
   return `${hrs.toFixed(1)} hrs`;
 };
 
-// --- 2. PROGRAMMATIC ISOLATED PRINT ENGINE ---
+// --- 2. BULLETPROOF POS PRINT ENGINE ---
 function printIsolatedDocument(htmlBody, mode = "thermal") {
   try {
-    const width = mode === "thermal" ? 380 : 850;
-    const height = 700;
-    const left = (window.screen.width - width) / 2;
-    const top = (window.screen.height - height) / 2;
+    // 1. Remove any old print frames
+    const oldFrame = document.getElementById("pos-print-iframe");
+    if (oldFrame) oldFrame.remove();
 
-    const printWin = window.open(
-      "",
-      "_blank",
-      `width=${width},height=${height},top=${top},left=${left},scrollbars=yes,status=no,resizable=yes`
-    );
+    // 2. Create hidden iframe in the active page
+    const iframe = document.createElement("iframe");
+    iframe.id = "pos-print-iframe";
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0px";
+    iframe.style.height = "0px";
+    iframe.style.border = "none";
+    document.body.appendChild(iframe);
 
-    if (!printWin) {
-      alert("Pop-up blocker prevented printing. Please allow pop-ups for this website in your browser settings.");
-      return;
-    }
+    const doc = iframe.contentWindow.document;
 
     const styles = `
       <style>
         @page {
           size: ${mode === "thermal" ? "80mm auto" : "A4 portrait"};
-          margin: ${mode === "thermal" ? "2mm" : "12mm"};
+          margin: ${mode === "thermal" ? "0mm" : "12mm"};
         }
         html, body {
           margin: 0;
@@ -298,7 +299,7 @@ function printIsolatedDocument(htmlBody, mode = "thermal") {
         .thermal-container {
           width: 72mm;
           margin: 0 auto;
-          padding: 4mm 0;
+          padding: 3mm 0;
           font-size: 11px;
           line-height: 1.3;
         }
@@ -314,62 +315,31 @@ function printIsolatedDocument(htmlBody, mode = "thermal") {
           width: 100%;
           border-collapse: collapse;
         }
-        .no-print-bar {
-          background: #091D26;
-          color: #fff;
-          padding: 8px 12px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          font-family: sans-serif;
-          font-size: 12px;
-          margin-bottom: 12px;
-        }
-        .btn-print {
-          background: #0D9488;
-          color: white;
-          border: none;
-          padding: 6px 12px;
-          font-weight: bold;
-          border-radius: 6px;
-          cursor: pointer;
-        }
-        @media print {
-          .no-print-bar { display: none !important; }
-        }
       </style>
     `;
 
-    const fullHtml = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>POS Invoice Print</title>
-          ${styles}
-        </head>
-        <body>
-          <div class="no-print-bar">
-            <span>Print Preview</span>
-            <button class="btn-print" onclick="window.print()">Print Now</button>
-          </div>
-          ${htmlBody}
-          <script>
-            window.onload = function() {
-              setTimeout(function() {
-                window.focus();
-                window.print();
-              }, 300);
-            };
-          </script>
-        </body>
-      </html>
-    `;
+    doc.open();
+    doc.write(`<!DOCTYPE html><html><head><title>Print Receipt</title>${styles}</head><body>${htmlBody}</body></html>`);
+    doc.close();
 
-    printWin.document.open();
-    printWin.document.write(fullHtml);
-    printWin.document.close();
-  } catch (e) {
-    console.error("Print generation error:", e);
+    // 3. Trigger print directly on the iframe window after styles paint
+    setTimeout(() => {
+      try {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+      } catch (err) {
+        console.warn("Direct iframe print error, falling back:", err);
+        window.print();
+      }
+
+      // Cleanup iframe after printing dialog closes
+      setTimeout(() => {
+        const frameToDelete = document.getElementById("pos-print-iframe");
+        if (frameToDelete) frameToDelete.remove();
+      }, 3000);
+    }, 350);
+  } catch (err) {
+    console.error("Print engine failed:", err);
     window.print();
   }
 }
@@ -1875,8 +1845,10 @@ export default function App() {
       ? buildThermalHtml(printParams)
       : buildA4Html(printParams);
 
+    // 1. Fire print immediately
     printIsolatedDocument(html, printFormat);
 
+    // 2. Clear room status in database
     update(ref(rtdb, `rooms/${settleOrderRoom.id}`), {
       status: "cleaning",
       orderId: null,
@@ -1888,10 +1860,11 @@ export default function App() {
       checkOut: "",
       orderItems: null,
     });
+
+    // 3. Close the modal
     setSettleOrderRoom(null);
     setCashTendered("");
   };
-
   const handlePrintPayslip = (staffMember) => {
     try {
       const html = buildPayslipHtml({
