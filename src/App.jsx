@@ -381,10 +381,19 @@ function buildThermalHtml({ settings, room, isTemporary, settlementMethod, total
         </tbody>
       </table>
       <div style="border-top: 1px dashed #000; padding-top: 6px; font-size: 12px;">
-        <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 13px;">
-          <span>${isTemporary ? "TOTAL DUE:" : "BILL TOTAL:"}</span>
-          <span>${settings.currency}${Number(total).toFixed(2)}</span>
+        <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 14px;">
+          <span>BILL TOTAL (LKR):</span>
+          <span>Rs. ${Number(total).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
         </div>
+        ${usdEquivalent ? `
+          <div style="display: flex; justify-content: space-between; font-size: 11px; margin-top: 4px; color: #333;">
+            <span>USD EQUIVALENT:</span>
+            <span>$${Number(usdEquivalent).toFixed(2)} USD</span>
+          </div>
+          <div style="font-size: 9px; color: #555; text-align: right;">
+            (Conversion Rate: 1 USD = Rs. ${Number(exchangeRate || 337.50).toFixed(2)})
+          </div>
+        ` : ""}
         ${isCash ? `
           <div style="display: flex; justify-content: space-between; margin-top: 4px; font-size: 11px;">
             <span>CASH TENDERED:</span>
@@ -1673,12 +1682,17 @@ export default function App() {
     printIsolatedDocument(html, printFormat);
   };
 
-  // Settle Order & Save into Permanent Sales Ledger
   const handleConfirmOrderSettlement = () => {
     if (!settleOrderRoom) return;
-    const total = calculateTotal(settleOrderRoom);
-    const tenderAmount = parseFloat(cashTendered) || total;
-    const balanceReturned = Math.max(0, tenderAmount - total);
+
+    const usdRate = Number(settings?.exchangeRates?.USD) || 337.50;
+    const rawTotal = calculateTotal(settleOrderRoom);
+    const isUsdTotal = rawTotal < 1000;
+    const totalLkr = isUsdTotal ? rawTotal * usdRate : rawTotal;
+    const totalUsd = isUsdTotal ? rawTotal : rawTotal / usdRate;
+
+    const tenderAmount = parseFloat(cashTendered) || totalLkr;
+    const balanceReturned = Math.max(0, tenderAmount - totalLkr);
     const day = getTodayKey();
     const saleId = `SALE-${Date.now()}`;
 
@@ -1691,7 +1705,9 @@ export default function App() {
       guestPhoto: settleOrderRoom.guestPhoto || null,
       checkIn: settleOrderRoom.checkIn || day,
       checkOut: settleOrderRoom.checkOut || day,
-      totalAmount: total,
+      totalAmount: totalLkr,
+      totalAmountUsd: Number(totalUsd.toFixed(2)),
+      appliedUsdRate: usdRate,
       cashTendered: tenderAmount,
       changeReturned: balanceReturned,
       settlementMethod: settlementMethod,
@@ -1708,18 +1724,22 @@ export default function App() {
           room: settleOrderRoom,
           isTemporary: false,
           settlementMethod,
-          total,
+          total: totalLkr,
           cashTendered: tenderAmount,
-          changeDue: balanceReturned
+          changeDue: balanceReturned,
+          usdEquivalent: totalUsd,
+          exchangeRate: usdRate
         })
       : buildA4Html({
           settings,
           room: settleOrderRoom,
           isTemporary: false,
           settlementMethod,
-          total,
+          total: totalLkr,
           cashTendered: tenderAmount,
-          changeDue: balanceReturned
+          changeDue: balanceReturned,
+          usdEquivalent: totalUsd,
+          exchangeRate: usdRate
         });
 
     printIsolatedDocument(html, printFormat);
@@ -4737,128 +4757,164 @@ export default function App() {
       )}
 
       {/* MODAL: DIRECT BILL SETTLEMENT CONSOLE */}
-      {settleOrderRoom && (
-        <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-[#E6DFD3]">
-            <div className="flex justify-between items-start mb-4 pb-3 border-b border-[#E6DFD3]">
-              <div>
-                <span className="text-xs uppercase font-bold text-[#0F766E]">Direct Order Settlement</span>
-                <h3 className="font-black text-xl text-[#091D26]">Room #{settleOrderRoom.number}</h3>
-                <p className="text-xs text-slate-500">Guest: {settleOrderRoom.guestName || "Walk-In"}</p>
-              </div>
-              <button type="button" onClick={() => setSettleOrderRoom(null)} className="text-slate-400 hover:text-black">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      {settleOrderRoom && (() => {
+        const usdRate = Number(settings?.exchangeRates?.USD) || 337.50;
+        const rawTotal = calculateTotal(settleOrderRoom);
 
-            <div className="max-h-44 overflow-y-auto border border-[#E6DFD3] rounded-2xl p-3 bg-[#FAF9F5] mb-4 text-xs space-y-1.5">
-              {settleOrderRoom.orderItems?.map((item) => (
-                <div key={item.id} className="flex justify-between py-1 border-b border-slate-100 last:border-none">
+        // Detect if amounts were entered in USD (e.g. room rates < 1000) vs LKR
+        const isUsdTotal = rawTotal < 1000;
+        const totalLkr = isUsdTotal ? rawTotal * usdRate : rawTotal;
+        const totalUsd = isUsdTotal ? rawTotal : rawTotal / usdRate;
+
+        const tenderAmount = parseFloat(cashTendered) || 0;
+        const modalChangeDue = Math.max(0, tenderAmount - totalLkr);
+
+        return (
+          <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-[#E6DFD3]">
+              <div className="flex justify-between items-start mb-4 pb-3 border-b border-[#E6DFD3]">
+                <div>
+                  <span className="text-xs uppercase font-bold text-[#0F766E]">Direct Order Settlement</span>
+                  <h3 className="font-black text-xl text-[#091D26]">Room #{settleOrderRoom.number}</h3>
+                  <p className="text-xs text-slate-500">Guest: {settleOrderRoom.guestName || "Walk-In"}</p>
+                </div>
+                <button type="button" onClick={() => setSettleOrderRoom(null)} className="text-slate-400 hover:text-black">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Order Items & Conversion Ledger */}
+              <div className="max-h-56 overflow-y-auto border border-[#E6DFD3] rounded-2xl p-3.5 bg-[#FAF9F5] mb-4 text-xs space-y-2">
+                {settleOrderRoom.orderItems?.map((item) => {
+                  const itemRaw = Number(item.total) || 0;
+                  const itemLkr = isUsdTotal ? itemRaw * usdRate : itemRaw;
+                  const itemUsd = isUsdTotal ? itemRaw : itemRaw / usdRate;
+
+                  return (
+                    <div key={item.id} className="flex justify-between items-start py-1.5 border-b border-slate-200/60 last:border-none">
+                      <div>
+                        <span className="font-semibold text-slate-800">{item.quantity}x {item.description}</span>
+                        {isUsdTotal && (
+                          <span className="block text-[10px] text-slate-500 font-mono">
+                            Base: ${itemUsd.toFixed(2)} USD @ Rs. {usdRate.toFixed(2)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="font-bold text-[#091D26] block">
+                          Rs. {itemLkr.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-mono block">
+                          (${itemUsd.toFixed(2)} USD)
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Total Balance Due Converted to LKR */}
+                <div className="pt-3 border-t-2 border-slate-300 flex justify-between items-start">
                   <div>
-                    <span className="font-semibold text-slate-800">{item.quantity}x {item.description}</span>
+                    <span className="text-xs uppercase font-black text-slate-700 block">Total Balance Due:</span>
+                    <span className="text-[10px] font-mono font-bold text-teal-700">
+                      Rate: 1 USD = Rs. {usdRate.toFixed(2)}
+                    </span>
                   </div>
-                  <span className="font-semibold text-[#091D26]">{settings.currency}{Number(item.total).toFixed(2)}</span>
+                  <div className="text-right">
+                    <span className="text-xl font-black text-[#0D9488] block">
+                      Rs. {totalLkr.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                    <span className="text-[11px] font-mono text-slate-500 font-bold block">
+                      (Original: ${totalUsd.toFixed(2)} USD)
+                    </span>
+                  </div>
                 </div>
-              ))}
-              <div className="pt-2 flex justify-between font-black text-sm text-[#091D26]">
-  <span>Total Balance Due:</span>
-  <div className="text-right">
-    <span className="text-[#0D9488] text-base block">
-      {settings.currency}{calculateTotal(settleOrderRoom).toFixed(2)}
-    </span>
-    <span className="text-[11px] font-mono text-slate-500 block">
-      ≈ ${(calculateTotal(settleOrderRoom) / (settings?.exchangeRates?.USD || 337.50)).toFixed(2)} USD
-    </span>
-  </div>
-</div>
 
-{/* Live Multi-Currency Conversion Breakdown */}
-<div className="mt-2 pt-2 border-t border-slate-200 text-[11px] text-slate-500 space-y-1">
-  <div className="flex justify-between font-mono">
-    <span>CBSL Approx AUD:</span>
-    <span className="font-bold text-slate-700">
-      A${(calculateTotal(settleOrderRoom) / (settings?.exchangeRates?.AUD || 233.0)).toFixed(2)}
-    </span>
-  </div>
-  <div className="flex justify-between font-mono">
-    <span>CBSL Approx GBP:</span>
-    <span className="font-bold text-slate-700">
-      £{(calculateTotal(settleOrderRoom) / (settings?.exchangeRates?.GBP || 445.0)).toFixed(2)}
-    </span>
-  </div>
-  <div className="flex justify-between font-mono">
-    <span>CBSL Approx EUR:</span>
-    <span className="font-bold text-slate-700">
-      €{(calculateTotal(settleOrderRoom) / (settings?.exchangeRates?.EUR || 372.0)).toFixed(2)}
-    </span>
-  </div>
-</div>
-            </div>
-            
-            <div className="mb-4">
-              <label className="block text-xs font-semibold text-slate-700 mb-2">Tender Method:</label>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { id: "Credit Card", icon: CreditCard },
-                  { id: "Cash", icon: Banknote },
-                  { id: "Transfer", icon: Building2 },
-                ].map(({ id, icon: Icon }) => (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => setSettlementMethod(id)}
-                    className={`py-2.5 text-xs font-bold rounded-xl border flex items-center justify-center gap-1.5 transition-all ${
-                      settlementMethod === id
-                        ? "bg-[#0F2D3C] text-white border-[#0F2D3C]"
-                        : "bg-white text-slate-700 border-[#E6DFD3] hover:bg-[#F3EFE6]"
-                    }`}
-                  >
-                    <Icon className="w-3.5 h-3.5" /> {id}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {settlementMethod === "Cash" && (
-              <div className="bg-[#FAF9F5] p-3 rounded-2xl border border-[#E6DFD3] mb-4 flex items-center gap-3 text-xs">
-                <div className="flex-1">
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Cash Tendered:</label>
-                  <input
-                    type="number"
-                    placeholder="0.00"
-                    value={cashTendered}
-                    onChange={(e) => setCashTendered(e.target.value)}
-                    className="w-full border border-[#D3C8B7] rounded-lg px-2.5 py-1.5 font-bold text-sm focus:outline-none"
-                  />
-                </div>
-                <div className="flex-1 text-right">
-                  <span className="block text-[11px] font-semibold text-slate-600">Change Due:</span>
-                  <span className="text-base font-black text-[#0D9488]">
-                    {settings.currency}{changeDue.toFixed(2)}
-                  </span>
+                {/* Indicative Foreign Reference Breakdown */}
+                <div className="mt-2 pt-2 border-t border-dashed border-slate-200 grid grid-cols-3 gap-1.5 text-center font-mono text-[10px]">
+                  <div className="bg-white p-1.5 rounded-lg border border-slate-200">
+                    <span className="text-slate-400 block text-[9px]">AUD Approx</span>
+                    <span className="font-bold text-slate-700">A${(totalLkr / (settings?.exchangeRates?.AUD || 233.0)).toFixed(2)}</span>
+                  </div>
+                  <div className="bg-white p-1.5 rounded-lg border border-slate-200">
+                    <span className="text-slate-400 block text-[9px]">GBP Approx</span>
+                    <span className="font-bold text-slate-700">£{(totalLkr / (settings?.exchangeRates?.GBP || 445.0)).toFixed(2)}</span>
+                  </div>
+                  <div className="bg-white p-1.5 rounded-lg border border-slate-200">
+                    <span className="text-slate-400 block text-[9px]">EUR Approx</span>
+                    <span className="font-bold text-slate-700">€{(totalLkr / (settings?.exchangeRates?.EUR || 372.0)).toFixed(2)}</span>
+                  </div>
                 </div>
               </div>
-            )}
 
-            <div className="flex gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setSettleOrderRoom(null)}
-                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-3 rounded-xl text-xs font-semibold"
-              >
-                Back
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmOrderSettlement}
-                className="flex-2 bg-[#0D9488] hover:bg-[#0F766E] text-white py-3 px-6 rounded-xl text-xs font-bold shadow-md flex items-center justify-center gap-1.5"
-              >
-                <Check className="w-4 h-4" /> Confirm & Auto-Print Invoice
-              </button>
+              {/* Tender Selector */}
+              <div className="mb-4">
+                <label className="block text-xs font-semibold text-slate-700 mb-2">Tender Method:</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: "Credit Card", icon: CreditCard },
+                    { id: "Cash", icon: Banknote },
+                    { id: "Transfer", icon: Building2 },
+                  ].map(({ id, icon: Icon }) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setSettlementMethod(id)}
+                      className={`py-2.5 text-xs font-bold rounded-xl border flex items-center justify-center gap-1.5 transition-all ${
+                        settlementMethod === id
+                          ? "bg-[#0F2D3C] text-white border-[#0F2D3C]"
+                          : "bg-white text-slate-700 border-[#E6DFD3] hover:bg-[#F3EFE6]"
+                      }`}
+                    >
+                      <Icon className="w-3.5 h-3.5" /> {id}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Cash Tender & Change Due in LKR */}
+              {settlementMethod === "Cash" && (
+                <div className="bg-[#FAF9F5] p-3 rounded-2xl border border-[#E6DFD3] mb-4 flex items-center gap-3 text-xs">
+                  <div className="flex-1">
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Cash Tendered (LKR):</label>
+                    <input
+                      type="number"
+                      placeholder={totalLkr.toFixed(2)}
+                      value={cashTendered}
+                      onChange={(e) => setCashTendered(e.target.value)}
+                      className="w-full border border-[#D3C8B7] rounded-lg px-2.5 py-1.5 font-bold text-sm focus:outline-none"
+                    />
+                  </div>
+                  <div className="flex-1 text-right">
+                    <span className="block text-[11px] font-semibold text-slate-600">Change Due (LKR):</span>
+                    <span className="text-base font-black text-[#0D9488]">
+                      Rs. {modalChangeDue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Modal Buttons */}
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setSettleOrderRoom(null)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-3 rounded-xl text-xs font-semibold"
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmOrderSettlement}
+                  className="flex-2 bg-[#0D9488] hover:bg-[#0F766E] text-white py-3 px-6 rounded-xl text-xs font-bold shadow-md flex items-center justify-center gap-1.5"
+                >
+                  <Check className="w-4 h-4" /> Confirm & Auto-Print Invoice
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* MODAL: EDIT STAFF MEMBER */}
       {editingStaffMember && isGeneralManager && (
