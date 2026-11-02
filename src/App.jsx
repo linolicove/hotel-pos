@@ -269,15 +269,14 @@ function printIsolatedDocument(htmlBody) {
 
     const iframe = document.createElement("iframe");
     iframe.id = "pos-print-iframe";
+    // Keep off-screen with physical dimensions so the browser renderer paints it
     iframe.style.position = "fixed";
-    iframe.style.right = "0";
-    iframe.style.bottom = "0";
-    iframe.style.width = "0px";
-    iframe.style.height = "0px";
+    iframe.style.left = "-9999px";
+    iframe.style.top = "-9999px";
+    iframe.style.width = "350px";
+    iframe.style.height = "600px";
     iframe.style.border = "none";
     document.body.appendChild(iframe);
-
-    const doc = iframe.contentWindow.document;
 
     const styles = `
       <style>
@@ -308,26 +307,22 @@ function printIsolatedDocument(htmlBody) {
       </style>
     `;
 
+    const doc = iframe.contentWindow.document;
     doc.open();
     doc.write(`<!DOCTYPE html><html><head><title>Thermal Receipt</title>${styles}</head><body>${htmlBody}</body></html>`);
     doc.close();
 
+    // Trigger print once the document finishes rendering
     setTimeout(() => {
       try {
         iframe.contentWindow.focus();
         iframe.contentWindow.print();
       } catch (err) {
-        console.warn("Direct iframe print failed:", err);
-        window.print();
+        console.error("Direct iframe print error:", err);
       }
-      setTimeout(() => {
-        const frameToDelete = document.getElementById("pos-print-iframe");
-        if (frameToDelete) frameToDelete.remove();
-      }, 3000);
-    }, 350);
+    }, 300);
   } catch (err) {
     console.error("Print invocation error:", err);
-    window.print();
   }
 }
 
@@ -1683,6 +1678,8 @@ export default function App() {
       isTemporary: true,
       settlementMethod: "Pending",
       total: totalLkr,
+      cashTendered: 0,
+      changeDue: 0,
       usdEquivalent: totalUsd,
       exchangeRate: usdRate
     });
@@ -1738,8 +1735,10 @@ export default function App() {
       exchangeRate: usdRate
     });
 
+    // Fire print immediately
     printIsolatedDocument(html);
 
+    // Update database status
     update(ref(rtdb, `rooms/${settleOrderRoom.id}`), {
       status: "cleaning",
       orderId: null,
@@ -1751,10 +1750,12 @@ export default function App() {
       checkOut: "",
       orderItems: null,
     });
+
+    // Close the settlement dialog
     setSettleOrderRoom(null);
     setCashTendered("");
   };
-  
+
   const handlePrintPayslip = (staffMember) => {
     try {
       const html = buildPayslipHtml({
@@ -4200,16 +4201,30 @@ export default function App() {
                       <Usb className="w-3.5 h-3.5" /> Pair USB Printer
                     </button>
                     <button
-                      type="button"
-                      onClick={() => {
-                        const dummyRoom = { number: "TEST", orderId: "TEST-01", orderItems: [{ description: "Thermal Test Receipt", quantity: 1, total: 0 }] };
-                        const html = buildThermalHtml({ settings: settingsForm, room: dummyRoom, isTemporary: true, settlementMethod: "TEST", total: 0 });
-                        printIsolatedDocument(html, "thermal");
-                      }}
-                      className="px-3.5 py-2 border border-[#D3C8B7] rounded-lg text-xs font-bold hover:bg-slate-50 flex items-center gap-1.5"
-                    >
-                      <Printer className="w-3.5 h-3.5" /> Test Slip
-                    </button>
+  type="button"
+  onClick={() => {
+    const dummyRoom = { 
+      number: "TEST", 
+      orderId: "TEST-01", 
+      orderItems: [{ description: "Thermal Test Receipt", quantity: 1, total: 100 }] 
+    };
+    const html = buildThermalHtml({ 
+      settings: settingsForm, 
+      room: dummyRoom, 
+      isTemporary: true, 
+      settlementMethod: "TEST", 
+      total: 100,
+      cashTendered: 100,
+      changeDue: 0,
+      usdEquivalent: 0.30,
+      exchangeRate: settingsForm.exchangeRates?.USD || 337.50
+    });
+    printIsolatedDocument(html);
+  }}
+  className="px-3.5 py-2 border border-[#D3C8B7] rounded-lg text-xs font-bold hover:bg-slate-50 flex items-center gap-1.5"
+>
+  <Printer className="w-3.5 h-3.5" /> Test Slip
+</button>
                   </div>
                 </div>
               </div>
