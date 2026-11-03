@@ -1704,11 +1704,15 @@ export default function App() {
     if (!settleOrderRoom) return;
 
     const usdRate = Number(settings?.exchangeRates?.USD) || 337.50;
-    const rawTotal = calculateTotal(settleOrderRoom);
-    const isUsdTotal = rawTotal < 1000;
-    const totalLkr = isUsdTotal ? rawTotal * usdRate : rawTotal;
-    const totalUsd = isUsdTotal ? rawTotal : rawTotal / usdRate;
+    const items = settleOrderRoom.orderItems || [];
 
+    const totalLkr = items.reduce((acc, item) => {
+      const rawTotal = Number(item.total) || 0;
+      const isUsdItem = item.currency === "USD" || (rawTotal > 0 && rawTotal < 1000 && !item.description?.toLowerCase().includes("minibar"));
+      return acc + (isUsdItem ? rawTotal * usdRate : rawTotal);
+    }, 0);
+
+    const totalUsd = Number((totalLkr / usdRate).toFixed(2));
     const tenderAmount = parseFloat(cashTendered) || totalLkr;
     const balanceReturned = Math.max(0, tenderAmount - totalLkr);
     const day = getTodayKey();
@@ -1724,12 +1728,12 @@ export default function App() {
       checkIn: settleOrderRoom.checkIn || day,
       checkOut: settleOrderRoom.checkOut || day,
       totalAmount: totalLkr,
-      totalAmountUsd: Number(totalUsd.toFixed(2)),
+      totalAmountUsd: totalUsd,
       appliedUsdRate: usdRate,
       cashTendered: tenderAmount,
       changeReturned: balanceReturned,
       settlementMethod: settlementMethod,
-      orderItems: settleOrderRoom.orderItems || [],
+      orderItems: items,
       date: day,
       settledAt: formatTimeClean(),
       timestamp: Date.now()
@@ -1748,10 +1752,8 @@ export default function App() {
       exchangeRate: usdRate
     });
 
-    // Fire print immediately
     printIsolatedDocument(html);
 
-    // Update database status
     update(ref(rtdb, `rooms/${settleOrderRoom.id}`), {
       status: "cleaning",
       orderId: null,
@@ -1763,8 +1765,6 @@ export default function App() {
       checkOut: "",
       orderItems: null,
     });
-
-    // Close the settlement dialog
     setSettleOrderRoom(null);
     setCashTendered("");
   };
@@ -4965,18 +4965,27 @@ export default function App() {
       {settleOrderRoom && (() => {
         // Reads the saved selling rate (which includes + Rs. 5) or defaults to 337.50
         const usdRate = Number(settings?.exchangeRates?.USD) || 337.50;
-
-  // 1. Calculate Grand Total in LKR by checking each item type:
   const items = settleOrderRoom.orderItems || [];
+
+  // Helper to detect if a line item is in USD (Room stays) vs fixed LKR (Minibar/Inventory)
+  const isItemUsd = (item) => {
+    if (item.currency === "USD") return true;
+    if (item.currency === "LKR") return false;
+    const desc = (item.description || "").toLowerCase();
+    if (desc.includes("minibar") || desc.includes("stock") || desc.includes("linen") || desc.includes("amenity")) {
+      return false;
+    }
+    const rawVal = Number(item.total) || 0;
+    return rawVal > 0 && rawVal < 1000;
+  };
+
+  // Grand Total in LKR
   const totalLkr = items.reduce((acc, item) => {
-    const rawTotal = Number(item.total) || 0;
-    // Room stay entered in USD (e.g., $17 USD rate):
-    const isUsdItem = item.currency === "USD" || (rawTotal > 0 && rawTotal < 1000 && !item.description?.toLowerCase().includes("minibar"));
-    const itemLkr = isUsdItem ? rawTotal * usdRate : rawTotal;
-    return acc + itemLkr;
+    const rawVal = Number(item.total) || 0;
+    return acc + (isItemUsd(item) ? rawVal * usdRate : rawVal);
   }, 0);
 
-  // 2. Final Bill in USD:
+  // Final Bill in USD
   const totalUsd = totalLkr / usdRate;
 
   const tenderAmount = parseFloat(cashTendered) || 0;
@@ -4998,21 +5007,25 @@ export default function App() {
 
               {/* Order Items & Conversion Ledger */}
               <div className="max-h-56 overflow-y-auto border border-[#E6DFD3] rounded-2xl p-3.5 bg-[#FAF9F5] mb-4 text-xs space-y-2">
-                {settleOrderRoom.orderItems?.map((item) => {
-                  const itemRaw = Number(item.total) || 0;
-                  const isUsdItem = item.currency === "USD" || (itemRaw > 0 && itemRaw < 1000 && !item.description?.toLowerCase().includes("minibar"));
-                  const itemLkr = isUsdItem ? itemRaw * usdRate : itemRaw;
-                  const itemUsd = isUsdItem ? itemRaw : itemRaw / usdRate;
+                {items.map((item) => {
+                  const rawVal = Number(item.total) || 0;
+                  const isUsd = isItemUsd(item);
+                  const itemLkr = isUsd ? rawVal * usdRate : rawVal;
+                  const itemUsd = isUsd ? rawVal : rawVal / usdRate;
 
                   return (
                     <div key={item.id} className="flex justify-between items-start py-1.5 border-b border-slate-200/60 last:border-none">
                       <div>
                         <span className="font-semibold text-slate-800">{item.quantity}x {item.description}</span>
-                        {isUsdTotal && (
-  <span className="block text-[10px] text-slate-500 font-mono">
-    Base: ${itemUsd.toFixed(2)} USD @ Rs. {usdRate.toFixed(2)}
-  </span>
-)}
+                        {isUsd ? (
+                          <span className="block text-[10px] text-slate-500 font-mono">
+                            Base: ${rawVal.toFixed(2)} USD @ Rs. {usdRate.toFixed(2)}
+                          </span>
+                        ) : (
+                          <span className="block text-[10px] text-teal-700 font-mono font-medium">
+                            Fixed Minibar/Stock (LKR)
+                          </span>
+                        )}
                       </div>
                       <div className="text-right shrink-0">
                         <span className="font-bold text-[#091D26] block">
@@ -5026,20 +5039,20 @@ export default function App() {
                   );
                 })}
 
-                {/* Total Balance Due Converted to LKR */}
+                {/* Total Balance Due Converted to LKR & USD */}
                 <div className="pt-3 border-t-2 border-slate-300 flex justify-between items-start">
                   <div>
                     <span className="text-xs uppercase font-black text-slate-700 block">Total Balance Due:</span>
                     <span className="text-[10px] font-mono font-bold text-teal-700">
-  Rate: 1 USD = Rs. {usdRate.toFixed(2)}
-</span>
+                      Rate: 1 USD = Rs. {usdRate.toFixed(2)}
+                    </span>
                   </div>
                   <div className="text-right">
                     <span className="text-xl font-black text-[#0D9488] block">
                       Rs. {totalLkr.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
-                    <span className="text-[11px] font-mono text-slate-500 font-bold block">
-                      (Original: ${totalUsd.toFixed(2)} USD)
+                    <span className="text-[11px] font-mono text-slate-700 font-black block mt-0.5">
+                      FINAL BILL: ${totalUsd.toFixed(2)} USD
                     </span>
                   </div>
                 </div>
