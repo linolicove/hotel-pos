@@ -2549,12 +2549,35 @@ export default function App() {
                     return room.status === frontDeskFilter;
                   })
                   .map((room) => {
-                    const billTotal = calculateTotal(room);
-                    const activeDynamicRate = getDynamicRoomRate(room, rooms);
-                    const isOccupied = room.status === "occupied";
-                    const isAvailable = room.status === "available";
-                    const isCleaning = room.status === "cleaning";
-                    const isMaintenance = room.status === "maintenance";
+                    const usdRate = Number(settings?.exchangeRates?.USD) || 337.50;
+    const items = room.orderItems || [];
+
+    // Helper: Identify if an item is in USD (room stays) vs fixed LKR (minibar/extras)
+    const isItemUsd = (item) => {
+      if (item.currency === "USD") return true;
+      if (item.currency === "LKR") return false;
+      const desc = (item.description || "").toLowerCase();
+      if (desc.includes("minibar") || desc.includes("stock") || desc.includes("linen") || desc.includes("amenity")) {
+        return false;
+      }
+      const rawVal = Number(item.total) || 0;
+      return rawVal > 0 && rawVal < 1000;
+    };
+
+    // Calculate true total in USD
+    const billTotalUsd = items.reduce((acc, item) => {
+      const rawVal = Number(item.total) || 0;
+      return acc + (isItemUsd(item) ? rawVal : rawVal / usdRate);
+    }, 0);
+
+    // Calculate true total in LKR
+    const billTotalLkr = billTotalUsd * usdRate;
+
+    const activeDynamicRate = getDynamicRoomRate(room, rooms);
+    const isOccupied = room.status === "occupied";
+    const isAvailable = room.status === "available";
+    const isCleaning = room.status === "cleaning";
+    const isMaintenance = room.status === "maintenance";
 
                     return (
                       <div
@@ -2599,19 +2622,19 @@ export default function App() {
                           </p>
                           
                           <div className="flex items-center gap-2 mt-1">
-                            <span className="text-sm font-black text-slate-800">
-                              {settings.currency}{Number(activeDynamicRate).toLocaleString()}
-                              <span className="text-[10px] text-slate-400 font-normal"> / night</span>
-                            </span>
-                            <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
-                              room.rateStrategy === "peak" ? "bg-rose-100 text-rose-700" :
-                              room.rateStrategy === "weekend" ? "bg-amber-100 text-amber-800" :
-                              room.rateStrategy === "auto" ? "bg-purple-100 text-purple-700" :
-                              "bg-slate-100 text-slate-600"
-                            }`}>
-                              {room.rateStrategy || "standard"}
-                            </span>
-                          </div>
+  <span className="text-sm font-black text-slate-800">
+    US ${Number(activeDynamicRate).toFixed(2)}
+    <span className="text-[10px] text-slate-400 font-normal"> / night</span>
+  </span>
+  <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
+    room.rateStrategy === "peak" ? "bg-rose-100 text-rose-700" :
+    room.rateStrategy === "weekend" ? "bg-amber-100 text-amber-800" :
+    room.rateStrategy === "auto" ? "bg-purple-100 text-purple-700" :
+    "bg-slate-100 text-slate-600"
+  }`}>
+    {room.rateStrategy || "standard"}
+  </span>
+</div>
 
                           {isOccupied && (
                             <div className="mt-4 p-3.5 bg-gradient-to-br from-[#FAF9F5] to-[#F4EFE6] rounded-2xl border border-[#E6DFD3] space-y-2.5 shadow-inner">
@@ -2662,16 +2685,19 @@ export default function App() {
                               </div>
 
                               <div className="flex justify-between items-center pt-2 border-t border-slate-300/50">
-                                <div>
-                                  <span className="text-[9px] uppercase font-bold text-slate-400 block leading-tight">Folio Bill</span>
-                                  <span className="text-[10px] font-mono font-semibold text-[#0F766E]">{room.orderId}</span>
-                                </div>
-                                <div className="text-right">
-                                  <span className="text-base font-black text-[#0D9488]">
-                                    {settings.currency}{billTotal.toFixed(2)}
-                                  </span>
-                                </div>
-                              </div>
+  <div>
+    <span className="text-[9px] uppercase font-bold text-slate-400 block leading-tight">Folio Bill</span>
+    <span className="text-[10px] font-mono font-semibold text-[#0F766E]">{room.orderId}</span>
+  </div>
+  <div className="text-right">
+    <span className="text-base font-black text-[#0D9488] block">
+      US ${billTotalUsd.toFixed(2)}
+    </span>
+    <span className="text-[10px] font-mono text-slate-500 font-bold block">
+      ≈ Rs. {billTotalLkr.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+    </span>
+  </div>
+</div>
                             </div>
                           )}
 
@@ -2714,19 +2740,19 @@ export default function App() {
                           {isOccupied && (
                             <div className="space-y-2 pt-2">
                               <button
-                                type="button"
-                                onClick={() => handleInitiateSettleOrder(room)}
-                                className="w-full bg-gradient-to-r from-[#0D9488] to-[#0F766E] hover:from-[#0F766E] hover:to-[#091D26] active:scale-[0.98] text-white py-2.5 rounded-xl text-xs font-black shadow-md flex items-center justify-between px-3.5 transition-all"
-                              >
-                                <span className="flex items-center gap-1.5">
-                                  <CreditCard className="w-4 h-4 text-[#2DD4BF]" />
-                                  <span>Direct Settle Bill</span>
-                                </span>
-                                <span className="bg-white/20 px-2 py-0.5 rounded-lg text-[11px] font-mono font-bold">
-                                  {settings.currency}{billTotal.toFixed(0)}
-                                </span>
-                                <ArrowRight className="w-3.5 h-3.5" />
-                              </button>
+  type="button"
+  onClick={() => handleInitiateSettleOrder(room)}
+  className="w-full bg-gradient-to-r from-[#0D9488] to-[#0F766E] hover:from-[#0F766E] hover:to-[#091D26] active:scale-[0.98] text-white py-2.5 rounded-xl text-xs font-black shadow-md flex items-center justify-between px-3.5 transition-all"
+>
+  <span className="flex items-center gap-1.5">
+    <CreditCard className="w-4 h-4 text-[#2DD4BF]" />
+    <span>Direct Settle Bill</span>
+  </span>
+  <span className="bg-white/20 px-2 py-0.5 rounded-lg text-[11px] font-mono font-bold">
+    US ${billTotalUsd.toFixed(2)}
+  </span>
+  <ArrowRight className="w-3.5 h-3.5" />
+</button>
 
                               <div className="flex gap-2">
                                 <button
