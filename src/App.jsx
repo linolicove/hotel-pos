@@ -1303,14 +1303,13 @@ export default function App() {
     }
   };
 
-  // Inventory Management
+  // --- INVENTORY MANAGEMENT HANDLERS ---
   const handleCreateInventoryItem = (e) => {
     e.preventDefault();
-    if (!isGeneralManager) {
-      alert("Access Denied: Only General Manager can create new inventory products.");
+    if (!newInventoryForm.name.trim()) {
+      alert("Please enter a valid product name.");
       return;
     }
-    if (!newInventoryForm.name.trim()) return;
 
     const itemId = `inv_${Date.now()}`;
     const cleanCost = parseFloat(newInventoryForm.cost) || 0;
@@ -1326,17 +1325,19 @@ export default function App() {
       stock: cleanStock,
     };
 
+    // Update local state immediately
     setInventory((prev) => [...prev, newItem].sort((a, b) => a.name.localeCompare(b.name)));
     setShowAddInventoryModal(false);
     setNewInventoryForm({ name: "", category: "minibar", cost: "450", price: "850", stock: "20" });
-    set(ref(rtdb, `inventory/${itemId}`), newItem);
+
+    // Persist to RTDB
+    set(ref(rtdb, `inventory/${itemId}`), newItem).catch((err) => {
+      console.error("Failed to add inventory item:", err);
+      alert("Error saving item to database: " + err.message);
+    });
   };
 
   const handleStartEditInventory = (item) => {
-    if (!isGeneralManager) {
-      alert("Access Denied: Only General Manager can modify inventory items.");
-      return;
-    }
     setEditingInventoryItem(item);
     setEditInventoryForm({
       name: item.name || "",
@@ -1349,7 +1350,7 @@ export default function App() {
 
   const handleSaveInventoryEdit = (e) => {
     e.preventDefault();
-    if (!isGeneralManager || !editingInventoryItem || !editInventoryForm.name.trim()) return;
+    if (!editingInventoryItem || !editInventoryForm.name.trim()) return;
 
     const cleanCost = parseFloat(editInventoryForm.cost) || 0;
     const cleanPrice = parseFloat(editInventoryForm.price) || 0;
@@ -1366,8 +1367,15 @@ export default function App() {
     setInventory((prev) =>
       prev.map((i) => (i.id === editingInventoryItem.id ? { ...i, ...updated } : i))
     );
-    update(ref(rtdb, `inventory/${editingInventoryItem.id}`), updated);
-    setEditingInventoryItem(null);
+
+    update(ref(rtdb, `inventory/${editingInventoryItem.id}`), updated)
+      .then(() => {
+        setEditingInventoryItem(null);
+      })
+      .catch((err) => {
+        console.error("Failed to update inventory item:", err);
+        alert("Database error: " + err.message);
+      });
   };
 
   const handleDeleteInventoryItem = (item) => {
@@ -5764,6 +5772,210 @@ export default function App() {
                   className="flex-1 bg-[#14B8A6] hover:bg-[#0D9488] text-white py-3 rounded-xl font-bold shadow-md"
                 >
                   Add Charge
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* MODAL: ADD INVENTORY PRODUCT */}
+      {showAddInventoryModal && (
+        <div className="fixed inset-0 bg-[#06151E]/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-[#E6DFD3]">
+            <div className="flex justify-between items-center mb-4 pb-2 border-b">
+              <div>
+                <span className="text-xs uppercase font-bold text-[#0F766E]">Inventory Management</span>
+                <h3 className="font-bold text-lg text-[#091D26]">Add Inventory Product</h3>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setShowAddInventoryModal(false)} 
+                className="text-slate-400 hover:text-black p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateInventoryItem} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold mb-1 text-slate-700">Product Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Craft Coconut Beer"
+                  value={newInventoryForm.name}
+                  onChange={(e) => setNewInventoryForm({ ...newInventoryForm, name: e.target.value })}
+                  className="w-full border rounded-xl p-2.5 font-medium"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Category</label>
+                  <select
+                    value={newInventoryForm.category}
+                    onChange={(e) => setNewInventoryForm({ ...newInventoryForm, category: e.target.value })}
+                    className="w-full border rounded-xl p-2.5 bg-white font-medium"
+                  >
+                    <option value="minibar">Minibar</option>
+                    <option value="beverage">Beverage</option>
+                    <option value="amenity">Amenity</option>
+                    <option value="linen">Linen</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Stock Count</label>
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    value={newInventoryForm.stock}
+                    onChange={(e) => setNewInventoryForm({ ...newInventoryForm, stock: e.target.value })}
+                    className="w-full border rounded-xl p-2.5 font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Wholesale Cost (LKR)</label>
+                  <input
+                    type="number"
+                    step="any"
+                    required
+                    value={newInventoryForm.cost}
+                    onChange={(e) => setNewInventoryForm({ ...newInventoryForm, cost: e.target.value })}
+                    className="w-full border rounded-xl p-2.5 font-medium"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Billable Price (LKR)</label>
+                  <input
+                    type="number"
+                    step="any"
+                    required
+                    value={newInventoryForm.price}
+                    onChange={(e) => setNewInventoryForm({ ...newInventoryForm, price: e.target.value })}
+                    className="w-full border rounded-xl p-2.5 font-bold text-teal-800"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddInventoryModal(false)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 py-3 rounded-xl font-bold text-slate-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-[#0D9488] hover:bg-[#0F766E] text-white py-3 rounded-xl font-bold shadow-md"
+                >
+                  Save Product
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EDIT INVENTORY PRODUCT */}
+      {editingInventoryItem && (
+        <div className="fixed inset-0 bg-[#06151E]/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-[#E6DFD3]">
+            <div className="flex justify-between items-center mb-4 pb-2 border-b">
+              <div>
+                <span className="text-xs uppercase font-bold text-[#0F766E]">Inventory Management</span>
+                <h3 className="font-bold text-lg text-[#091D26]">Edit: {editingInventoryItem.name}</h3>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setEditingInventoryItem(null)} 
+                className="text-slate-400 hover:text-black p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveInventoryEdit} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold mb-1 text-slate-700">Product Name</label>
+                <input
+                  type="text"
+                  required
+                  value={editInventoryForm.name}
+                  onChange={(e) => setEditInventoryForm({ ...editInventoryForm, name: e.target.value })}
+                  className="w-full border rounded-xl p-2.5 font-medium"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Category</label>
+                  <select
+                    value={editInventoryForm.category}
+                    onChange={(e) => setEditInventoryForm({ ...editInventoryForm, category: e.target.value })}
+                    className="w-full border rounded-xl p-2.5 bg-white font-medium"
+                  >
+                    <option value="minibar">Minibar</option>
+                    <option value="beverage">Beverage</option>
+                    <option value="amenity">Amenity</option>
+                    <option value="linen">Linen</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Stock Count</label>
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    value={editInventoryForm.stock}
+                    onChange={(e) => setEditInventoryForm({ ...editInventoryForm, stock: e.target.value })}
+                    className="w-full border rounded-xl p-2.5 font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Wholesale Cost (LKR)</label>
+                  <input
+                    type="number"
+                    step="any"
+                    required
+                    value={editInventoryForm.cost}
+                    onChange={(e) => setEditInventoryForm({ ...editInventoryForm, cost: e.target.value })}
+                    className="w-full border rounded-xl p-2.5 font-medium"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Billable Price (LKR)</label>
+                  <input
+                    type="number"
+                    step="any"
+                    required
+                    value={editInventoryForm.price}
+                    onChange={(e) => setEditInventoryForm({ ...editInventoryForm, price: e.target.value })}
+                    className="w-full border rounded-xl p-2.5 font-bold text-teal-800"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingInventoryItem(null)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 py-3 rounded-xl font-bold text-slate-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-[#0D9488] hover:bg-[#0F766E] text-white py-3 rounded-xl font-bold shadow-md"
+                >
+                  Save Changes
                 </button>
               </div>
             </form>
