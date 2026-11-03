@@ -1410,7 +1410,7 @@ export default function App() {
       quantity: 1,
       unitPrice: fixedLkrPrice,
       total: fixedLkrPrice,
-      currency: "LKR", // Explicitly tag as LKR
+      currency: "LKR",
       timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
     };
     set(ref(rtdb, `rooms/${targetRoom.id}/orderItems/${itemId}`), newItem);
@@ -2794,11 +2794,32 @@ export default function App() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                 {rooms.filter((r) => r.status === "occupied").map((room) => {
-                  const billTotal = calculateTotal(room);
-                  const usdRate = settings?.exchangeRates?.USD || 332.50;
-                  const audRate = settings?.exchangeRates?.AUD || 233.00;
-                  const gbpRate = settings?.exchangeRates?.GBP || 445.00;
-                  const eurRate = settings?.exchangeRates?.EUR || 372.00;
+                  const usdRate = Number(settings?.exchangeRates?.USD) || 337.50;
+                  const audRate = Number(settings?.exchangeRates?.AUD) || 233.00;
+                  const gbpRate = Number(settings?.exchangeRates?.GBP) || 445.00;
+                  const eurRate = Number(settings?.exchangeRates?.EUR) || 372.00;
+                  const items = room.orderItems || [];
+
+                  // Helper: Detect whether an item is priced in USD (room stays) or fixed LKR (minibar/extras)
+                  const isItemUsd = (item) => {
+                    if (item.currency === "USD") return true;
+                    if (item.currency === "LKR") return false;
+                    const desc = (item.description || "").toLowerCase();
+                    if (desc.includes("minibar") || desc.includes("stock") || desc.includes("linen") || desc.includes("amenity")) {
+                      return false;
+                    }
+                    const rawVal = Number(item.total) || 0;
+                    return rawVal > 0 && rawVal < 1000;
+                  };
+
+                  // 1. Calculate true combined total in USD
+                  const totalUsd = items.reduce((acc, item) => {
+                    const rawVal = Number(item.total) || 0;
+                    return acc + (isItemUsd(item) ? rawVal : rawVal / usdRate);
+                  }, 0);
+
+                  // 2. Calculate true combined total in LKR
+                  const totalLkr = totalUsd * usdRate;
 
                   return (
                     <div key={room.id} className="bg-white rounded-3xl border border-[#E6DFD3] p-5 shadow-sm space-y-4 flex flex-col justify-between">
@@ -2813,10 +2834,10 @@ export default function App() {
                             </div>
                             <div className="text-right">
                               <span className="text-xl font-black text-[#0D9488] block">
-                                {settings.currency}{billTotal.toFixed(2)}
+                                US ${totalUsd.toFixed(2)}
                               </span>
                               <span className="text-[11px] font-mono font-bold text-slate-600 block">
-                                ≈ ${(billTotal / usdRate).toFixed(2)} USD
+                                ≈ Rs. {totalLkr.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </span>
                             </div>
                           </div>
@@ -2825,64 +2846,79 @@ export default function App() {
                           <div className="mt-2.5 pt-2 border-t border-dashed border-slate-200 grid grid-cols-3 gap-1.5 text-center font-mono text-[10px]">
                             <div className="bg-[#FAF9F5] p-1.5 rounded-lg border border-slate-100">
                               <span className="text-slate-400 block text-[9px]">AUD</span>
-                              <span className="font-bold text-slate-700">A${(billTotal / audRate).toFixed(2)}</span>
+                              <span className="font-bold text-slate-700">A${(totalLkr / audRate).toFixed(2)}</span>
                             </div>
                             <div className="bg-[#FAF9F5] p-1.5 rounded-lg border border-slate-100">
                               <span className="text-slate-400 block text-[9px]">GBP</span>
-                              <span className="font-bold text-slate-700">£{(billTotal / gbpRate).toFixed(2)}</span>
+                              <span className="font-bold text-slate-700">£{(totalLkr / gbpRate).toFixed(2)}</span>
                             </div>
                             <div className="bg-[#FAF9F5] p-1.5 rounded-lg border border-slate-100">
                               <span className="text-slate-400 block text-[9px]">EUR</span>
-                              <span className="font-bold text-slate-700">€{(billTotal / eurRate).toFixed(2)}</span>
+                              <span className="font-bold text-slate-700">€{(totalLkr / eurRate).toFixed(2)}</span>
                             </div>
                           </div>
                         </div>
 
-                        {/* Current folio items */}
+                        {/* Current Folio Items */}
                         <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
                           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Current Folio Items:</p>
-                          {room.orderItems && room.orderItems.length > 0 ? (
-                            room.orderItems.map((item) => (
-                              <div key={item.id} className="flex justify-between items-center bg-[#FAF9F5] p-2 rounded-xl text-xs border border-slate-100">
-                                <div className="truncate pr-2">
-                                  <span className="font-semibold text-slate-800 block truncate">{item.description}</span>
-                                  <span className="text-[10px] text-slate-400">Qty: {item.quantity} × {settings.currency}{Number(item.unitPrice || 0).toFixed(2)}</span>
-                                </div>
-                                <div className="flex items-center gap-2 shrink-0">
-                                  <div className="text-right">
-                                    <span className="font-bold text-[#091D26] block">{settings.currency}{Number(item.total).toFixed(2)}</span>
-                                    <span className="text-[9px] text-slate-400 font-mono block">≈ ${(Number(item.total) / usdRate).toFixed(2)}</span>
+                          {items && items.length > 0 ? (
+                            items.map((item) => {
+                              const rawTotal = Number(item.total) || 0;
+                              const isUsd = isItemUsd(item);
+                              const unitPrice = Number(item.unitPrice || 0);
+
+                              return (
+                                <div key={item.id} className="flex justify-between items-center bg-[#FAF9F5] p-2 rounded-xl text-xs border border-slate-100">
+                                  <div className="truncate pr-2">
+                                    <span className="font-semibold text-slate-800 block truncate">{item.description}</span>
+                                    <span className="text-[10px] text-slate-400">
+                                      Qty: {item.quantity} × {isUsd ? `US $${unitPrice.toFixed(2)}` : `Rs. ${unitPrice.toFixed(2)}`}
+                                    </span>
                                   </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveItemFromAnyRoom(room.id, item.id)}
-                                    className="p-1 text-slate-400 hover:text-rose-600 rounded"
-                                    title="Remove this line item"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <div className="text-right">
+                                      <span className="font-bold text-[#091D26] block">
+                                        {isUsd ? `US $${rawTotal.toFixed(2)}` : `Rs. ${rawTotal.toFixed(2)}`}
+                                      </span>
+                                      <span className="text-[9px] text-slate-400 font-mono block">
+                                        {isUsd
+                                          ? `≈ Rs. ${(rawTotal * usdRate).toFixed(0)}`
+                                          : `≈ $${(rawTotal / usdRate).toFixed(2)} USD`}
+                                      </span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveItemFromAnyRoom(room.id, item.id)}
+                                      className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors"
+                                      title="Remove this line item"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
                                 </div>
-                              </div>
-                            ))
+                              );
+                            })
                           ) : (
                             <p className="text-xs text-slate-400 italic">No billable items on tab yet.</p>
                           )}
                         </div>
+
                         {/* Quick-add Minibar */}
                         <div className="pt-2 border-t border-[#F3EFE6]">
                           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Quick Add Minibar:</p>
                           <div className="flex flex-wrap gap-1.5">
-  {inventory.filter(i => i.category === "minibar" && i.stock > 0).slice(0, 4).map(item => (
-    <button
-      key={item.id}
-      type="button"
-      onClick={() => handleQuickAddMinibar(item, room)}
-      className="px-2 py-1 bg-teal-50 hover:bg-teal-100 text-[#0F766E] border border-teal-200 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all"
-    >
-      <Plus className="w-3 h-3" /> {item.name.split(" ")[0]} (Rs. {item.price})
-    </button>
-  ))}
-</div>
+                            {inventory.filter(i => i.category === "minibar" && i.stock > 0).slice(0, 4).map(item => (
+                              <button
+                                key={item.id}
+                                type="button"
+                                onClick={() => handleQuickAddMinibar(item, room)}
+                                className="px-2 py-1 bg-teal-50 hover:bg-teal-100 text-[#0F766E] border border-teal-200 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all"
+                              >
+                                <Plus className="w-3 h-3" /> {item.name.split(" ")[0]} (Rs. {item.price})
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       </div>
 
@@ -2892,7 +2928,7 @@ export default function App() {
                           type="button"
                           onClick={() => {
                             setFolioModalRoom(room);
-                            setFolioItemForm({ description: "", unitPrice: "", quantity: "1" });
+                            setFolioItemForm({ description: "", unitPrice: "", quantity: "1", currency: "LKR" });
                           }}
                           className="w-full bg-[#14B8A6] hover:bg-[#0D9488] text-white py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-all"
                         >
