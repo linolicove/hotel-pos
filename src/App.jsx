@@ -2069,14 +2069,28 @@ export default function App() {
     return matchesDateRange && matchesStatus;
   });
 
-  const totalSalesRevenue = filteredSalesList.reduce((acc, s) => acc + Number(s.totalAmount || 0), 0);
+ const activeUsdRate = Number(settings?.exchangeRates?.USD) || 337.50;
+
+  const totalSalesRevenue = filteredSalesList.reduce((acc, s) => {
+    const rawVal = Number(s.totalAmount || 0);
+    // If an older test folio was stored as USD (under 1000), convert to base LKR:
+    const lkrVal = (rawVal > 0 && rawVal < 1000) ? rawVal * activeUsdRate : rawVal;
+    return acc + lkrVal;
+  }, 0);
+
   const totalMinibarRevenue = filteredSalesList.reduce((acc, s) => {
     const items = s.orderItems || [];
-    const minibarAmt = items.filter(i => i.description?.toLowerCase().includes("minibar")).reduce((mAcc, i) => mAcc + Number(i.total || 0), 0);
+    const minibarAmt = items
+      .filter((i) => i.description?.toLowerCase().includes("minibar"))
+      .reduce((mAcc, i) => {
+        const itemVal = Number(i.total || 0);
+        const lkrItemVal = (itemVal > 0 && itemVal < 100) ? itemVal * activeUsdRate : itemVal;
+        return mAcc + lkrItemVal;
+      }, 0);
     return acc + minibarAmt;
   }, 0);
-  const totalRoomStaysRevenue = Math.max(0, totalSalesRevenue - totalMinibarRevenue);
 
+  const totalRoomStaysRevenue = Math.max(0, totalSalesRevenue - totalMinibarRevenue);
   const parsedTendered = parseFloat(cashTendered) || 0;
   const changeDue = Math.max(0, parsedTendered - printTargetTotal);
 
@@ -3034,30 +3048,55 @@ export default function App() {
 
               {/* Analytical KPI Metric Cards */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {/* 1. Total Settled Sales (LKR) */}
                 <div className="bg-white border border-[#E6DFD3] rounded-3xl p-4 shadow-sm">
                   <p className="text-[11px] font-bold uppercase text-slate-400">Total Settled Sales</p>
                   <p className="text-2xl font-black text-[#0D9488] mt-1">
-                    {settings.currency}{Number(totalSalesRevenue).toLocaleString()}
+                    Rs. {Number(totalSalesRevenue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
-                  <span className="text-[10px] text-slate-400">{filteredSalesList.length} Invoices Settled</span>
+                  <div className="flex justify-between items-center mt-1">
+                    <span className="text-[10px] text-slate-400">{filteredSalesList.length} Invoices Settled</span>
+                    {totalSalesRevenue > 0 && (
+                      <span className="text-[10px] font-mono text-slate-500 font-bold">
+                        ≈ ${(totalSalesRevenue / (Number(settings?.exchangeRates?.USD) || 337.50)).toFixed(2)} USD
+                      </span>
+                    )}
+                  </div>
                 </div>
 
+                {/* 2. Room Stay Accommodation (LKR) */}
                 <div className="bg-white border border-[#E6DFD3] rounded-3xl p-4 shadow-sm">
                   <p className="text-[11px] font-bold uppercase text-indigo-700">Room Stay Billings</p>
                   <p className="text-2xl font-black text-indigo-700 mt-1">
-                    {settings.currency}{Number(totalRoomStaysRevenue).toLocaleString()}
+                    Rs. {Number(totalRoomStaysRevenue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
-                  <span className="text-[10px] text-slate-400">Accommodation Revenue</span>
+                  <div className="flex justify-between items-center mt-1">
+                    <span className="text-[10px] text-slate-400">Accommodation Revenue</span>
+                    {totalRoomStaysRevenue > 0 && (
+                      <span className="text-[10px] font-mono text-slate-500 font-bold">
+                        ≈ ${(totalRoomStaysRevenue / (Number(settings?.exchangeRates?.USD) || 337.50)).toFixed(2)} USD
+                      </span>
+                    )}
+                  </div>
                 </div>
 
+                {/* 3. Minibar & Sundries (LKR) */}
                 <div className="bg-white border border-[#E6DFD3] rounded-3xl p-4 shadow-sm">
                   <p className="text-[11px] font-bold uppercase text-amber-700">Minibar & Sundries</p>
                   <p className="text-2xl font-black text-amber-700 mt-1">
-                    {settings.currency}{Number(totalMinibarRevenue).toLocaleString()}
+                    Rs. {Number(totalMinibarRevenue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
-                  <span className="text-[10px] text-slate-400">Beverages & Amenities</span>
+                  <div className="flex justify-between items-center mt-1">
+                    <span className="text-[10px] text-slate-400">Beverages & Amenities</span>
+                    {totalMinibarRevenue > 0 && (
+                      <span className="text-[10px] font-mono text-slate-500 font-bold">
+                        ≈ ${(totalMinibarRevenue / (Number(settings?.exchangeRates?.USD) || 337.50)).toFixed(2)} USD
+                      </span>
+                    )}
+                  </div>
                 </div>
 
+                {/* 4. Advance Pre-Bookings */}
                 <div className="bg-white border border-[#E6DFD3] rounded-3xl p-4 shadow-sm">
                   <p className="text-[11px] font-bold uppercase text-purple-700">Advance Pre-Bookings</p>
                   <p className="text-2xl font-black text-purple-700 mt-1">
