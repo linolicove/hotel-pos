@@ -1394,14 +1394,18 @@ export default function App() {
     if (!targetRoom) return;
     const now = new Date();
     const itemId = `itm_${Date.now()}`;
+    const fixedLkrPrice = Number(item.price) || 0;
+
     const newItem = {
       id: itemId,
       description: `Minibar: ${item.name}`,
       quantity: 1,
-      unitPrice: item.price,
-      total: item.price,
+      unitPrice: fixedLkrPrice,
+      total: fixedLkrPrice,
+      currency: "LKR",
       timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
     };
+
     set(ref(rtdb, `rooms/${targetRoom.id}/orderItems/${itemId}`), newItem);
     if (item.stock > 0) handleUpdateStockLevel(item.id, -1);
   };
@@ -3413,31 +3417,90 @@ export default function App() {
                   </div>
 
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-[#F3EFE6] border-b border-[#E6DFD3] uppercase font-semibold text-slate-500">
-                      <tr>
-                        <th className="p-3.5">Product Name</th>
-                        <th className="p-3.5">Category</th>
-                        <th className="p-3.5 text-right">Cost</th>
-                        <th className="p-3.5 text-right">Selling Price</th>
-                        <th className="p-3.5 text-center">Remaining Stock</th>
-                        <th className="p-3.5 text-right">Margin / Unit</th>
-                      </tr>
-                    </thead>
+                    <thead className="bg-[#F3EFE6] uppercase font-semibold text-slate-500 border-b border-[#E6DFD3]">
+                    <tr>
+                      <th className="p-3.5">Product Name</th>
+                      <th className="p-3.5">Category</th>
+                      <th className="p-3.5 text-right">Cost Price (LKR)</th>
+                      <th className="p-3.5 text-right">Selling Price (LKR)</th>
+                      <th className="p-3.5 text-right">Gross Margin</th>
+                      <th className="p-3.5 text-center">Stock Level</th>
+                      <th className="p-3.5 text-center">Quick Adjust</th>
+                      {isGeneralManager && <th className="p-3.5 text-center">Actions</th>}
+                    </tr>
+                  </thead>
                     <tbody className="divide-y divide-[#F3EFE6]">
-                      {inventory.map((item) => {
-                        const margin = Number(item.price || 0) - Number(item.cost || 0);
-                        return (
-                          <tr key={item.id} className="hover:bg-[#FAF9F5]">
-                            <td className="p-3.5 font-bold text-[#091D26]">{item.name}</td>
-                            <td className="p-3.5 uppercase text-[10px] font-bold text-slate-500">{item.category}</td>
-                            <td className="p-3.5 text-right text-slate-500">{settings.currency}{Number(item.cost || 0).toFixed(2)}</td>
-                            <td className="p-3.5 text-right font-bold">{settings.currency}{Number(item.price || 0).toFixed(2)}</td>
-                            <td className="p-3.5 text-center font-bold">{item.stock} Units</td>
-                            <td className="p-3.5 text-right font-black text-emerald-600">{settings.currency}{margin.toFixed(2)}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
+  {inventory.map((item) => {
+    const cost = Number(item.cost) || 0;
+    const price = Number(item.price) || 0;
+    const margin = price - cost;
+
+    return (
+      <tr key={item.id} className="hover:bg-[#FAF9F5] transition-colors">
+        <td className="p-3.5 font-bold text-[#091D26]">{item.name}</td>
+        <td className="p-3.5">
+          <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase">
+            {item.category}
+          </span>
+        </td>
+        <td className="p-3.5 text-right font-medium text-slate-500">
+          Rs. {cost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </td>
+        <td className="p-3.5 text-right font-bold text-[#091D26]">
+          {price > 0 ? (
+            `Rs. ${price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+          ) : (
+            <span className="text-slate-400 font-normal">Complimentary</span>
+          )}
+        </td>
+        <td className="p-3.5 text-right font-bold">
+          <span className={margin >= 0 ? "text-emerald-600" : "text-rose-600"}>
+            {margin < 0 ? `-Rs. ${Math.abs(margin).toFixed(2)}` : `Rs. ${margin.toFixed(2)}`}
+          </span>
+        </td>
+        <td className="p-3.5 text-center font-bold text-sm">{item.stock}</td>
+        <td className="p-3.5 text-center">
+          <div className="inline-flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => handleUpdateStockLevel(item.id, -1)}
+              className="px-2 py-0.5 border border-[#D3C8B7] rounded hover:bg-slate-100 text-xs font-bold"
+            >
+              -
+            </button>
+            <button
+              type="button"
+              onClick={() => handleUpdateStockLevel(item.id, 1)}
+              className="px-2 py-0.5 border border-[#D3C8B7] rounded hover:bg-slate-100 text-xs font-bold"
+            >
+              +
+            </button>
+          </div>
+        </td>
+        {isGeneralManager && (
+          <td className="p-3.5 text-center">
+            <div className="inline-flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => handleStartEditInventory(item)}
+                className="p-1.5 text-slate-400 hover:text-[#0D9488] rounded hover:bg-slate-100"
+              >
+                <Edit2 className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDeleteInventoryItem(item)}
+                className="p-1.5 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          </td>
+        )}
+      </tr>
+    );
+  })}
+</tbody>
                   </table>
                 </div>
               )}
@@ -4902,15 +4965,22 @@ export default function App() {
       {settleOrderRoom && (() => {
         // Reads the saved selling rate (which includes + Rs. 5) or defaults to 337.50
         const usdRate = Number(settings?.exchangeRates?.USD) || 337.50;
-        const rawTotal = calculateTotal(settleOrderRoom);
 
-        // Detect if amounts were entered in USD (e.g. room rates < 1000) vs LKR
-        const isUsdTotal = rawTotal < 1000;
-        const totalLkr = isUsdTotal ? rawTotal * usdRate : rawTotal;
-        const totalUsd = isUsdTotal ? rawTotal : rawTotal / usdRate;
+  // 1. Calculate Grand Total in LKR by checking each item type:
+  const items = settleOrderRoom.orderItems || [];
+  const totalLkr = items.reduce((acc, item) => {
+    const rawTotal = Number(item.total) || 0;
+    // Room stay entered in USD (e.g., $17 USD rate):
+    const isUsdItem = item.currency === "USD" || (rawTotal > 0 && rawTotal < 1000 && !item.description?.toLowerCase().includes("minibar"));
+    const itemLkr = isUsdItem ? rawTotal * usdRate : rawTotal;
+    return acc + itemLkr;
+  }, 0);
 
-        const tenderAmount = parseFloat(cashTendered) || 0;
-        const modalChangeDue = Math.max(0, tenderAmount - totalLkr);
+  // 2. Final Bill in USD:
+  const totalUsd = totalLkr / usdRate;
+
+  const tenderAmount = parseFloat(cashTendered) || 0;
+  const modalChangeDue = Math.max(0, tenderAmount - totalLkr);
 
         return (
           <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -4930,8 +5000,9 @@ export default function App() {
               <div className="max-h-56 overflow-y-auto border border-[#E6DFD3] rounded-2xl p-3.5 bg-[#FAF9F5] mb-4 text-xs space-y-2">
                 {settleOrderRoom.orderItems?.map((item) => {
                   const itemRaw = Number(item.total) || 0;
-                  const itemLkr = isUsdTotal ? itemRaw * usdRate : itemRaw;
-                  const itemUsd = isUsdTotal ? itemRaw : itemRaw / usdRate;
+                  const isUsdItem = item.currency === "USD" || (itemRaw > 0 && itemRaw < 1000 && !item.description?.toLowerCase().includes("minibar"));
+                  const itemLkr = isUsdItem ? itemRaw * usdRate : itemRaw;
+                  const itemUsd = isUsdItem ? itemRaw : itemRaw / usdRate;
 
                   return (
                     <div key={item.id} className="flex justify-between items-start py-1.5 border-b border-slate-200/60 last:border-none">
