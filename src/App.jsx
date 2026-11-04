@@ -1509,7 +1509,7 @@ export default function App() {
 
     alert(`Reservation saved! Room #${newBookingForm.roomNumber} locked for ${newBooking.guestName} (${newBooking.checkInDate} to ${newBooking.checkOutDate}).`);
   };
-  
+
   const handleDeletePrebooking = (bookingId) => {
     if (!isGeneralManager) {
       alert("Access Denied: Only General Manager can delete pre-booking reservations.");
@@ -1530,31 +1530,39 @@ export default function App() {
       alert(`Room #${booking.roomNumber} is currently occupied! Please clear or reassign.`);
       return;
     }
+
     const orderId = `ORD-${booking.roomNumber}-${Date.now().toString().slice(-4)}`;
     const now = new Date();
     const itemId = `itm_${Date.now()}`;
+    const rateUsd = parseFloat(booking.totalRate) || 18;
+
     const initialItem = {
       id: itemId,
-      description: `Advance Room Stay Reservation (${booking.checkInDate} to ${booking.checkOutDate})`,
+      description: `Advance Room Stay (${booking.checkInDate} to ${booking.checkOutDate})`,
       quantity: 1,
-      unitPrice: booking.totalRate,
-      total: booking.totalRate,
+      unitPrice: rateUsd,
+      total: rateUsd,
+      currency: "USD",
       timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
     };
 
+    // Update Room to Occupied
     update(ref(rtdb, `rooms/${targetRoom.id}`), {
       status: "occupied",
       orderId,
       openedAt: now.toLocaleString(),
       guestName: booking.guestName,
-      guestPhone: booking.guestPhone,
+      guestPhone: booking.guestPhone || "",
       checkIn: booking.checkInDate,
       checkOut: booking.checkOutDate,
-      orderItems: { [itemId]: initialItem }
+      orderItems: { [itemId]: initialItem },
+      lockedUntil: null,
+      reservedFor: null
     });
 
+    // Mark pre-booking as Checked In
     update(ref(rtdb, `prebookings/${booking.id}`), { status: "Checked In" });
-    setActiveTab("frontdesk");
+    alert(`Guest ${booking.guestName} successfully checked into Room #${booking.roomNumber}!`);
   };
 
   // Settings & Database Backup
@@ -2822,6 +2830,192 @@ export default function App() {
                     );
                   })}
               </div>
+              {/* --- UPCOMING RESERVATIONS & BOOKING CALENDAR BOARD --- */}
+              {(() => {
+                const todayStr = getTodayKey();
+                const allBookings = Object.values(prebookings || {});
+
+                // Filter active/upcoming bookings (exclude already checked-in or cancelled)
+                const upcomingBookings = allBookings
+                  .filter(b => b.status !== "Cancelled" && b.status !== "Checked In")
+                  .sort((a, b) => (a.checkInDate || "").localeCompare(b.checkInDate || ""));
+
+                const todaysArrivals = upcomingBookings.filter(b => b.checkInDate === todayStr);
+
+                return (
+                  <div className="mt-8 space-y-4">
+                    {/* Header Bar */}
+                    <div className="bg-white rounded-3xl border border-[#E6DFD3] p-5 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <CalendarRange className="w-5 h-5 text-[#0D9488]" />
+                          <h3 className="text-lg font-black text-[#091D26]">Arrivals & Reservations Calendar</h3>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          View locked upcoming guest stays. Click <b>"Check In Now"</b> when the guest arrives at the desk.
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 bg-[#FAF9F5] px-3 py-1.5 rounded-xl border border-[#E6DFD3] text-xs">
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                          <span className="font-bold text-slate-700">Today's Arrivals:</span>
+                          <span className="bg-[#091D26] text-white px-2 py-0.5 rounded-full font-mono font-bold text-[11px]">
+                            {todaysArrivals.length}
+                          </span>
+                        </div>
+
+                        {isGeneralManager && (
+                          <button
+                            type="button"
+                            onClick={() => setShowAddBookingModal(true)}
+                            className="bg-[#14B8A6] hover:bg-[#0D9488] active:scale-95 transition-all text-white px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm cursor-pointer"
+                          >
+                            <Plus className="w-4 h-4" /> New Booking
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Today's Priority Arrival Alert (if any arrivals are expected today) */}
+                    {todaysArrivals.length > 0 && (
+                      <div className="bg-gradient-to-r from-teal-50 to-emerald-50 border border-teal-200 rounded-3xl p-4 shadow-xs">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Sparkles className="w-4 h-4 text-teal-600" />
+                          <span className="text-xs font-bold uppercase tracking-wider text-teal-800">
+                            Expected Arrivals Today ({todayStr})
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {todaysArrivals.map(b => (
+                            <div key={b.id} className="bg-white p-3 rounded-2xl border border-teal-200/80 shadow-xs flex justify-between items-center">
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="px-2 py-0.5 rounded-md bg-[#091D26] text-white font-mono font-bold text-[10px]">
+                                    Room #{b.roomNumber}
+                                  </span>
+                                  <span className="font-bold text-sm text-[#091D26]">{b.guestName}</span>
+                                </div>
+                                <span className="text-[11px] text-slate-500 block mt-0.5">
+                                  Stay: {b.checkInDate} to {b.checkOutDate} • Tel: {b.guestPhone || "--"}
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleConvertPrebookingToCheckIn(b)}
+                                className="bg-[#0D9488] hover:bg-[#0F766E] active:scale-95 text-white px-3 py-1.5 rounded-xl text-xs font-bold shadow-sm transition-all shrink-0 cursor-pointer"
+                              >
+                                Check In Now
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Upcoming Bookings Table */}
+                    <div className="bg-white rounded-3xl border border-[#E6DFD3] shadow-sm overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-[#F3EFE6] border-b border-[#E6DFD3] uppercase font-semibold text-slate-500">
+                            <tr>
+                              <th className="p-3.5">Check-In</th>
+                              <th className="p-3.5">Check-Out</th>
+                              <th className="p-3.5">Room</th>
+                              <th className="p-3.5">Guest Information</th>
+                              <th className="p-3.5 text-right">Night Rate</th>
+                              <th className="p-3.5 text-right text-emerald-700">Deposit</th>
+                              <th className="p-3.5 text-center">Status</th>
+                              <th className="p-3.5 text-center">Desk Action</th>
+                              {isGeneralManager && <th className="p-3.5 text-center text-rose-600">Delete</th>}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[#F3EFE6]">
+                            {upcomingBookings.map((b) => {
+                              const isToday = b.checkInDate === todayStr;
+                              const isPast = b.checkInDate < todayStr;
+
+                              return (
+                                <tr key={b.id} className={`hover:bg-[#FAF9F5] transition-colors ${isToday ? "bg-teal-50/40" : ""}`}>
+                                  <td className="p-3.5 font-mono">
+                                    <span className={`font-bold ${isToday ? "text-teal-700 font-black" : isPast ? "text-amber-700" : "text-slate-800"}`}>
+                                      {b.checkInDate}
+                                    </span>
+                                    {isToday && (
+                                      <span className="block text-[9px] font-bold uppercase text-emerald-600 tracking-wider">
+                                        • Arriving Today
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="p-3.5 font-mono text-slate-600">{b.checkOutDate}</td>
+                                  <td className="p-3.5">
+                                    <span className="inline-block px-2.5 py-0.5 rounded-lg bg-slate-100 font-mono font-bold text-slate-800 border border-slate-200">
+                                      #{b.roomNumber}
+                                    </span>
+                                  </td>
+                                  <td className="p-3.5">
+                                    <div className="font-bold text-[#091D26] text-sm">{b.guestName}</div>
+                                    <div className="text-[10px] text-slate-400 font-mono">{b.guestPhone || "No contact"}</div>
+                                    {b.notes && (
+                                      <div className="text-[10px] text-slate-500 italic mt-0.5 max-w-xs truncate">
+                                        "{b.notes}"
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="p-3.5 text-right font-bold text-slate-800">
+                                    US ${Number(b.totalRate || 18).toFixed(2)}
+                                  </td>
+                                  <td className="p-3.5 text-right font-mono font-bold text-emerald-700">
+                                    ${Number(b.depositAmount || 0).toFixed(2)}
+                                  </td>
+                                  <td className="p-3.5 text-center">
+                                    <span className={`px-2.5 py-0.5 rounded-full font-bold uppercase text-[10px] ${
+                                      b.status === "Confirmed" ? "bg-teal-100 text-[#0F766E]" :
+                                      b.status === "Deposit Paid" ? "bg-blue-100 text-blue-800" :
+                                      "bg-amber-100 text-amber-800"
+                                    }`}>
+                                      {b.status || "Confirmed"}
+                                    </span>
+                                  </td>
+                                  <td className="p-3.5 text-center">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleConvertPrebookingToCheckIn(b)}
+                                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#0D9488] hover:bg-[#0F766E] active:scale-95 text-white rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer"
+                                      title="Convert reservation into active guest folio"
+                                    >
+                                      <CheckCircle2 className="w-3.5 h-3.5" /> Check In
+                                    </button>
+                                  </td>
+                                  {isGeneralManager && (
+                                    <td className="p-3.5 text-center">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeletePrebooking(b.id)}
+                                        className="p-1.5 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors"
+                                        title="Cancel / Delete Reservation"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    </td>
+                                  )}
+                                </tr>
+                              );
+                            })}
+                            {upcomingBookings.length === 0 && (
+                              <tr>
+                                <td colSpan={isGeneralManager ? 9 : 8} className="p-8 text-center text-slate-400">
+                                  No upcoming reservations on the calendar. Use "+ New Booking" to schedule guests.
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
 
