@@ -1453,13 +1453,19 @@ export default function App() {
     remove(ref(rtdb, `rooms/${roomId}/orderItems/${itemId}`));
   };
 
-  // Pre-Bookings Actions
   const handleCreatePrebooking = (e) => {
     e.preventDefault();
     if (!newBookingForm.guestName || !newBookingForm.roomNumber) {
-      alert("Please provide guest name and room number.");
+      alert("Please provide guest name and select a room.");
       return;
     }
+
+    const targetRoom = rooms.find(r => String(r.number) === String(newBookingForm.roomNumber));
+    if (!targetRoom) {
+      alert(`Room #${newBookingForm.roomNumber} does not exist.`);
+      return;
+    }
+
     const bookingId = `BK-${Date.now().toString().slice(-6)}`;
     const newBooking = {
       id: bookingId,
@@ -1468,13 +1474,26 @@ export default function App() {
       roomNumber: sanitizeInput(newBookingForm.roomNumber),
       checkInDate: newBookingForm.checkInDate,
       checkOutDate: newBookingForm.checkOutDate,
-      totalRate: parseFloat(newBookingForm.totalRate) || 18000,
+      totalRate: parseFloat(newBookingForm.totalRate) || 18,
       depositAmount: parseFloat(newBookingForm.depositAmount) || 0,
-      status: newBookingForm.status,
+      status: newBookingForm.status || "Confirmed",
       notes: sanitizeInput(newBookingForm.notes),
       createdAt: new Date().toISOString()
     };
+
+    // 1. Save reservation in prebookings
     set(ref(rtdb, `prebookings/${bookingId}`), newBooking);
+
+    // 2. Lock the room if the check-in is for today or upcoming active hold
+    const today = getTodayKey();
+    if (newBookingForm.checkInDate === today && targetRoom.status === "available") {
+      update(ref(rtdb, `rooms/${targetRoom.id}`), {
+        status: "maintenance", // Or keep a reserved status
+        lockedUntil: newBookingForm.checkOutDate,
+        reservedFor: sanitizeInput(newBookingForm.guestName)
+      });
+    }
+
     setShowAddBookingModal(false);
     setNewBookingForm({
       guestName: "",
@@ -1483,12 +1502,14 @@ export default function App() {
       checkInDate: getTodayKey(),
       checkOutDate: new Date(Date.now() + 86400000).toISOString().split("T")[0],
       depositAmount: "0",
-      totalRate: "18000",
+      totalRate: "18",
       status: "Confirmed",
       notes: ""
     });
-  };
 
+    alert(`Reservation saved! Room #${newBookingForm.roomNumber} locked for ${newBooking.guestName} (${newBooking.checkInDate} to ${newBooking.checkOutDate}).`);
+  };
+  
   const handleDeletePrebooking = (bookingId) => {
     if (!isGeneralManager) {
       alert("Access Denied: Only General Manager can delete pre-booking reservations.");
@@ -4780,112 +4801,144 @@ export default function App() {
             <div className="flex justify-between items-center mb-4 pb-2 border-b">
               <div>
                 <span className="text-xs uppercase font-bold text-[#0F766E]">Advance Booking Manifest</span>
-                <h3 className="font-bold text-lg">Create Pre-Booking Reservation</h3>
+                <h3 className="font-bold text-lg text-[#091D26]">Create Pre-Booking Reservation</h3>
               </div>
-              <button type="button" onClick={() => setShowAddBookingModal(false)} className="text-slate-400">
+              <button 
+                type="button" 
+                onClick={() => setShowAddBookingModal(false)} 
+                className="text-slate-400 hover:text-black p-1"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleCreatePrebooking} className="space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold mb-1">Guest Full Name</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Alexander Vance"
-                    value={newBookingForm.guestName}
-                    onChange={(e) => setNewBookingForm({ ...newBookingForm, guestName: e.target.value })}
-                    className="w-full border rounded-xl p-2.5"
-                  />
-                </div>
-                <div>
-                <label className="block font-semibold mb-1">Guest Full Name</label>
+              {/* Single Guest Name */}
+              <div>
+                <label className="block font-semibold mb-1 text-slate-700">Guest Full Name</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Alexander Vance"
-                  value={guestForm.name}
-                  onChange={(e) => setGuestForm({ ...guestForm, name: e.target.value })}
-                  className="w-full border rounded-lg p-2.5"
+                  placeholder="e.g. Chaithanya P K"
+                  value={newBookingForm.guestName}
+                  onChange={(e) => setNewBookingForm({ ...newBookingForm, guestName: e.target.value })}
+                  className="w-full border rounded-xl p-2.5 font-medium"
                 />
               </div>
 
-              {/* Contact Phone & Check-In Date */}
+              {/* Contact Phone & Room Selection */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold mb-1">Contact Phone</label>
+                  <label className="block font-semibold mb-1 text-slate-700">Contact Phone</label>
                   <input
                     type="tel"
-                    placeholder="+94 77 ..."
-                    value={guestForm.phone}
-                    onChange={(e) => setGuestForm({ ...guestForm, phone: e.target.value })}
-                    className="w-full border rounded-lg p-2.5"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1">Check-In Date</label>
-                  <input
-                    type="date"
                     required
-                    value={guestForm.checkInDate || getTodayKey()}
-                    onChange={(e) => setGuestForm({ ...guestForm, checkInDate: e.target.value })}
-                    className="w-full border rounded-lg p-2.5 font-mono text-xs bg-white"
-                  />
-                </div>
-              </div>
-
-              {/* Nights Duration & Auto Departure Preview */}
-              <div className="grid grid-cols-2 gap-3 items-center">
-                <div>
-                  <label className="block font-semibold mb-1">Nights Duration</label>
-                  <input
-                    type="number"
-                    min="1"
-                    required
-                    value={guestForm.nights}
-                    onChange={(e) => setGuestForm({ ...guestForm, nights: parseInt(e.target.value, 10) || 1 })}
-                    className="w-full border rounded-lg p-2.5 font-bold"
-                  />
-                </div>
-                <div className="pt-5">
-                  <div className="p-2 bg-slate-100 rounded-lg text-[11px] text-slate-600 font-mono">
-                    <span className="block text-[9px] uppercase text-slate-400">Departure:</span>
-                    <b className="text-teal-700">
-                      {new Date(
-                        (new Date(guestForm.checkInDate || getTodayKey()).getTime()) + 
-                        ((parseInt(guestForm.nights, 10) || 1) * 86400000)
-                      ).toISOString().split("T")[0]}
-                    </b>
-                  </div>
-                </div>
-              </div>
-                <div>
-                  <label className="block font-semibold mb-1">Deposit Paid ({settings.currency})</label>
-                  <input
-                    type="number"
-                    value={newBookingForm.depositAmount}
-                    onChange={(e) => setNewBookingForm({ ...newBookingForm, depositAmount: e.target.value })}
-                    className="w-full border rounded-xl p-2 font-bold text-emerald-700"
+                    placeholder="+91 20 ..."
+                    value={newBookingForm.guestPhone}
+                    onChange={(e) => setNewBookingForm({ ...newBookingForm, guestPhone: e.target.value })}
+                    className="w-full border rounded-xl p-2.5 font-medium"
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold mb-1">Booking Status</label>
+                  <label className="block font-semibold mb-1 text-slate-700">Select Room to Lock</label>
                   <select
-                    value={newBookingForm.status}
-                    onChange={(e) => setNewBookingForm({ ...newBookingForm, status: e.target.value })}
-                    className="w-full border rounded-xl p-2 bg-white font-bold"
+                    required
+                    value={newBookingForm.roomNumber}
+                    onChange={(e) => {
+                      const selRoom = rooms.find(r => String(r.number) === e.target.value);
+                      const baseRate = selRoom ? Number(selRoom.rate) : 18000;
+                      setNewBookingForm({
+                        ...newBookingForm,
+                        roomNumber: e.target.value,
+                        totalRate: String(baseRate)
+                      });
+                    }}
+                    className="w-full border rounded-xl p-2.5 bg-white font-bold text-slate-800"
                   >
-                    <option value="Confirmed">Confirmed</option>
-                    <option value="Deposit Paid">Deposit Paid</option>
-                    <option value="Tentative">Tentative</option>
+                    <option value="">-- Choose Room --</option>
+                    {rooms.map(r => (
+                      <option key={r.id} value={r.number}>
+                        #{r.number} ({r.type})
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
 
+              {/* Check-In Date & Nights Duration */}
+              <div className="grid grid-cols-2 gap-3 items-center">
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Check-In Date</label>
+                  <input
+                    type="date"
+                    required
+                    value={newBookingForm.checkInDate}
+                    onChange={(e) => {
+                      const newIn = e.target.value;
+                      const nights = parseInt(newBookingForm.nights || 1, 10);
+                      const newOut = new Date(new Date(newIn).getTime() + nights * 86400000).toISOString().split("T")[0];
+                      setNewBookingForm({ ...newBookingForm, checkInDate: newIn, checkOutDate: newOut });
+                    }}
+                    className="w-full border rounded-xl p-2.5 font-mono text-xs bg-white font-bold text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Nights Duration</label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={newBookingForm.nights || 1}
+                    onChange={(e) => {
+                      const nights = parseInt(e.target.value, 10) || 1;
+                      const checkInTime = new Date(newBookingForm.checkInDate || getTodayKey()).getTime();
+                      const newOut = new Date(checkInTime + nights * 86400000).toISOString().split("T")[0];
+                      setNewBookingForm({ 
+                        ...newBookingForm, 
+                        nights: nights,
+                        checkOutDate: newOut
+                      });
+                    }}
+                    className="w-full border rounded-xl p-2.5 font-bold"
+                  />
+                </div>
+              </div>
+
+              {/* Departure Summary & Rate */}
+              <div className="grid grid-cols-2 gap-3 items-center">
+                <div className="p-2.5 bg-slate-100 border border-slate-200 rounded-xl text-[11px] font-mono text-slate-600">
+                  <span className="block text-[9px] uppercase text-slate-400">Departure:</span>
+                  <b className="text-teal-700">{newBookingForm.checkOutDate}</b>
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Deposit Paid (US $)</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={newBookingForm.depositAmount}
+                    onChange={(e) => setNewBookingForm({ ...newBookingForm, depositAmount: e.target.value })}
+                    className="w-full border rounded-xl p-2.5 font-bold text-emerald-700"
+                  />
+                </div>
+              </div>
+
+              {/* Booking Status */}
               <div>
-                <label className="block font-semibold mb-1">Special Requests / Notes</label>
+                <label className="block font-semibold mb-1 text-slate-700">Booking Status</label>
+                <select
+                  value={newBookingForm.status}
+                  onChange={(e) => setNewBookingForm({ ...newBookingForm, status: e.target.value })}
+                  className="w-full border rounded-xl p-2.5 bg-white font-bold"
+                >
+                  <option value="Confirmed">Confirmed (Lock Room)</option>
+                  <option value="Deposit Paid">Deposit Paid</option>
+                  <option value="Tentative">Tentative</option>
+                </select>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block font-semibold mb-1 text-slate-700">Special Requests / Notes</label>
                 <textarea
                   rows={2}
                   placeholder="e.g. Airport pickup required, late arrival around 9 PM"
@@ -4895,8 +4948,11 @@ export default function App() {
                 />
               </div>
 
-              <button type="submit" className="w-full bg-[#14B8A6] hover:bg-[#0D9488] text-white font-bold py-3 rounded-xl shadow">
-                Save Advance Reservation
+              <button 
+                type="submit" 
+                className="w-full bg-[#14B8A6] hover:bg-[#0D9488] active:scale-[0.98] transition-all text-white font-bold py-3 rounded-xl shadow-md cursor-pointer"
+              >
+                Save Advance Reservation & Lock Room
               </button>
             </form>
           </div>
