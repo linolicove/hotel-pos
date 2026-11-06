@@ -3518,9 +3518,14 @@ export default function App() {
                       <h3 className="font-bold text-sm text-[#091D26]">Settled Sales Transactions</h3>
                       <p className="text-[11px] text-slate-500">Every paid checkout folio is permanently recorded here with attached photo identification</p>
                     </div>
-                    <span className="text-xs font-mono font-bold text-[#0D9488]">
-                      Total: {settings.currency}{Number(totalSalesRevenue).toLocaleString()}
-                    </span>
+                    <div className="text-right">
+  <span className="font-black text-sm text-[#0D9488] block">
+    Total Settled: Rs. {Number(totalSalesRevenue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+  </span>
+  <span className="text-[10px] font-mono text-slate-500 font-bold block">
+    ≈ ${(totalSalesRevenue / (Number(settings?.exchangeRates?.USD) || 337.50)).toFixed(2)} USD
+  </span>
+</div>
                   </div>
 
                   <div className="overflow-x-auto">
@@ -3533,7 +3538,7 @@ export default function App() {
                           <th className="p-3.5">Guest Info</th>
                           <th className="p-3.5 text-center">Guest ID Image</th>
                           <th className="p-3.5 text-center">Tender</th>
-                          <th className="p-3.5 text-right font-black">Total Paid</th>
+                          <th className="p-3.5 text-right font-black text-slate-700">TOTAL PAID (LKR)</th>
                           <th className="p-3.5 text-center">Receipt</th>
                           {isGeneralManager && <th className="p-3.5 text-center text-rose-600">Delete</th>}
                         </tr>
