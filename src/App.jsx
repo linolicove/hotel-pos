@@ -2681,10 +2681,45 @@ export default function App() {
                           </p>
                           
                           <div className="flex items-center gap-2 mt-1">
-  <span className="text-sm font-black text-slate-800">
-    US ${Number(activeDynamicRate).toFixed(2)}
-    <span className="text-[10px] text-slate-400 font-normal"> / night</span>
-  </span>
+  {(() => {
+  // Automatically detects if the room is local via currency tag, name/type, or rate threshold (> 500)
+  const isLocalRoom =
+    room.currency === "LKR" ||
+    String(room.number || "").toLowerCase().includes("local") ||
+    String(room.type || "").toLowerCase().includes("local") ||
+    Number(activeDynamicRate) > 500;
+
+  return (
+    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+      <span className="text-sm font-black text-slate-800">
+        {isLocalRoom
+          ? `Rs. ${Number(activeDynamicRate).toLocaleString()}`
+          : `US $${Number(activeDynamicRate).toFixed(2)}`}
+        <span className="text-[10px] text-slate-400 font-normal"> / night</span>
+      </span>
+
+      {isLocalRoom && (
+        <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300">
+          Local Resident
+        </span>
+      )}
+
+      <span
+        className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
+          room.rateStrategy === "peak"
+            ? "bg-rose-100 text-rose-700"
+            : room.rateStrategy === "weekend"
+            ? "bg-amber-100 text-amber-800"
+            : room.rateStrategy === "auto"
+            ? "bg-purple-100 text-purple-700"
+            : "bg-slate-100 text-slate-600"
+        }`}
+      >
+        {room.rateStrategy || "standard"}
+      </span>
+    </div>
+  );
+})()}
   <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
     room.rateStrategy === "peak" ? "bg-rose-100 text-rose-700" :
     room.rateStrategy === "weekend" ? "bg-amber-100 text-amber-800" :
@@ -5309,24 +5344,39 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="bg-[#FAF9F5] p-3 rounded-xl border border-[#E6DFD3] space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="font-bold text-[11px] text-slate-700">Nightly Rate Applied:</span>
-                  <span className="text-[10px] font-bold uppercase text-[#0F766E] bg-[#CCFBF1] px-2 py-0.5 rounded">
-                    Tier: {checkInModalRoom.rateStrategy || "Standard"}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold text-slate-500">{settings.currency}</span>
-                  <input
-                    type="number"
-                    required
-                    value={guestForm.customRate}
-                    onChange={(e) => setGuestForm({ ...guestForm, customRate: e.target.value })}
-                    className="w-full border rounded-lg p-2 font-bold text-sm bg-white"
-                  />
-                </div>
-              </div>
+              {(() => {
+  const isLocalModalRoom =
+    checkInModalRoom.currency === "LKR" ||
+    String(checkInModalRoom.number || "").toLowerCase().includes("local") ||
+    String(checkInModalRoom.type || "").toLowerCase().includes("local") ||
+    Number(guestForm.customRate) > 500;
+
+  return (
+    <div className="bg-[#FAF9F5] p-3 rounded-xl border border-[#E6DFD3] space-y-2">
+      <div className="flex justify-between items-center">
+        <span className="font-bold text-[11px] text-slate-700">
+          Nightly Rate Applied ({isLocalModalRoom ? "Local LKR" : "USD Base"}):
+        </span>
+        <span className="text-[10px] font-bold uppercase text-[#0F766E] bg-[#CCFBF1] px-2 py-0.5 rounded">
+          Tier: {checkInModalRoom.rateStrategy || "Standard"}
+        </span>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-bold text-slate-600 font-mono">
+          {isLocalModalRoom ? "Rs." : "US $"}
+        </span>
+        <input
+          type="number"
+          step="any"
+          required
+          value={guestForm.customRate}
+          onChange={(e) => setGuestForm({ ...guestForm, customRate: e.target.value })}
+          className="w-full border rounded-lg p-2 font-bold text-sm bg-white"
+        />
+      </div>
+    </div>
+  );
+})()}
 
               <button type="submit" className="w-full bg-[#14B8A6] hover:bg-[#0D9488] text-white font-bold py-3 rounded-xl shadow">
                 Complete Check In
