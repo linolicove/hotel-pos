@@ -761,22 +761,25 @@ export default function App() {
 
   // Room / Stock Modals & Dynamic Rate Edit States
   const [showAddRoomModal, setShowAddRoomModal] = useState(false);
-  const [newRoomForm, setNewRoomForm] = useState({ 
+ const [newRoomForm, setNewRoomForm] = useState({ 
     number: "", 
     type: "Ocean Breeze King", 
-    rate: 18000, 
-    weekendRate: 22000, 
-    peakRate: 26000, 
+    currency: "USD", // default to USD or "LKR"
+    rate: 15, 
+    weekendRate: 18, 
+    peakRate: 22, 
     rateStrategy: "standard", 
     status: "available" 
   });
+  
   const [editingDynamicRoom, setEditingDynamicRoom] = useState(null);
   const [editRoomForm, setEditRoomForm] = useState({
     number: "",
     type: "Ocean Breeze King",
-    rate: 18000,
-    weekendRate: 22000,
-    peakRate: 26000,
+    currency: "USD",
+    rate: 15,
+    weekendRate: 18,
+    peakRate: 22,
     rateStrategy: "standard"
   });
 
@@ -2012,24 +2015,51 @@ export default function App() {
       return;
     }
     if (!newRoomForm.number) return;
+    
     const roomId = String(newRoomForm.number).trim();
-    const baseVal = Number(newRoomForm.rate) || 18000;
+    const isLkr = newRoomForm.currency === "LKR";
+    
+    // Set appropriate fallback rate depending on chosen currency
+    const fallbackBase = isLkr ? 7500 : 15;
+    const baseVal = Number(newRoomForm.rate) || fallbackBase;
     const wkndVal = Number(newRoomForm.weekendRate) || Math.round(baseVal * 1.2);
     const peakVal = Number(newRoomForm.peakRate) || Math.round(baseVal * 1.4);
 
     const newRoomData = {
       id: roomId,
       number: roomId,
-      type: sanitizeInput(newRoomForm.type),
+      type: sanitizeInput(newRoomForm.type) || "Standard Room",
+      currency: newRoomForm.currency || "USD", // Saves "USD" or "LKR"
       rate: baseVal,
       weekendRate: wkndVal,
       peakRate: peakVal,
       rateStrategy: newRoomForm.rateStrategy || "standard",
-      status: newRoomForm.status,
+      status: newRoomForm.status || "available",
+      orderId: null,
+      openedAt: null,
+      guestName: "",
+      guestPhone: "",
+      orderItems: null
     };
-    set(ref(rtdb, `rooms/${roomId}`), newRoomData);
-    setShowAddRoomModal(false);
-    setNewRoomForm({ number: "", type: "Ocean Breeze King", rate: 18000, weekendRate: 22000, peakRate: 26000, rateStrategy: "standard", status: "available" });
+
+    set(ref(rtdb, `rooms/${roomId}`), newRoomData)
+      .then(() => {
+        setShowAddRoomModal(false);
+        setNewRoomForm({
+          number: "",
+          type: "Ocean Breeze King",
+          currency: "USD",
+          rate: 15,
+          weekendRate: 18,
+          peakRate: 22,
+          rateStrategy: "standard",
+          status: "available",
+        });
+      })
+      .catch((err) => {
+        console.error("Failed to register room:", err);
+        alert("Error saving room to database: " + err.message);
+      });
   };
 
   const handleDeleteRoom = (roomId, roomNumber) => {
@@ -5930,7 +5960,7 @@ export default function App() {
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Ocean Breeze King"
+                    placeholder="e.g. Deluxe Local Resident"
                     value={newRoomForm.type}
                     onChange={(e) => setNewRoomForm({ ...newRoomForm, type: e.target.value })}
                     className="w-full border border-slate-300 rounded-xl p-2.5"
@@ -5938,11 +5968,38 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Billing Currency Selector */}
+              <div>
+                <label className="block font-semibold mb-1 text-slate-700">Target Market & Currency</label>
+                <select
+                  value={newRoomForm.currency || "USD"}
+                  onChange={(e) => {
+                    const selCurrency = e.target.value;
+                    const isLocal = selCurrency === "LKR";
+                    setNewRoomForm({
+                      ...newRoomForm,
+                      currency: selCurrency,
+                      rate: isLocal ? 7500 : 15,
+                      weekendRate: isLocal ? 8500 : 18,
+                      peakRate: isLocal ? 10000 : 22,
+                    });
+                  }}
+                  className="w-full border border-slate-300 rounded-xl p-2.5 bg-white font-bold text-slate-800"
+                >
+                  <option value="USD">USD ($) — International / Booking.com</option>
+                  <option value="LKR">LKR (Rs.) — Local Sri Lankan Resident</option>
+                </select>
+              </div>
+
+              {/* Dynamic Rates with Active Currency Symbol */}
               <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <label className="block font-semibold mb-1 text-slate-700">Base ({settings.currency})</label>
+                  <label className="block font-semibold mb-1 text-slate-700">
+                    Base ({newRoomForm.currency === "LKR" ? "Rs." : "$"})
+                  </label>
                   <input
                     type="number"
+                    step="any"
                     required
                     value={newRoomForm.rate}
                     onChange={(e) => setNewRoomForm({ ...newRoomForm, rate: e.target.value })}
@@ -5950,9 +6007,12 @@ export default function App() {
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold mb-1 text-slate-700">Weekend ({settings.currency})</label>
+                  <label className="block font-semibold mb-1 text-slate-700">
+                    Weekend ({newRoomForm.currency === "LKR" ? "Rs." : "$"})
+                  </label>
                   <input
                     type="number"
+                    step="any"
                     required
                     value={newRoomForm.weekendRate}
                     onChange={(e) => setNewRoomForm({ ...newRoomForm, weekendRate: e.target.value })}
@@ -5960,9 +6020,12 @@ export default function App() {
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold mb-1 text-slate-700">Peak ({settings.currency})</label>
+                  <label className="block font-semibold mb-1 text-slate-700">
+                    Peak ({newRoomForm.currency === "LKR" ? "Rs." : "$"})
+                  </label>
                   <input
                     type="number"
+                    step="any"
                     required
                     value={newRoomForm.peakRate}
                     onChange={(e) => setNewRoomForm({ ...newRoomForm, peakRate: e.target.value })}
@@ -5995,7 +6058,7 @@ export default function App() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-[#14B8A6] hover:bg-[#0D9488] text-white py-3 rounded-xl font-bold shadow-md"
+                  className="flex-1 bg-[#14B8A6] hover:bg-[#0D9488] text-white py-3 rounded-xl font-bold shadow-md cursor-pointer"
                 >
                   Register Room
                 </button>
@@ -6004,6 +6067,7 @@ export default function App() {
           </div>
         </div>
       )}
+
       {/* MODAL: ADD CUSTOM FOLIO ITEM */}
       {folioModalRoom && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
