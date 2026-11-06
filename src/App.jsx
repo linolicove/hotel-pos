@@ -3975,59 +3975,78 @@ export default function App() {
                   </thead>
                   <tbody className="divide-y divide-[#F3EFE6]">
                     {rooms.map((room) => {
-                      const currentLiveRate = getDynamicRoomRate(room, rooms);
+                      const currentDynamicRate = getDynamicRoomRate(room, rooms);
+                      
+                      // Identify whether this unit is a Local Resident room
+                      const isLocal =
+                        room.currency === "LKR" ||
+                        String(room.number || "").toLowerCase().includes("local") ||
+                        String(room.type || "").toLowerCase().includes("local") ||
+                        Number(room.rate) > 500;
+
+                      const symbol = isLocal ? "Rs. " : "US $";
 
                       return (
                         <tr key={room.id} className="hover:bg-[#FAF9F5] transition-colors">
-                          <td className="p-3.5 font-black text-base text-[#091D26]">#{room.number}</td>
-                          <td className="p-3.5 font-medium text-slate-700">{room.type}</td>
+                          <td className="p-3.5 font-black text-[#091D26]">
+                            <div className="flex items-center gap-1.5">
+                              <span>#{room.number}</span>
+                              {isLocal && (
+                                <span className="bg-emerald-100 text-emerald-800 text-[9px] font-extrabold px-1.5 py-0.5 rounded border border-emerald-200">
+                                  LKR
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="p-3.5 text-slate-700 font-medium">
+                            {room.type}
+                          </td>
                           <td className="p-3.5 text-right font-medium text-slate-600">
-                            {settings.currency}{Number(room.rate).toLocaleString()}
+                            {symbol}{Number(room.rate || 0).toLocaleString()}
                           </td>
-                          <td className="p-3.5 text-right font-medium text-amber-700">
-                            {settings.currency}{Number(room.weekendRate || Math.round(room.rate * 1.2)).toLocaleString()}
+                          <td className="p-3.5 text-right font-bold text-amber-700">
+                            {symbol}{Number(room.weekendRate || 0).toLocaleString()}
                           </td>
-                          <td className="p-3.5 text-right font-medium text-rose-700">
-                            {settings.currency}{Number(room.peakRate || Math.round(room.rate * 1.4)).toLocaleString()}
+                          <td className="p-3.5 text-right font-bold text-rose-700">
+                            {symbol}{Number(room.peakRate || 0).toLocaleString()}
                           </td>
-
                           <td className="p-3.5 text-center">
                             <select
                               value={room.rateStrategy || "standard"}
-                              onChange={(e) => handleQuickToggleStrategy(room, e.target.value)}
-                              className="border border-[#D3C8B7] rounded-lg px-2 py-1 text-xs bg-white font-bold"
+                              onChange={(e) => handleUpdateRateStrategy(room.id, e.target.value)}
+                              className="border border-[#D3C8B7] rounded-xl px-2.5 py-1 text-xs bg-white font-bold text-slate-700 shadow-2xs focus:outline-none"
                             >
                               <option value="standard">Standard (Base)</option>
-                              <option value="weekend">Weekend (+20%)</option>
-                              <option value="peak">Peak Season (+40%)</option>
-                              <option value="auto">Auto Occupancy Surge</option>
+                              <option value="weekend">Weekend Surge</option>
+                              <option value="peak">Peak Season</option>
+                              <option value="auto">Auto Occupancy</option>
                             </select>
                           </td>
-
-                          <td className="p-3.5 text-center font-black text-sm text-[#0D9488]">
-                            {settings.currency}{Number(currentLiveRate).toLocaleString()}
+                          <td className="p-3.5 text-right font-black text-[#0D9488] text-sm">
+                            {symbol}{Number(currentDynamicRate || 0).toLocaleString()}
                           </td>
-
-                          <td className="p-3.5 text-center">
-                            <div className="inline-flex items-center gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => handleStartEditDynamicRoom(room)}
-                                className="p-1.5 text-slate-400 hover:text-[#0D9488] rounded hover:bg-slate-100"
-                                title="Edit Rates"
-                              >
-                                <Edit2 className="w-4 h-4" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteRoom(room.id, room.number)}
-                                className="p-1.5 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50"
-                                title="Delete Room"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </td>
+                          {isGeneralManager && (
+                            <td className="p-3.5 text-center">
+                              <div className="inline-flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartEditRoom(room)}
+                                  className="p-1.5 text-slate-400 hover:text-[#0D9488] rounded hover:bg-slate-100 transition-colors"
+                                  title="Edit Room Pricing"
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteRoom(room)}
+                                  className="p-1.5 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors"
+                                  title="Delete Room Unit"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          )}
                         </tr>
                       );
                     })}
