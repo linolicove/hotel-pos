@@ -3582,9 +3582,14 @@ export default function App() {
                               </span>
                             </td>
 
-                            <td className="p-3.5 text-right font-black text-sm text-[#0D9488]">
-                              {settings.currency}{Number(sale.totalAmount || 0).toLocaleString()}
-                            </td>
+                            <td className="p-3.5 text-right shrink-0">
+  <span className="font-black text-sm text-[#0D9488] block">
+    Rs. {Number(sale.totalAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+  </span>
+  <span className="text-[10px] font-mono text-slate-500 font-bold block">
+    ≈ ${(Number(sale.totalAmountUsd) || (Number(sale.totalAmount || 0) / (Number(sale.appliedUsdRate) || Number(settings?.exchangeRates?.USD) || 337.50))).toFixed(2)} USD
+  </span>
+</td>
 
                             <td className="p-3.5 text-center">
                               <button
