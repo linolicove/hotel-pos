@@ -181,57 +181,6 @@ const DEFAULT_SETTINGS = {
   footerNote: "Thank you for your visit!\nPlease come again.",
 };
 
-// --- CASHIER SHIFT & DRAWER BALANCING STATES ---
-const [cashierShift, setCashierShift] = useState({
-  shiftId: "SHIFT-20261107-3208",
-  openedBy: "W K A M C Kavindi",
-  openedAt: "21:45",
-  openingFloat: 34010.00,
-  status: "open"
-});
-
-const [cashOutForm, setCashOutForm] = useState({
-  amount: "",
-  category: "Supplier / Vendor",
-  reason: "",
-  recipient: ""
-});
-
-const [disbursements, setDisbursements] = useState([
-  {
-    id: "disb_1",
-    title: "resturant bar ice",
-    category: "Petty Cash / Store Supplies",
-    recipient: "General Expense",
-    requestedBy: "Muditha",
-    approvedBy: "Muditha",
-    time: "16:32",
-    amount: 650.00,
-    status: "APPROVED"
-  },
-  {
-    id: "disb_2",
-    title: "resturant and staff",
-    category: "Petty Cash / Store Supplies",
-    recipient: "General Expense",
-    requestedBy: "W K A M C Kavindi",
-    approvedBy: "Muditha",
-    time: "14:47",
-    amount: 12123.00,
-    status: "APPROVED"
-  }
-]);
-
-// Physical denominations for Sri Lankan Rupee currency notes
-const [noteCounts, setNoteCounts] = useState({
-  5000: 4,
-  1000: 5,
-  500: 1,
-  100: 3,
-  50: 2,
-  20: 4
-});
-
 const INITIAL_INVENTORY_SEEDS = [
   { id: "inv1", name: "Artisanal Sparkling Water", category: "minibar", cost: 450, price: 850, stock: 48 },
   { id: "inv2", name: "Organic Coconut Chips", category: "minibar", cost: 320, price: 650, stock: 32 },
@@ -751,6 +700,56 @@ export default function App() {
     description: "",
     unitPrice: "",
     quantity: "1"
+  });
+
+  // --- CASHIER SHIFT & DRAWER BALANCING STATES ---
+  const [cashierShift, setCashierShift] = useState({
+    shiftId: "SHIFT-20261107-3208",
+    openedBy: "W K A M C Kavindi",
+    openedAt: "21:45",
+    openingFloat: 34010.00,
+    status: "open"
+  });
+
+  const [cashOutForm, setCashOutForm] = useState({
+    amount: "",
+    category: "Supplier / Vendor",
+    reason: "",
+    recipient: ""
+  });
+
+  const [disbursements, setDisbursements] = useState([
+    {
+      id: "disb_1",
+      title: "resturant bar ice",
+      category: "Petty Cash / Store Supplies",
+      recipient: "General Expense",
+      requestedBy: "Muditha",
+      approvedBy: "Muditha",
+      time: "16:32",
+      amount: 650.00,
+      status: "APPROVED"
+    },
+    {
+      id: "disb_2",
+      title: "resturant and staff",
+      category: "Petty Cash / Store Supplies",
+      recipient: "General Expense",
+      requestedBy: "W K A M C Kavindi",
+      approvedBy: "Muditha",
+      time: "14:47",
+      amount: 12123.00,
+      status: "APPROVED"
+    }
+  ]);
+
+  const [noteCounts, setNoteCounts] = useState({
+    5000: 4,
+    1000: 5,
+    500: 1,
+    100: 3,
+    50: 2,
+    20: 4
   });
 
   // Attendance Monitor Filter State
@@ -3688,6 +3687,7 @@ export default function App() {
     </div>
   );
 })()}
+          
 
           {/* TAB 3: INVENTORY */}
           {activeTab === "inventory" && canAccessTab("inventory") && (
