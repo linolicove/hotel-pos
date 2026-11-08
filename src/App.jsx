@@ -18,6 +18,7 @@ import {
   Printer,
   Plus,
   Trash2,
+  CheckCircle,
   CheckCircle2,
   Menu,
   X,
@@ -179,6 +180,57 @@ const DEFAULT_SETTINGS = {
   headerNote: "Linoli Cove Beach Resort & Dining\nBeach Road, Midigama\nTel: +94 74 036 4741",
   footerNote: "Thank you for your visit!\nPlease come again.",
 };
+
+// --- CASHIER SHIFT & DRAWER BALANCING STATES ---
+const [cashierShift, setCashierShift] = useState({
+  shiftId: "SHIFT-20261107-3208",
+  openedBy: "W K A M C Kavindi",
+  openedAt: "21:45",
+  openingFloat: 34010.00,
+  status: "open"
+});
+
+const [cashOutForm, setCashOutForm] = useState({
+  amount: "",
+  category: "Supplier / Vendor",
+  reason: "",
+  recipient: ""
+});
+
+const [disbursements, setDisbursements] = useState([
+  {
+    id: "disb_1",
+    title: "resturant bar ice",
+    category: "Petty Cash / Store Supplies",
+    recipient: "General Expense",
+    requestedBy: "Muditha",
+    approvedBy: "Muditha",
+    time: "16:32",
+    amount: 650.00,
+    status: "APPROVED"
+  },
+  {
+    id: "disb_2",
+    title: "resturant and staff",
+    category: "Petty Cash / Store Supplies",
+    recipient: "General Expense",
+    requestedBy: "W K A M C Kavindi",
+    approvedBy: "Muditha",
+    time: "14:47",
+    amount: 12123.00,
+    status: "APPROVED"
+  }
+]);
+
+// Physical denominations for Sri Lankan Rupee currency notes
+const [noteCounts, setNoteCounts] = useState({
+  5000: 4,
+  1000: 5,
+  500: 1,
+  100: 3,
+  50: 2,
+  20: 4
+});
 
 const INITIAL_INVENTORY_SEEDS = [
   { id: "inv1", name: "Artisanal Sparkling Water", category: "minibar", cost: 450, price: 850, stock: 48 },
@@ -866,6 +918,7 @@ export default function App() {
   const navigationItems = [
     { id: "frontdesk", label: "Front Desk & Status", icon: Bed },
     { id: "active-orders", label: "Active Bills & Tabs", icon: Receipt },
+    { id: "cashier", label: "Cashier & Drawer", icon: ShieldAlert },
     { id: "inventory", label: "Stock & Minibar", icon: Boxes },
     { id: "reports", label: "Reports & Analytics", icon: BarChart3 },
     { id: "room-admin", label: "Room Management", icon: SlidersHorizontal },
@@ -3271,6 +3324,370 @@ export default function App() {
               )}
             </div>
           )}
+          {/* --- CASHIER SHIFT & DRAWER BALANCING TAB --- */}
+{activeTab === "cashier" && (() => {
+  // 1. Calculate settled cash orders
+  const cashSalesTotal = salesRecords
+    ? Object.values(salesRecords)
+        .filter((s) => s.settlementMethod === "Cash")
+        .reduce((acc, s) => acc + (Number(s.totalAmount) || 0), 0)
+    : 4752.00;
+
+  const cashOrdersCount = salesRecords
+    ? Object.values(salesRecords).filter((s) => s.settlementMethod === "Cash").length || 2
+    : 2;
+
+  // 2. Calculate approved disbursements (Cash Out)
+  const totalCashOut = disbursements
+    .filter((d) => d.status === "APPROVED")
+    .reduce((acc, d) => acc + (Number(d.amount) || 0), 0);
+
+  // 3. Expected Cash in Drawer
+  const expectedCash = cashierShift.openingFloat + cashSalesTotal - totalCashOut;
+
+  // 4. Physical Note Count Total
+  const countedTotal = Object.entries(noteCounts).reduce((acc, [denom, count]) => {
+    return acc + (Number(denom) * (parseInt(count, 10) || 0));
+  }, 0);
+
+  // 5. Drawer Variance
+  const drawerVariance = countedTotal - expectedCash;
+
+  // Handler: Add payout & print thermal voucher
+  const handleAddDisbursement = (e) => {
+    e.preventDefault();
+    const amt = parseFloat(cashOutForm.amount);
+    if (!amt || amt <= 0 || !cashOutForm.reason.trim()) {
+      alert("Please provide a valid amount and description.");
+      return;
+    }
+
+    const newDisb = {
+      id: `disb_${Date.now()}`,
+      title: cashOutForm.reason,
+      category: cashOutForm.category,
+      recipient: cashOutForm.recipient || "General Expense",
+      requestedBy: "Cashier",
+      approvedBy: "Muditha",
+      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }),
+      amount: amt,
+      status: "APPROVED"
+    };
+
+    const updated = [newDisb, ...disbursements];
+    setDisbursements(updated);
+    if (typeof set === "function" && typeof ref === "function" && rtdb) {
+      set(ref(rtdb, "cashier_shift/disbursements"), updated);
+    }
+
+    // Print 80mm thermal voucher
+    const voucherHtml = `
+      <div style="font-family: monospace; font-size: 12px; width: 280px; padding: 10px; text-align: center;">
+        <h3 style="margin: 0; text-transform: uppercase;">${settings?.name || "LINOLI COVE"}</h3>
+        <p style="margin: 2px 0 10px; font-size: 10px;">CASH OUT / PETTY CASH VOUCHER</p>
+        <hr style="border-top: 1px dashed #000;"/>
+        <div style="text-align: left; margin: 8px 0; font-size: 11px;">
+          <div><b>Voucher ID:</b> ${newDisb.id}</div>
+          <div><b>Category:</b> ${newDisb.category}</div>
+          <div><b>Reason:</b> ${newDisb.title}</div>
+          <div><b>Recipient:</b> ${newDisb.recipient}</div>
+          <div><b>Approved:</b> ${newDisb.approvedBy} (${newDisb.time})</div>
+        </div>
+        <hr style="border-top: 1px dashed #000;"/>
+        <div style="font-size: 16px; font-weight: bold; margin: 10px 0;">
+          AMOUNT: Rs. ${amt.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+        </div>
+        <hr style="border-top: 1px dashed #000;"/>
+        <br/><br/>
+        <div style="display: flex; justify-content: space-between; font-size: 10px;">
+          <span>Received By</span>
+          <span>Manager Sign</span>
+        </div>
+      </div>
+    `;
+    printIsolatedDocument(voucherHtml);
+
+    setCashOutForm({ amount: "", category: "Supplier / Vendor", reason: "", recipient: "" });
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header & Shift Controls */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h2 className="text-2xl font-black text-[#091D26]">Cashier Shift & Drawer Balancing</h2>
+          <p className="text-xs text-slate-500 font-mono mt-0.5">
+            Active Shift: <b>{cashierShift.shiftId}</b> • Opened by {cashierShift.openedBy} at {cashierShift.openedAt}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => alert("Drawer cash banked successfully.")}
+            className="px-4 py-2 bg-[#0D9488] hover:bg-[#0F766E] active:scale-95 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+          >
+            <CheckCircle className="w-4 h-4" /> Settle & Bank Drawer
+          </button>
+          <button
+            type="button"
+            onClick={() => alert("Generating Z-Report and closing current register shift...")}
+            className="px-4 py-2 bg-[#F95738] hover:bg-[#E0482B] active:scale-95 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+          >
+            <Lock className="w-4 h-4" /> Close Shift & Print Z-Report
+          </button>
+        </div>
+      </div>
+
+      {/* Top 5 KPI Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+        <div className="bg-white rounded-2xl p-4 border border-[#E6DFD3] shadow-xs">
+          <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">
+            1. OPENING FLOAT
+          </span>
+          <div className="text-xl font-black text-[#091D26] mt-1 font-mono">
+            Rs. {cashierShift.openingFloat.toFixed(2)}
+          </div>
+          <span className="text-[10px] text-slate-400 block mt-1">Drawer base float</span>
+        </div>
+
+        <div className="bg-white rounded-2xl p-4 border border-[#E6DFD3] shadow-xs">
+          <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">
+            2. + CASH SALES
+          </span>
+          <div className="text-xl font-black text-emerald-600 mt-1 font-mono">
+            +Rs. {cashSalesTotal.toFixed(2)}
+          </div>
+          <span className="text-[10px] text-slate-400 block mt-1">{cashOrdersCount} orders settled</span>
+        </div>
+
+        <div className="bg-white rounded-2xl p-4 border border-[#E6DFD3] shadow-xs">
+          <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">
+            3. - CASH OUT
+          </span>
+          <div className="text-xl font-black text-rose-600 mt-1 font-mono">
+            -Rs. {totalCashOut.toFixed(2)}
+          </div>
+          <span className="text-[10px] text-slate-400 block mt-1">Approved payouts</span>
+        </div>
+
+        <div className="bg-white rounded-2xl p-4 border-2 border-orange-400 shadow-xs">
+          <span className="text-[10px] font-black uppercase text-orange-600 block tracking-wider">
+            4. = EXPECTED CASH
+          </span>
+          <div className="text-xl font-black text-[#091D26] mt-1 font-mono">
+            Rs. {expectedCash.toFixed(2)}
+          </div>
+          <span className="text-[10px] text-slate-400 block mt-1">Float + Sales - CashOut</span>
+        </div>
+
+        <div className="bg-white rounded-2xl p-4 border border-rose-300 shadow-xs">
+          <div className="flex justify-between items-center">
+            <span className="text-[10px] font-black uppercase text-slate-500 block tracking-wider">
+              5. DRAWER VARIANCE
+            </span>
+            <span className="text-[9px] font-mono font-bold text-slate-400">
+              Count: Rs.{countedTotal.toFixed(0)}
+            </span>
+          </div>
+          <div className={`text-xl font-black mt-1 font-mono ${drawerVariance < 0 ? "text-rose-600" : "text-emerald-600"}`}>
+            Rs. {drawerVariance >= 0 ? `+${drawerVariance.toFixed(2)}` : drawerVariance.toFixed(2)}
+          </div>
+          <span className={`text-[10px] font-bold block mt-1 ${drawerVariance < 0 ? "text-rose-600" : "text-emerald-600"}`}>
+            {drawerVariance < 0 ? "Cash Shortage" : drawerVariance === 0 ? "Perfect Balance" : "Cash Overage"}
+          </span>
+        </div>
+      </div>
+
+      {/* Middle Grid: Cash Out Form & Shift Ledger */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        {/* Form: Disburse Drawer Cash Out */}
+        <div className="lg:col-span-5 bg-white rounded-3xl p-5 border border-[#E6DFD3] shadow-sm">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="p-1.5 bg-rose-50 text-rose-600 rounded-lg">
+              <Receipt className="w-4 h-4" />
+            </span>
+            <div>
+              <h3 className="font-black text-sm text-[#091D26] uppercase tracking-wide">
+                Disburse Drawer Cash Out
+              </h3>
+              <p className="text-[10px] text-slate-400">Prints voucher immediately on submission</p>
+            </div>
+          </div>
+
+          <form onSubmit={handleAddDisbursement} className="space-y-3 text-xs">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">AMOUNT (RS.)</label>
+                <input
+                  type="number"
+                  step="any"
+                  required
+                  placeholder="e.g. 2500.00"
+                  value={cashOutForm.amount}
+                  onChange={(e) => setCashOutForm({ ...cashOutForm, amount: e.target.value })}
+                  className="w-full border border-slate-200 rounded-xl p-2.5 font-bold focus:outline-none focus:border-[#0D9488]"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">CATEGORY</label>
+                <select
+                  value={cashOutForm.category}
+                  onChange={(e) => setCashOutForm({ ...cashOutForm, category: e.target.value })}
+                  className="w-full border border-slate-200 rounded-xl p-2.5 bg-white font-medium focus:outline-none focus:border-[#0D9488]"
+                >
+                  <option value="Supplier / Vendor">Supplier / Vendor</option>
+                  <option value="Petty Cash / Store Supplies">Petty Cash / Store Supplies</option>
+                  <option value="Staff Advance / Tip">Staff Advance / Tip</option>
+                  <option value="Utility / Maintenance">Utility / Maintenance</option>
+                  <option value="Safe Drop / Transfer">Safe Drop / Transfer</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-600 mb-1">REASON & DESCRIPTION</label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. Paid seafood driver for 5kg reef fish"
+                value={cashOutForm.reason}
+                onChange={(e) => setCashOutForm({ ...cashOutForm, reason: e.target.value })}
+                className="w-full border border-slate-200 rounded-xl p-2.5 font-medium focus:outline-none focus:border-[#0D9488]"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-600 mb-1">PAID TO / RECIPIENT</label>
+              <input
+                type="text"
+                placeholder="e.g. Fish Vendor Sunil / Safe Vault"
+                value={cashOutForm.recipient}
+                onChange={(e) => setCashOutForm({ ...cashOutForm, recipient: e.target.value })}
+                className="w-full border border-slate-200 rounded-xl p-2.5 font-medium focus:outline-none focus:border-[#0D9488]"
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="w-full mt-2 bg-[#0F1E28] hover:bg-[#1A3140] active:scale-[0.98] text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
+            >
+              <Send className="w-4 h-4 text-teal-400" /> Submit & Print Cash Out Voucher
+            </button>
+          </form>
+        </div>
+
+        {/* Ledger: Shift Disbursements & Approvals */}
+        <div className="lg:col-span-7 bg-white rounded-3xl p-5 border border-[#E6DFD3] shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="flex justify-between items-center mb-4">
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 bg-blue-50 text-blue-600 rounded-lg">
+                  <ShieldCheck className="w-4 h-4" />
+                </span>
+                <div>
+                  <h3 className="font-black text-sm text-[#091D26] uppercase tracking-wide">
+                    Shift Disbursements & Approvals
+                  </h3>
+                  <p className="text-[10px] text-slate-400">Current shift drawer payouts</p>
+                </div>
+              </div>
+              <span className="text-[10px] font-mono font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
+                {disbursements.length} Records
+              </span>
+            </div>
+
+            <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
+              {disbursements.map((d) => (
+                <div
+                  key={d.id}
+                  className="bg-[#FAF9F5] p-3 rounded-2xl border border-slate-200/80 flex justify-between items-center"
+                >
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-xs text-[#091D26] capitalize">{d.title}</span>
+                      <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800">
+                        {d.status}
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                      {d.category} • Recipient: {d.recipient} • Req by {d.requestedBy}
+                    </div>
+                    <div className="text-[10px] text-emerald-700 font-medium mt-0.5">
+                      ✓ Approved by {d.approvedBy} ({d.time})
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono font-black text-sm text-[#091D26]">
+                      Rs. {d.amount.toFixed(2)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => alert(`Reprinting voucher for ${d.title}`)}
+                      className="p-1.5 text-slate-400 hover:text-slate-800 rounded-lg border border-slate-200 bg-white shadow-2xs cursor-pointer"
+                      title="Reprint Voucher"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom: Physical Cash Note Count */}
+      <div className="bg-white rounded-3xl p-5 border border-[#E6DFD3] shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+          <div className="flex items-center gap-2">
+            <Coins className="w-4 h-4 text-orange-500" />
+            <h3 className="font-black text-sm text-[#091D26] uppercase tracking-wide">
+              Physical Cash Note Count
+            </h3>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="bg-[#091D26] text-white font-mono text-xs font-bold px-3 py-1 rounded-xl">
+              Counted Total: Rs. {countedTotal.toFixed(2)}
+            </span>
+            <span className={`font-mono text-xs font-bold px-2.5 py-1 rounded-xl ${drawerVariance < 0 ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-800"}`}>
+              Variance: Rs. {drawerVariance >= 0 ? `+${drawerVariance.toFixed(2)}` : drawerVariance.toFixed(2)}
+            </span>
+          </div>
+        </div>
+
+        {/* Denomination Inputs */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {[5000, 1000, 500, 100, 50, 20].map((denom) => {
+            const count = noteCounts[denom] || 0;
+            const subtotal = denom * count;
+
+            return (
+              <div key={denom} className="bg-[#FAF9F5] border border-slate-200 rounded-2xl p-3">
+                <div className="flex justify-between items-center text-[11px] font-bold text-slate-600 mb-1.5 font-mono">
+                  <span>Rs. {denom}</span>
+                  <span className="text-slate-400 text-[10px]">Rs. {subtotal}</span>
+                </div>
+                <input
+                  type="number"
+                  min="0"
+                  value={count}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10) || 0;
+                    setNoteCounts({ ...noteCounts, [denom]: Math.max(0, val) });
+                  }}
+                  className="w-full text-center bg-white border border-slate-300 rounded-xl py-2 font-mono font-black text-sm text-[#091D26] focus:outline-none focus:border-[#0D9488]"
+                />
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+})()}
 
           {/* TAB 3: INVENTORY */}
           {activeTab === "inventory" && canAccessTab("inventory") && (
