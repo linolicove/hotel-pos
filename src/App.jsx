@@ -719,29 +719,7 @@ export default function App() {
   });
 
   const [disbursements, setDisbursements] = useState([
-    {
-      id: "disb_1",
-      title: "resturant bar ice",
-      category: "Petty Cash / Store Supplies",
-      recipient: "General Expense",
-      requestedBy: "Muditha",
-      approvedBy: "Muditha",
-      time: "16:32",
-      amount: 650.00,
-      status: "APPROVED"
-    },
-    {
-      id: "disb_2",
-      title: "resturant and staff",
-      category: "Petty Cash / Store Supplies",
-      recipient: "General Expense",
-      requestedBy: "W K A M C Kavindi",
-      approvedBy: "Muditha",
-      time: "14:47",
-      amount: 12123.00,
-      status: "APPROVED"
-    }
-  ]);
+]);
 
   const [noteCounts, setNoteCounts] = useState({
     5000: 4,
@@ -1289,7 +1267,7 @@ export default function App() {
     setMobileMenuOpen(false);
   };
 
-  // --- REALTIME DATABASE LISTENERS (TOP LEVEL OF APP) ---
+  // --- REALTIME DATABASE LISTENERS ---
   useEffect(() => {
     if (!rtdb) return;
 
@@ -1300,9 +1278,6 @@ export default function App() {
       if (data) {
         setSettings(data);
         setSettingsForm(data);
-      } else {
-        set(settingsRef, DEFAULT_SETTINGS);
-        setSettingsForm(DEFAULT_SETTINGS);
       }
     });
 
@@ -1324,10 +1299,25 @@ export default function App() {
       }
     });
 
+    // >>> 4. CASH OUT / DISBURSEMENTS LISTENER (ADD THIS) <<<
+    const disbRef = ref(rtdb, "cashier_shift/disbursements");
+    const unsubDisb = onValue(disbRef, (snapshot) => {
+      const data = snapshot.val();
+      if (Array.isArray(data)) {
+        setDisbursements(data);
+      } else if (data && typeof data === "object") {
+        // Handle cases where Firebase converts arrays with holes into objects
+        setDisbursements(Object.values(data));
+      } else {
+        setDisbursements([]);
+      }
+    });
+
     return () => {
       unsubSettings();
       unsubShift();
       unsubNotes();
+      unsubDisb();
     };
   }, []);
 
@@ -2448,23 +2438,31 @@ export default function App() {
     }
 
     const confirmDelete = window.confirm(
-      `Are you sure you want to delete payout "${title}"?\n\nThis will remove it from the shift record and adjust drawer calculations.`
+      `Are you sure you want to delete payout "${title}"?\n\nThis will permanently remove it from the shift record and database.`
     );
     if (!confirmDelete) return;
 
     try {
       const updated = disbursements.filter((d) => d.id !== disbursementId);
+      
+      // Update local state immediately
       setDisbursements(updated);
 
+      // Persist directly to Firebase RTDB
       if (rtdb) {
-        await set(ref(rtdb, "cashier_shift/disbursements"), updated);
+        if (updated.length > 0) {
+          await set(ref(rtdb, "cashier_shift/disbursements"), updated);
+        } else {
+          // If all items are deleted, remove the node entirely so it resets to empty
+          await remove(ref(rtdb, "cashier_shift/disbursements"));
+        }
       }
     } catch (err) {
       console.error("Failed to delete disbursement:", err);
       alert("Error deleting record: " + err.message);
     }
   };
-
+  
   // Monitor Reports Array
   const allArchivedReports = Object.keys(allAttendanceRecords).flatMap((dateKey) => {
     const dayRecords = allAttendanceRecords[dateKey] || {};
