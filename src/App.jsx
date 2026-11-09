@@ -743,10 +743,11 @@ export default function App() {
           })
         : [];
 
-      const cashSalesTotal = currentShiftCashSales.reduce(
-        (acc, s) => acc + (Number(s.totalAmount) || 0),
-        0
-      );
+      // FIXED LINE:
+const cashSalesTotal = currentShiftCashSales.reduce(
+  (acc, s) => acc + (Number(s.totalAmount) || Number(s.total) || 0),
+  0
+);
 
       // 2. Approved Cash Out / Disbursements
       const totalCashOut = (disbursements || [])
@@ -863,7 +864,7 @@ export default function App() {
       alert("Failed to print settlement: " + err.message);
     }
   };
-  
+
   const handleCloseShiftAndHandover = async () => {
     try {
       const currentShiftCashSales = salesRecords
