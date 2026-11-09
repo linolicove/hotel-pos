@@ -730,21 +730,23 @@ export default function App() {
     20: 4
   });
 
-  const handlePrintCashierSettlement = () => {
+ const handlePrintCashierSettlement = () => {
     try {
+      // 1. Capture only settled cash sales
       const currentShiftCashSales = salesRecords
-    ? Object.values(salesRecords).filter((sale) => {
-        const method = String(
-          sale.settlementMethod || sale.paymentMethod || ""
-        ).trim().toLowerCase();
-        return method === "cash";
-      })
-    : [];
+        ? Object.values(salesRecords).filter((sale) => {
+            if (!sale || (!sale.orderId && !sale.id)) return false;
+            const tender = String(sale.settlementMethod || sale.paymentMethod || sale.tender || "")
+              .trim()
+              .toLowerCase();
+            return tender === "cash" && !tender.includes("card") && !tender.includes("transfer");
+          })
+        : [];
 
-  const cashSalesTotal = currentShiftCashSales.reduce(
-    (acc, s) => acc + (Number(s.totalAmount) || 0),
-    0
-  );
+      const cashSalesTotal = currentShiftCashSales.reduce(
+        (acc, s) => acc + (Number(s.totalAmount) || 0),
+        0
+      );
 
       // 2. Approved Cash Out / Disbursements
       const totalCashOut = (disbursements || [])
@@ -861,15 +863,16 @@ export default function App() {
       alert("Failed to print settlement: " + err.message);
     }
   };
-
+  
   const handleCloseShiftAndHandover = async () => {
     try {
       const currentShiftCashSales = salesRecords
     ? Object.values(salesRecords).filter((sale) => {
-        const method = String(
-          sale.settlementMethod || sale.paymentMethod || ""
-        ).trim().toLowerCase();
-        return method === "cash";
+        if (!sale || (!sale.orderId && !sale.id)) return false;
+        const tender = String(sale.settlementMethod || sale.paymentMethod || sale.tender || "")
+          .trim()
+          .toLowerCase();
+        return tender === "cash" && !tender.includes("card") && !tender.includes("transfer");
       })
     : [];
 
@@ -2462,7 +2465,7 @@ export default function App() {
       alert("Error deleting record: " + err.message);
     }
   };
-  
+
   // Monitor Reports Array
   const allArchivedReports = Object.keys(allAttendanceRecords).flatMap((dateKey) => {
     const dayRecords = allAttendanceRecords[dateKey] || {};
@@ -3630,20 +3633,31 @@ export default function App() {
           )}
           {/* --- CASHIER SHIFT & DRAWER BALANCING TAB --- */}
 {activeTab === "cashier" && (() => {
-  // 1. Match cash sales settled today OR explicitly tagged with this shift ID
+  // STRICT CASH FILTER: Matches the Reports table Tender column exactly
   const currentShiftCashSales = salesRecords
     ? Object.values(salesRecords).filter((sale) => {
-        const method = String(
-          sale.settlementMethod || sale.paymentMethod || ""
-        ).trim().toLowerCase();
+        // 1. Must have an active order ID or valid total
+        if (!sale || (!sale.orderId && !sale.id)) return false;
 
-        // Strictly Cash tender only
-        return method === "cash";
+        // 2. Strict Tender Check: Normalize method name
+        const tender = String(sale.settlementMethod || sale.paymentMethod || sale.tender || "")
+          .trim()
+          .toLowerCase();
+
+        // Must explicitly equal "cash" (strictly excludes "credit card", "card", "transfer")
+        if (tender !== "cash") return false;
+
+        // 3. Prevent Credit Card / Transfer false positives
+        if (tender.includes("card") || tender.includes("transfer") || tender.includes("bank")) {
+          return false;
+        }
+
+        return true;
       })
     : [];
 
   const cashSalesTotal = currentShiftCashSales.reduce(
-    (acc, s) => acc + (Number(s.totalAmount) || 0),
+    (acc, s) => acc + (Number(saleTotal(s)) || Number(s.totalAmount) || 0),
     0
   );
 
