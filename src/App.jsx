@@ -3626,16 +3626,25 @@ export default function App() {
           )}
           {/* --- CASHIER SHIFT & DRAWER BALANCING TAB --- */}
 {activeTab === "cashier" && (() => {
-  // 1. Calculate settled cash orders
-  const cashSalesTotal = salesRecords
-    ? Object.values(salesRecords)
-        .filter((s) => s.settlementMethod === "Cash")
-        .reduce((acc, s) => acc + (Number(s.totalAmount) || 0), 0)
-    : 4752.00;
+  // STRICT ACTIVE SHIFT CASH ISOLATION:
+  const currentShiftCashSales = salesRecords
+    ? Object.values(salesRecords).filter((sale) => {
+        const method = String(sale.settlementMethod || "").trim().toLowerCase();
+        if (method !== "cash") return false;
+        if (sale.shiftId) return sale.shiftId === cashierShift?.shiftId;
+        if (cashierShift?.openedTimestamp && sale.timestamp) {
+          return sale.timestamp >= cashierShift.openedTimestamp;
+        }
+        return false;
+      })
+    : [];
 
-  const cashOrdersCount = salesRecords
-    ? Object.values(salesRecords).filter((s) => s.settlementMethod === "Cash").length || 2
-    : 2;
+  const cashSalesTotal = currentShiftCashSales.reduce(
+    (acc, s) => acc + (Number(s.totalAmount) || 0),
+    0
+  );
+
+  const cashOrdersCount = currentShiftCashSales.length;
 
   // 2. Calculate approved disbursements (Cash Out)
   const totalCashOut = disbursements
