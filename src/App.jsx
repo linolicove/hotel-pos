@@ -730,125 +730,135 @@ export default function App() {
     20: 4
   });
 
- const handleCloseShiftAndHandover = async () => {
+  const handlePrintCashierSettlement = () => {
     try {
-      // 1. Calculate live shift cash sales
       const currentShiftCashSales = salesRecords
-        ? Object.values(salesRecords).filter((sale) => {
-            if (!sale || (!sale.orderId && !sale.id)) return false;
-            const tender = String(
-              sale.settlementMethod || sale.paymentMethod || sale.tender || ""
-            ).trim().toLowerCase();
-            return tender === "cash" && !tender.includes("card") && !tender.includes("transfer");
-          })
-        : [];
+    ? Object.values(salesRecords).filter((sale) => {
+        const method = String(
+          sale.settlementMethod || sale.paymentMethod || ""
+        ).trim().toLowerCase();
+        return method === "cash";
+      })
+    : [];
 
-      const cashSalesTotal = currentShiftCashSales.reduce(
-        (acc, s) => acc + (Number(s.totalAmount) || Number(s.total) || 0),
-        0
-      );
+  const cashSalesTotal = currentShiftCashSales.reduce(
+    (acc, s) => acc + (Number(s.totalAmount) || 0),
+    0
+  );
 
-      // 2. Calculate approved cash outs
+      // 2. Approved Cash Out / Disbursements
       const totalCashOut = (disbursements || [])
         .filter((d) => d.status === "APPROVED")
         .reduce((acc, d) => acc + (Number(d.amount) || 0), 0);
 
-      // 3. Expected cash in drawer
+      // 3. Expected Cash in Drawer
       const floatVal = Number(cashierShift?.openingFloat) || 0;
       const expectedCash = floatVal + cashSalesTotal - totalCashOut;
 
-      // 4. Physical note count total
+      // 4. Physical Count from Notes
       const countedTotal = Object.entries(noteCounts || {}).reduce(
         (acc, [denom, count]) => acc + Number(denom) * (parseInt(count, 10) || 0),
         0
       );
 
+      // 5. Drawer Variance
       const drawerVariance = countedTotal - expectedCash;
+      const now = new Date();
 
-      // 5. Validate note counts
-      if (countedTotal <= 0) {
-        alert("Physical note count cannot be zero. Please count the drawer notes before closing the shift.");
-        return;
-      }
+      // 6. Build 80mm Z-Report Slip HTML
+      const settlementSlipHtml = `
+        <div style="font-family: 'Courier New', Courier, monospace; font-size: 11px; width: 280px; padding: 4px; color: #000; line-height: 1.3;">
+          <div style="text-align: center; margin-bottom: 6px;">
+            <h2 style="margin: 0; font-size: 14px; text-transform: uppercase;">${settings?.name || "LINOLI COVE MIDIGAMA"}</h2>
+            <div style="font-size: 10px;">HOTEL CASH DRAWER SETTLEMENT (Z-REPORT)</div>
+            <div style="font-size: 9px; margin-top: 2px;">Printed: ${now.toLocaleDateString()} ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+          </div>
 
-      // 6. Confirm handover with cashier
-      const varianceNotice =
-        drawerVariance === 0
-          ? "Drawer matches expected cash exactly (Rs. 0.00 variance)."
-          : drawerVariance < 0
-          ? `WARNING: Cash shortage of Rs. ${Math.abs(drawerVariance).toFixed(2)}.`
-          : `NOTICE: Cash overage of +Rs. ${drawerVariance.toFixed(2)}.`;
+          <div style="border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 4px 0; margin-bottom: 6px; font-size: 10px;">
+            <div><b>Shift ID:</b> ${cashierShift?.shiftId || "N/A"}</div>
+            <div><b>Cashier:</b> ${cashierShift?.openedBy || "Cashier"}</div>
+            <div><b>Shift Opened:</b> ${cashierShift?.openedAt || "--"}</div>
+            <div><b>Terminal:</b> LINOLI-MAIN-01</div>
+          </div>
 
-      const confirmClose = window.confirm(
-        `CLOSE SHIFT & HANDOVER AUDIT:\n\n` +
-        `Current Shift ID: ${cashierShift.shiftId}\n` +
-        `Physical Counted Total: Rs. ${countedTotal.toFixed(2)}\n` +
-        `${varianceNotice}\n\n` +
-        `Carrying forward Rs. ${countedTotal.toFixed(2)} as the OPENING FLOAT for the next shift.\n\n` +
-        `Do you want to proceed and print the Z-Report?`
-      );
+          <div style="margin-bottom: 6px;">
+            <div style="display: flex; justify-content: space-between;">
+              <span>(+) Opening Base Float:</span>
+              <b>Rs. ${floatVal.toFixed(2)}</b>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+              <span>(+) Cash Room/Bar Sales (${currentShiftCashSales.length}):</span>
+              <b>Rs. ${cashSalesTotal.toFixed(2)}</b>
+            </div>
+            <div style="display: flex; justify-content: space-between; color: #b91c1c;">
+              <span>(-) Total Cash Out / Payouts:</span>
+              <b>-Rs. ${totalCashOut.toFixed(2)}</b>
+            </div>
+            <div style="border-top: 1px dashed #000; margin: 3px 0;"></div>
+            <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold;">
+              <span>(=) EXPECTED CASH:</span>
+              <span>Rs. ${expectedCash.toFixed(2)}</span>
+            </div>
+          </div>
 
-      if (!confirmClose) return;
+          <div style="border-top: 1px solid #000; padding-top: 4px; margin-top: 4px;">
+            <div style="font-weight: bold; text-align: center; font-size: 10px; margin-bottom: 4px; text-transform: uppercase;">
+              --- PHYSICAL CASH NOTE COUNT ---
+            </div>
+            <table style="width: 100%; font-size: 10px; border-collapse: collapse;">
+              <thead>
+                <tr style="border-bottom: 1px dotted #000; text-align: left;">
+                  <th>Note</th>
+                  <th style="text-align: center;">Qty</th>
+                  <th style="text-align: right;">Subtotal (LKR)</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${[5000, 1000, 500, 100, 50, 20]
+                  .map((denom) => {
+                    const qty = noteCounts?.[denom] || 0;
+                    const subtotal = denom * qty;
+                    return `
+                      <tr>
+                        <td>Rs. ${denom}</td>
+                        <td style="text-align: center;">x ${qty}</td>
+                        <td style="text-align: right;">Rs. ${subtotal.toLocaleString()}</td>
+                      </tr>
+                    `;
+                  })
+                  .join("")}
+              </tbody>
+            </table>
+            <div style="border-top: 1px dotted #000; margin-top: 4px; padding-top: 4px; display: flex; justify-content: space-between; font-weight: bold; font-size: 11px;">
+              <span>TOTAL PHYSICAL COUNT:</span>
+              <span>Rs. ${countedTotal.toFixed(2)}</span>
+            </div>
+          </div>
 
-      const closedTimestamp = new Date();
-      const closedDateStr = closedTimestamp.toISOString().split("T")[0];
-      const closedTimeStr = closedTimestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+          <div style="border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 5px 0; margin: 6px 0;">
+            <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold;">
+              <span>DRAWER VARIANCE:</span>
+              <span>${drawerVariance >= 0 ? `+Rs. ${drawerVariance.toFixed(2)}` : `-Rs. ${Math.abs(drawerVariance).toFixed(2)}`}</span>
+            </div>
+            <div style="font-size: 9px; text-align: right; text-transform: uppercase;">
+              ${drawerVariance === 0 ? "Perfect Match" : drawerVariance < 0 ? "DRAWER SHORTAGE" : "DRAWER OVERAGE"}
+            </div>
+          </div>
 
-      // 7. Record closed shift in history
-      const closedShiftRecord = {
-        ...cashierShift,
-        closedAt: `${closedDateStr} ${closedTimeStr}`,
-        closedBy: currentUser?.name || cashierShift.openedBy || "Cashier",
-        cashSalesTotal,
-        totalCashOut,
-        expectedCash,
-        physicalCounted: countedTotal,
-        drawerVariance,
-        noteCounts: { ...noteCounts },
-        disbursements: [...disbursements],
-        status: "closed"
-      };
+          <div style="margin-top: 22px; font-size: 9px;">
+            <div style="display: flex; justify-content: space-between; text-align: center;">
+              <div style="border-top: 1px solid #000; width: 40%; padding-top: 3px;">Cashier Signature</div>
+              <div style="border-top: 1px solid #000; width: 40%; padding-top: 3px;">GM / Audit Signature</div>
+            </div>
+            <p style="text-align: center; margin-top: 12px; font-size: 8px;">POS ID: LINOLI-POS • END OF SHIFT VOUCHER</p>
+          </div>
+        </div>
+      `;
 
-      if (rtdb) {
-        await set(ref(rtdb, `cashier_shifts_history/${cashierShift.shiftId}`), closedShiftRecord);
-      }
-
-      // 8. Generate and print the Z-Report slip
-      handlePrintCashierSettlement();
-
-      // 9. Create Next Shift with Carried Forward Float & Notes
-      const nextShiftNum = Math.floor(1000 + Math.random() * 9000);
-      const nextShiftId = `SHIFT-${closedDateStr.replace(/-/g, "")}-${nextShiftNum}`;
-
-      const nextShift = {
-        shiftId: nextShiftId,
-        openedBy: currentUser?.name || "Next Cashier",
-        openedAt: closedTimeStr,
-        openedTimestamp: Date.now(),
-        openingFloat: countedTotal,
-        status: "open",
-        previousShiftId: cashierShift.shiftId,
-      };
-
-      // Persist active shift in state & RTDB
-      setCashierShift(nextShift);
-      if (rtdb) {
-        await set(ref(rtdb, "cashier_shift/active"), nextShift);
-        await set(ref(rtdb, "cashier_shift/disbursements"), []);
-        await set(ref(rtdb, "cashier_shift/noteCounts"), noteCounts);
-      }
-
-      // Reset shift disbursements list for the new shift
-      setDisbursements([]);
-
-      alert(
-        `Shift ${cashierShift.shiftId} successfully settled and closed.\n\n` +
-        `New Shift Started: ${nextShiftId}\n` +
-        `Opening Float Carried Forward: Rs. ${countedTotal.toFixed(2)}`
-      );
+      printIsolatedDocument(settlementSlipHtml, "thermal");
     } catch (err) {
-      console.error("Handover error:", err);
-      alert("Failed to close shift: " + err.message);
+      console.error("Print settlement error:", err);
+      alert("Failed to print settlement: " + err.message);
     }
   };
 
@@ -856,16 +866,15 @@ export default function App() {
     try {
       const currentShiftCashSales = salesRecords
     ? Object.values(salesRecords).filter((sale) => {
-        if (!sale || (!sale.orderId && !sale.id)) return false;
-        const tender = String(sale.settlementMethod || sale.paymentMethod || sale.tender || "")
-          .trim()
-          .toLowerCase();
-        return tender === "cash" && !tender.includes("card") && !tender.includes("transfer");
+        const method = String(
+          sale.settlementMethod || sale.paymentMethod || ""
+        ).trim().toLowerCase();
+        return method === "cash";
       })
     : [];
 
   const cashSalesTotal = currentShiftCashSales.reduce(
-    (acc, s) => acc + (Number(s.totalAmount) || Number(s.total) || 0),
+    (acc, s) => acc + (Number(s.totalAmount) || 0),
     0
   );
 
@@ -2453,7 +2462,7 @@ export default function App() {
       alert("Error deleting record: " + err.message);
     }
   };
-
+  
   // Monitor Reports Array
   const allArchivedReports = Object.keys(allAttendanceRecords).flatMap((dateKey) => {
     const dayRecords = allAttendanceRecords[dateKey] || {};
@@ -3621,31 +3630,20 @@ export default function App() {
           )}
           {/* --- CASHIER SHIFT & DRAWER BALANCING TAB --- */}
 {activeTab === "cashier" && (() => {
-  // STRICT CASH FILTER: Matches the Reports table Tender column exactly
+  // 1. Match cash sales settled today OR explicitly tagged with this shift ID
   const currentShiftCashSales = salesRecords
     ? Object.values(salesRecords).filter((sale) => {
-        // 1. Must have an active order ID or valid total
-        if (!sale || (!sale.orderId && !sale.id)) return false;
+        const method = String(
+          sale.settlementMethod || sale.paymentMethod || ""
+        ).trim().toLowerCase();
 
-        // 2. Strict Tender Check: Normalize method name
-        const tender = String(sale.settlementMethod || sale.paymentMethod || sale.tender || "")
-          .trim()
-          .toLowerCase();
-
-        // Must explicitly equal "cash" (strictly excludes "credit card", "card", "transfer")
-        if (tender !== "cash") return false;
-
-        // 3. Prevent Credit Card / Transfer false positives
-        if (tender.includes("card") || tender.includes("transfer") || tender.includes("bank")) {
-          return false;
-        }
-
-        return true;
+        // Strictly Cash tender only
+        return method === "cash";
       })
     : [];
 
   const cashSalesTotal = currentShiftCashSales.reduce(
-    (acc, s) => acc + (Number(saleTotal(s)) || Number(s.totalAmount) || 0),
+    (acc, s) => acc + (Number(s.totalAmount) || 0),
     0
   );
 
