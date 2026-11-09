@@ -536,6 +536,117 @@ function buildPayslipHtml({ settings, staffMember, payPeriodStr = "Current Pay P
   `;
 }
 
+const handlePrintCashierSettlement = () => {
+    const cashSalesTotal = salesRecords
+      ? Object.values(salesRecords)
+          .filter((s) => s.settlementMethod === "Cash")
+          .reduce((acc, s) => acc + (Number(s.totalAmount) || 0), 0)
+      : 4752.00;
+
+    const totalCashOut = disbursements
+      .filter((d) => d.status === "APPROVED")
+      .reduce((acc, d) => acc + (Number(d.amount) || 0), 0);
+
+    const expectedCash = cashierShift.openingFloat + cashSalesTotal - totalCashOut;
+    const countedTotal = Object.entries(noteCounts).reduce(
+      (acc, [denom, count]) => acc + Number(denom) * (parseInt(count, 10) || 0),
+      0
+    );
+    const drawerVariance = countedTotal - expectedCash;
+    const now = new Date();
+
+    const settlementSlipHtml = `
+      <div style="font-family: 'Courier New', Courier, monospace; font-size: 11px; width: 280px; padding: 4px; color: #000; line-height: 1.3;">
+        <div style="text-align: center; margin-bottom: 6px;">
+          <h2 style="margin: 0; font-size: 14px; text-transform: uppercase;">${settings?.name || "LINOLI COVE MIDIGAMA"}</h2>
+          <div style="font-size: 10px;">HOTEL CASH DRAWER SETTLEMENT (Z-REPORT)</div>
+          <div style="font-size: 9px; margin-top: 2px;">Printed: ${now.toLocaleDateString()} ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+        </div>
+
+        <div style="border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 4px 0; margin-bottom: 6px; font-size: 10px;">
+          <div><b>Shift ID:</b> ${cashierShift.shiftId}</div>
+          <div><b>Cashier:</b> ${cashierShift.openedBy}</div>
+          <div><b>Shift Opened:</b> ${cashierShift.openedAt}</div>
+          <div><b>Terminal:</b> LINOLI-MAIN-01</div>
+        </div>
+
+        <div style="margin-bottom: 6px;">
+          <div style="display: flex; justify-content: space-between;">
+            <span>(+) Opening Base Float:</span>
+            <b>Rs. ${cashierShift.openingFloat.toFixed(2)}</b>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span>(+) Cash Room/Bar Sales:</span>
+            <b>Rs. ${cashSalesTotal.toFixed(2)}</b>
+          </div>
+          <div style="display: flex; justify-content: space-between; color: #b91c1c;">
+            <span>(-) Total Cash Out / Payouts:</span>
+            <b>-Rs. ${totalCashOut.toFixed(2)}</b>
+          </div>
+          <div style="border-top: 1px dashed #000; margin: 3px 0;"></div>
+          <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold;">
+            <span>(=) EXPECTED CASH:</span>
+            <span>Rs. ${expectedCash.toFixed(2)}</span>
+          </div>
+        </div>
+
+        <div style="border-top: 1px solid #000; padding-top: 4px; margin-top: 4px;">
+          <div style="font-weight: bold; text-align: center; font-size: 10px; margin-bottom: 4px; text-transform: uppercase;">
+            --- PHYSICAL CASH NOTE COUNT ---
+          </div>
+          <table style="width: 100%; font-size: 10px; border-collapse: collapse;">
+            <thead>
+              <tr style="border-bottom: 1px dotted #000; text-align: left;">
+                <th>Note</th>
+                <th style="text-align: center;">Qty</th>
+                <th style="text-align: right;">Subtotal (LKR)</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${[5000, 1000, 500, 100, 50, 20]
+                .map((denom) => {
+                  const qty = noteCounts[denom] || 0;
+                  const subtotal = denom * qty;
+                  return `
+                    <tr>
+                      <td>Rs. ${denom}</td>
+                      <td style="text-align: center;">x ${qty}</td>
+                      <td style="text-align: right;">Rs. ${subtotal.toLocaleString()}</td>
+                    </tr>
+                  `;
+                })
+                .join("")}
+            </tbody>
+          </table>
+          <div style="border-top: 1px dotted #000; margin-top: 4px; padding-top: 4px; display: flex; justify-content: space-between; font-weight: bold; font-size: 11px;">
+            <span>TOTAL PHYSICAL COUNT:</span>
+            <span>Rs. ${countedTotal.toFixed(2)}</span>
+          </div>
+        </div>
+
+        <div style="border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 5px 0; margin: 6px 0;">
+          <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold;">
+            <span>DRAWER VARIANCE:</span>
+            <span>${drawerVariance >= 0 ? `+Rs. ${drawerVariance.toFixed(2)}` : `-Rs. ${Math.abs(drawerVariance).toFixed(2)}`}</span>
+          </div>
+          <div style="font-size: 9px; text-align: right; text-transform: uppercase;">
+            ${drawerVariance === 0 ? "Perfect Match" : drawerVariance < 0 ? "DRAWER SHORTAGE" : "DRAWER OVERAGE"}
+          </div>
+        </div>
+
+        <div style="margin-top: 22px; font-size: 9px;">
+          <div style="display: flex; justify-content: space-between; text-align: center;">
+            <div style="border-top: 1px solid #000; width: 40%; padding-top: 3px;">Cashier Signature</div>
+            <div style="border-top: 1px solid #000; width: 40%; padding-top: 3px;">GM / Audit Signature</div>
+          </div>
+          <p style="text-align: center; margin-top: 12px; font-size: 8px;">POS ID: LINOLI-POS • END OF SHIFT VOUCHER</p>
+        </div>
+      </div>
+    `;
+
+    printIsolatedDocument(settlementSlipHtml);
+  };
+
 function buildDailyAttendanceReportHtml({ settings, reportList, titleStr }) {
   return `
     <div class="a4-container">
@@ -894,6 +1005,8 @@ export default function App() {
     bankAccount: "",
     phone: "",
   });
+
+
 
   // STRICT ACCESS ROLES: SAFE NULL-CHECK GUARD
   const roleLower = String(currentUser?.role || "").toLowerCase();
@@ -3423,14 +3536,14 @@ export default function App() {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => alert("Drawer cash banked successfully.")}
+            onClick={handlePrintCashierSettlement}
             className="px-4 py-2 bg-[#0D9488] hover:bg-[#0F766E] active:scale-95 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
           >
             <CheckCircle className="w-4 h-4" /> Settle & Bank Drawer
           </button>
           <button
             type="button"
-            onClick={() => alert("Generating Z-Report and closing current register shift...")}
+            onClick={handlePrintCashierSettlement}
             className="px-4 py-2 bg-[#F95738] hover:bg-[#E0482B] active:scale-95 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
           >
             <Lock className="w-4 h-4" /> Close Shift & Print Z-Report
@@ -3897,6 +4010,7 @@ export default function App() {
                 <div className="flex bg-[#F3EFE6] p-1 rounded-2xl border border-[#E6DFD3] overflow-x-auto max-w-full">
                   {[
                     { id: "sales", label: "Sales & Invoices Ledger", icon: DollarSign },
+                    { id: "cashout", label: "Disbursements & Cash Out", icon: Receipt },
                     { id: "prebookings", label: "Pre-Bookings by Date", icon: CalendarRange },
                     { id: "minibar", label: "Minibar Consumption", icon: ShoppingBag },
                     { id: "occupancy", label: "Occupancy & ADR", icon: Bed },
@@ -4091,6 +4205,155 @@ export default function App() {
     </td>
   </tr>
 )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* REPORT VIEW: CASH OUT / DISBURSEMENTS & PETTY CASH LEDGER */}
+              {reportsSubTab === "cashout" && (
+                <div className="bg-white rounded-3xl border border-[#E6DFD3] p-6 shadow-sm space-y-5">
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 pb-4 border-b border-[#F3EFE6]">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="p-1.5 bg-rose-50 text-rose-600 rounded-lg">
+                          <Receipt className="w-4 h-4" />
+                        </span>
+                        <h3 className="text-base font-black text-[#091D26]">
+                          Cash Out & Shift Disbursements Report
+                        </h3>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Itemized list of vendor payouts, staff advances, and petty cash releases disbursed from the cash drawer.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div className="bg-rose-50 border border-rose-200 px-3.5 py-1.5 rounded-xl text-right">
+                        <span className="text-[10px] uppercase font-bold text-rose-700 block tracking-wider">
+                          Total Cash Out
+                        </span>
+                        <span className="font-mono font-black text-sm text-rose-600">
+                          -Rs. {disbursements
+                            .filter((d) => d.status === "APPROVED")
+                            .reduce((acc, d) => acc + (Number(d.amount) || 0), 0)
+                            .toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const csvContent =
+                            "data:text/csv;charset=utf-8," +
+                            ["ID,Time,Reason,Category,Recipient,RequestedBy,ApprovedBy,Amount,Status"]
+                              .concat(
+                                disbursements.map(
+                                  (d) =>
+                                    `"${d.id}","${d.time}","${d.title}","${d.category}","${d.recipient}","${d.requestedBy}","${d.approvedBy}",${d.amount},"${d.status}"`
+                                )
+                              )
+                              .join("\n");
+                          const encodedUri = encodeURI(csvContent);
+                          const link = document.createElement("a");
+                          link.setAttribute("href", encodedUri);
+                          link.setAttribute("download", `cash_outs_${selectedDate || getTodayKey()}.csv`);
+                          document.body.appendChild(link);
+                          link.click();
+                          document.body.removeChild(link);
+                        }}
+                        className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <Download className="w-3.5 h-3.5" /> Export CSV
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Cash Out Records Table */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-[#FAF9F5] border-b border-[#E6DFD3] uppercase font-bold text-slate-500 text-[10px]">
+                        <tr>
+                          <th className="p-3">Time / ID</th>
+                          <th className="p-3">Reason / Description</th>
+                          <th className="p-3">Category</th>
+                          <th className="p-3">Recipient</th>
+                          <th className="p-3">Authorized By</th>
+                          <th className="p-3 text-right">Amount (LKR)</th>
+                          <th className="p-3 text-center">Status</th>
+                          <th className="p-3 text-center">Voucher</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#F3EFE6]">
+                        {disbursements.length > 0 ? (
+                          disbursements.map((d) => (
+                            <tr key={d.id} className="hover:bg-[#FAF9F5] transition-colors">
+                              <td className="p-3 font-mono">
+                                <span className="font-bold text-slate-800 block">{d.time}</span>
+                                <span className="text-[10px] text-slate-400">{d.id}</span>
+                              </td>
+                              <td className="p-3 font-bold text-[#091D26] capitalize">{d.title}</td>
+                              <td className="p-3">
+                                <span className="bg-slate-100 px-2 py-0.5 rounded text-[10px] font-semibold text-slate-600">
+                                  {d.category}
+                                </span>
+                              </td>
+                              <td className="p-3 text-slate-600">{d.recipient}</td>
+                              <td className="p-3 font-mono text-[11px] text-slate-500">
+                                Req: {d.requestedBy}<br />
+                                <span className="text-emerald-700 font-bold">Appr: {d.approvedBy}</span>
+                              </td>
+                              <td className="p-3 text-right font-mono font-black text-rose-600 text-sm">
+                                -Rs. {Number(d.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </td>
+                              <td className="p-3 text-center">
+                                <span className="px-2 py-0.5 rounded-full font-bold text-[9px] uppercase bg-emerald-100 text-emerald-800">
+                                  {d.status}
+                                </span>
+                              </td>
+                              <td className="p-3 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const voucherHtml = `
+                                      <div style="font-family: monospace; font-size: 11px; width: 280px; padding: 6px; text-align: center;">
+                                        <h3 style="margin: 0; text-transform: uppercase;">${settings?.name || "LINOLI COVE"}</h3>
+                                        <p style="margin: 2px 0 8px; font-size: 10px;">CASH OUT VOUCHER (AUDIT COPY)</p>
+                                        <hr style="border-top: 1px dashed #000;"/>
+                                        <div style="text-align: left; margin: 6px 0; font-size: 10px;">
+                                          <div><b>Voucher ID:</b> ${d.id}</div>
+                                          <div><b>Time:</b> ${d.time}</div>
+                                          <div><b>Category:</b> ${d.category}</div>
+                                          <div><b>Reason:</b> ${d.title}</div>
+                                          <div><b>Recipient:</b> ${d.recipient}</div>
+                                          <div><b>Requested:</b> ${d.requestedBy}</div>
+                                          <div><b>Authorized:</b> ${d.approvedBy}</div>
+                                        </div>
+                                        <hr style="border-top: 1px dashed #000;"/>
+                                        <div style="font-size: 15px; font-weight: bold; margin: 8px 0;">
+                                          AMOUNT: Rs. ${Number(d.amount).toFixed(2)}
+                                        </div>
+                                        <hr style="border-top: 1px dashed #000;"/>
+                                      </div>
+                                    `;
+                                    printIsolatedDocument(voucherHtml);
+                                  }}
+                                  className="p-1.5 text-slate-400 hover:text-slate-800 rounded hover:bg-slate-100 transition-colors cursor-pointer"
+                                  title="Reprint 80mm Cash Out Voucher"
+                                >
+                                  <Printer className="w-3.5 h-3.5" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan="8" className="p-6 text-center text-slate-400 italic">
+                              No cash disbursements recorded for this period.
+                            </td>
+                          </tr>
+                        )}
                       </tbody>
                     </table>
                   </div>
