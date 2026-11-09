@@ -1279,6 +1279,48 @@ export default function App() {
     setMobileMenuOpen(false);
   };
 
+  // --- REALTIME DATABASE LISTENERS (TOP LEVEL OF APP) ---
+  useEffect(() => {
+    if (!rtdb) return;
+
+    // 1. Settings Listener
+    const settingsRef = ref(rtdb, "hotel_config/profile");
+    const unsubSettings = onValue(settingsRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setSettings(data);
+        setSettingsForm(data);
+      } else {
+        set(settingsRef, DEFAULT_SETTINGS);
+        setSettingsForm(DEFAULT_SETTINGS);
+      }
+    });
+
+    // 2. Active Cashier Shift Listener
+    const shiftRef = ref(rtdb, "cashier_shift/active");
+    const unsubShift = onValue(shiftRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setCashierShift(data);
+      }
+    });
+
+    // 3. Active Note Counts Listener
+    const notesRef = ref(rtdb, "cashier_shift/noteCounts");
+    const unsubNotes = onValue(notesRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setNoteCounts(data);
+      }
+    });
+
+    return () => {
+      unsubSettings();
+      unsubShift();
+      unsubNotes();
+    };
+  }, []);
+
   // --- REALTIME DATABASE LISTENERS ---
   useEffect(() => {
     const settingsRef = ref(rtdb, "hotel_config/profile");
@@ -1292,32 +1334,6 @@ export default function App() {
         setSettingsForm(DEFAULT_SETTINGS);
       }
     });
-    useEffect(() => {
-    if (!rtdb) return;
-
-    // Listen to Active Cashier Shift
-    const shiftRef = ref(rtdb, "cashier_shift/active");
-    const unsubShift = onValue(shiftRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        setCashierShift(data);
-      }
-    });
-
-    // Listen to Active Note Counts
-    const notesRef = ref(rtdb, "cashier_shift/noteCounts");
-    const unsubNotes = onValue(notesRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        setNoteCounts(data);
-      }
-    });
-
-    return () => {
-      unsubShift();
-      unsubNotes();
-    };
-  }, []);
 
     const roomsRef = ref(rtdb, "rooms");
     const unsubRooms = onValue(roomsRef, (snapshot) => {
