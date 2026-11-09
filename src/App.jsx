@@ -754,54 +754,53 @@ export default function App() {
 
   const handlePrintCashierSettlement = () => {
     try {
-      // 1. Filter ONLY cash sales that occurred in THIS active shift
-  const currentShiftCashSales = salesRecords
-    ? Object.values(salesRecords).filter((sale) => {
-        // Must strictly be settled by CASH (case-insensitive check)
-        const isCashTender =
-          String(sale.settlementMethod || sale.paymentMethod || "").trim().toLowerCase() === "cash";
-        if (!isCashTender) return false;
+      const todayKey = selectedDate || getTodayKey();
 
-        // If sale has a direct shiftId recorded, match it directly
-        if (sale.shiftId && cashierShift.shiftId) {
-          return sale.shiftId === cashierShift.shiftId;
-        }
+      // 1. Filter cash sales (matches active shift ID OR sales from today's date)
+      const currentShiftCashSales = salesRecords
+        ? Object.values(salesRecords).filter((sale) => {
+            const method = String(
+              sale.settlementMethod || sale.paymentMethod || ""
+            ).trim().toLowerCase();
+            if (method !== "cash") return false;
 
-        // Fallback: match by timestamp or date if shiftId wasn't saved on older orders
-        const shiftOpenedTimestamp = cashierShift.openedTimestamp || 0;
-        const saleTimestamp = sale.timestamp || (sale.date ? new Date(`${sale.date} ${sale.settledAt || "00:00"}`).getTime() : 0);
+            if (sale.shiftId && cashierShift?.shiftId && sale.shiftId === cashierShift.shiftId) {
+              return true;
+            }
 
-        if (shiftOpenedTimestamp > 0 && saleTimestamp > 0) {
-          return saleTimestamp >= shiftOpenedTimestamp;
-        }
+            if (sale.date === todayKey) {
+              return true;
+            }
 
-        // If today's date matches and shift was opened today without timestamp
-        const todayStr = getTodayKey();
-        return sale.date === todayStr && !cashierShift.closedAt;
-      })
-    : [];
+            return false;
+          })
+        : [];
 
-  const cashSalesTotal = currentShiftCashSales.reduce(
-    (acc, s) => acc + (Number(s.totalAmount) || 0),
-    0
-  );
+      const cashSalesTotal = currentShiftCashSales.reduce(
+        (acc, s) => acc + (Number(s.totalAmount) || 0),
+        0
+      );
 
-  const cashOrdersCount = currentShiftCashSales.length;
-
+      // 2. Approved Cash Out / Disbursements
       const totalCashOut = (disbursements || [])
         .filter((d) => d.status === "APPROVED")
         .reduce((acc, d) => acc + (Number(d.amount) || 0), 0);
 
+      // 3. Expected Cash in Drawer
       const floatVal = Number(cashierShift?.openingFloat) || 0;
       const expectedCash = floatVal + cashSalesTotal - totalCashOut;
-      
+
+      // 4. Physical Count from Notes
       const countedTotal = Object.entries(noteCounts || {}).reduce(
         (acc, [denom, count]) => acc + Number(denom) * (parseInt(count, 10) || 0),
         0
       );
+
+      // 5. Drawer Variance
       const drawerVariance = countedTotal - expectedCash;
       const now = new Date();
 
+      // 6. Build 80mm Z-Report Slip HTML
       const settlementSlipHtml = `
         <div style="font-family: 'Courier New', Courier, monospace; font-size: 11px; width: 280px; padding: 4px; color: #000; line-height: 1.3;">
           <div style="text-align: center; margin-bottom: 6px;">
@@ -823,7 +822,7 @@ export default function App() {
               <b>Rs. ${floatVal.toFixed(2)}</b>
             </div>
             <div style="display: flex; justify-content: space-between;">
-              <span>(+) Cash Room/Bar Sales:</span>
+              <span>(+) Cash Room/Bar Sales (${currentShiftCashSales.length}):</span>
               <b>Rs. ${cashSalesTotal.toFixed(2)}</b>
             </div>
             <div style="display: flex; justify-content: space-between; color: #b91c1c;">
@@ -891,33 +890,34 @@ export default function App() {
         </div>
       `;
 
-      // Pass "thermal" as the 2nd parameter
       printIsolatedDocument(settlementSlipHtml, "thermal");
     } catch (err) {
       console.error("Print settlement error:", err);
       alert("Failed to print settlement: " + err.message);
     }
   };
+
   const handleCloseShiftAndHandover = async () => {
     try {
-      // 1. Calculate live shift totals
-      const cashSalesTotal = salesRecords
-        ? Object.values(salesRecords)
-            .filter((s) => s.settlementMethod === "Cash")
-            .reduce((acc, s) => acc + (Number(s.totalAmount) || 0), 0)
-        : 4752.00;
+      const todayKey = selectedDate || getTodayKey();
 
-      const totalCashOut = (disbursements || [])
-        .filter((d) => d.status === "APPROVED")
-        .reduce((acc, d) => acc + (Number(d.amount) || 0), 0);
+  const currentShiftCashSales = salesRecords
+    ? Object.values(salesRecords).filter((sale) => {
+        const tender = String(sale.settlementMethod || sale.paymentMethod || "").trim().toLowerCase();
+        if (tender !== "cash") return false;
 
-      const floatVal = Number(cashierShift?.openingFloat) || 0;
-      const expectedCash = floatVal + cashSalesTotal - totalCashOut;
+        if (sale.shiftId && cashierShift?.shiftId && sale.shiftId === cashierShift.shiftId) {
+          return true;
+        }
 
-      const countedTotal = Object.entries(noteCounts || {}).reduce(
-        (acc, [denom, count]) => acc + Number(denom) * (parseInt(count, 10) || 0),
-        0
-      );
+        return sale.date === todayKey;
+      })
+    : [];
+
+  const cashSalesTotal = currentShiftCashSales.reduce(
+    (acc, s) => acc + (Number(s.totalAmount) || 0),
+    0
+  );
 
       const drawerVariance = countedTotal - expectedCash;
 
@@ -3651,15 +3651,27 @@ export default function App() {
           )}
           {/* --- CASHIER SHIFT & DRAWER BALANCING TAB --- */}
 {activeTab === "cashier" && (() => {
-  // STRICT ACTIVE SHIFT CASH ISOLATION:
+  // 1. Match cash sales settled today OR explicitly tagged with this shift ID
+  const todayKey = selectedDate || getTodayKey();
+
   const currentShiftCashSales = salesRecords
     ? Object.values(salesRecords).filter((sale) => {
-        const method = String(sale.settlementMethod || "").trim().toLowerCase();
+        // Must be strictly Cash tender
+        const method = String(
+          sale.settlementMethod || sale.paymentMethod || ""
+        ).trim().toLowerCase();
         if (method !== "cash") return false;
-        if (sale.shiftId) return sale.shiftId === cashierShift?.shiftId;
-        if (cashierShift?.openedTimestamp && sale.timestamp) {
-          return sale.timestamp >= cashierShift.openedTimestamp;
+
+        // If explicitly stamped with this active shift ID
+        if (sale.shiftId && cashierShift?.shiftId && sale.shiftId === cashierShift.shiftId) {
+          return true;
         }
+
+        // Include any cash sales recorded for today's operating date
+        if (sale.date === todayKey) {
+          return true;
+        }
+
         return false;
       })
     : [];
@@ -3677,10 +3689,10 @@ export default function App() {
     .reduce((acc, d) => acc + (Number(d.amount) || 0), 0);
 
   // 3. Expected Cash in Drawer
-  const expectedCash = cashierShift.openingFloat + cashSalesTotal - totalCashOut;
+  const expectedCash = (Number(cashierShift.openingFloat) || 0) + cashSalesTotal - totalCashOut;
 
   // 4. Physical Note Count Total
-  const countedTotal = Object.entries(noteCounts).reduce((acc, [denom, count]) => {
+  const countedTotal = Object.entries(noteCounts || {}).reduce((acc, [denom, count]) => {
     return acc + (Number(denom) * (parseInt(count, 10) || 0));
   }, 0);
 
@@ -3701,7 +3713,7 @@ export default function App() {
       title: cashOutForm.reason,
       category: cashOutForm.category,
       recipient: cashOutForm.recipient || "General Expense",
-      requestedBy: "Cashier",
+      requestedBy: currentUser?.name || "Cashier",
       approvedBy: "Muditha",
       time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }),
       amount: amt,
@@ -3729,7 +3741,7 @@ export default function App() {
         </div>
         <hr style="border-top: 1px dashed #000;"/>
         <div style="font-size: 16px; font-weight: bold; margin: 10px 0;">
-          AMOUNT: Rs. ${amt.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+          AMOUNT: Rs. ${amt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </div>
         <hr style="border-top: 1px dashed #000;"/>
         <br/><br/>
@@ -3739,7 +3751,7 @@ export default function App() {
         </div>
       </div>
     `;
-    printIsolatedDocument(voucherHtml);
+    printIsolatedDocument(voucherHtml, "thermal");
 
     setCashOutForm({ amount: "", category: "Supplier / Vendor", reason: "", recipient: "" });
   };
@@ -3754,7 +3766,8 @@ export default function App() {
             Active Shift: <b>{cashierShift.shiftId}</b> • Opened by {cashierShift.openedBy} at {cashierShift.openedAt}
           </p>
         </div>
-<div className="flex items-center gap-2">
+
+        <div className="flex items-center gap-2">
           {/* Print/Verify mid-shift without closing */}
           <button
             type="button"
@@ -3784,7 +3797,7 @@ export default function App() {
             1. OPENING FLOAT
           </span>
           <div className="text-xl font-black text-[#091D26] mt-1 font-mono">
-            Rs. {cashierShift.openingFloat.toFixed(2)}
+            Rs. {Number(cashierShift.openingFloat).toFixed(2)}
           </div>
           <span className="text-[10px] text-slate-400 block mt-1">Drawer base float</span>
         </div>
@@ -3937,77 +3950,77 @@ export default function App() {
 
             <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
               {disbursements.map((d) => (
-  <div
-    key={d.id}
-    className="bg-[#FAF9F5] p-3 rounded-2xl border border-slate-200/80 flex justify-between items-center"
-  >
-    <div>
-      <div className="flex items-center gap-2">
-        <span className="font-bold text-xs text-[#091D26] capitalize">{d.title}</span>
-        <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
-          {d.status}
-        </span>
-      </div>
-      <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-        {d.category} • Recipient: {d.recipient} • Req by {d.requestedBy}
-      </div>
-      <div className="text-[10px] text-emerald-700 font-medium mt-0.5">
-        ✓ Approved by {d.approvedBy} ({d.time})
-      </div>
-    </div>
+                <div
+                  key={d.id}
+                  className="bg-[#FAF9F5] p-3 rounded-2xl border border-slate-200/80 flex justify-between items-center"
+                >
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-xs text-[#091D26] capitalize">{d.title}</span>
+                      <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                        {d.status}
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                      {d.category} • Recipient: {d.recipient} • Req by: {d.requestedBy}
+                    </div>
+                    <div className="text-[10px] text-emerald-700 font-medium mt-0.5">
+                      ✓ Approved by {d.approvedBy} ({d.time})
+                    </div>
+                  </div>
 
-    <div className="flex items-center gap-2">
-      <span className="font-mono font-black text-sm text-[#091D26] mr-1">
-        Rs. {Number(d.amount).toFixed(2)}
-      </span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-black text-sm text-[#091D26] mr-1">
+                      Rs. {Number(d.amount).toFixed(2)}
+                    </span>
 
-      {/* Reprint Thermal Voucher */}
-      <button
-        type="button"
-        onClick={() => {
-          const voucherHtml = `
-            <div style="font-family: monospace; font-size: 11px; width: 280px; padding: 6px; text-align: center;">
-              <h3 style="margin: 0; text-transform: uppercase;">${settings?.name || "LINOLI COVE"}</h3>
-              <p style="margin: 2px 0 8px; font-size: 10px;">CASH OUT VOUCHER (REPRINT)</p>
-              <hr style="border-top: 1px dashed #000;"/>
-              <div style="text-align: left; margin: 6px 0; font-size: 10px;">
-                <div><b>Voucher ID:</b> ${d.id}</div>
-                <div><b>Time:</b> ${d.time}</div>
-                <div><b>Category:</b> ${d.category}</div>
-                <div><b>Reason:</b> ${d.title}</div>
-                <div><b>Recipient:</b> ${d.recipient}</div>
-                <div><b>Requested:</b> ${d.requestedBy}</div>
-                <div><b>Approved:</b> ${d.approvedBy}</div>
-              </div>
-              <hr style="border-top: 1px dashed #000;"/>
-              <div style="font-size: 15px; font-weight: bold; margin: 8px 0;">
-                AMOUNT: Rs. ${Number(d.amount).toFixed(2)}
-              </div>
-              <hr style="border-top: 1px dashed #000;"/>
-            </div>
-          `;
-          printIsolatedDocument(voucherHtml, "thermal");
-        }}
-        className="p-1.5 text-slate-400 hover:text-slate-800 rounded-lg border border-slate-200 bg-white shadow-2xs cursor-pointer"
-        title="Reprint Voucher"
-      >
-        <Printer className="w-3.5 h-3.5" />
-      </button>
+                    {/* Reprint Thermal Voucher */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const voucherHtml = `
+                          <div style="font-family: monospace; font-size: 11px; width: 280px; padding: 6px; text-align: center;">
+                            <h3 style="margin: 0; text-transform: uppercase;">${settings?.name || "LINOLI COVE"}</h3>
+                            <p style="margin: 2px 0 8px; font-size: 10px;">CASH OUT VOUCHER (REPRINT)</p>
+                            <hr style="border-top: 1px dashed #000;"/>
+                            <div style="text-align: left; margin: 6px 0; font-size: 10px;">
+                              <div><b>Voucher ID:</b> ${d.id}</div>
+                              <div><b>Time:</b> ${d.time}</div>
+                              <div><b>Category:</b> ${d.category}</div>
+                              <div><b>Reason:</b> ${d.title}</div>
+                              <div><b>Recipient:</b> ${d.recipient}</div>
+                              <div><b>Requested:</b> ${d.requestedBy}</div>
+                              <div><b>Approved:</b> ${d.approvedBy}</div>
+                            </div>
+                            <hr style="border-top: 1px dashed #000;"/>
+                            <div style="font-size: 15px; font-weight: bold; margin: 8px 0;">
+                              AMOUNT: Rs. ${Number(d.amount).toFixed(2)}
+                            </div>
+                            <hr style="border-top: 1px dashed #000;"/>
+                          </div>
+                        `;
+                        printIsolatedDocument(voucherHtml, "thermal");
+                      }}
+                      className="p-1.5 text-slate-400 hover:text-slate-800 rounded-lg border border-slate-200 bg-white shadow-2xs cursor-pointer"
+                      title="Reprint Voucher"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                    </button>
 
-      {/* Admin Delete Payout */}
-      {isGeneralManager && (
-        <button
-          type="button"
-          onClick={() => handleDeleteDisbursement(d.id, d.title)}
-          className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg border border-rose-200 bg-white shadow-2xs cursor-pointer"
-          title="Delete Payout Record (Admin Only)"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </button>
-      )}
-    </div>
-  </div>
-))}
+                    {/* Admin Delete Payout */}
+                    {isGeneralManager && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteDisbursement(d.id, d.title)}
+                        className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg border border-rose-200 bg-white shadow-2xs cursor-pointer"
+                        title="Delete Payout Record (Admin Only)"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -4064,7 +4077,6 @@ export default function App() {
   );
 })()}
           
-
           {/* TAB 3: INVENTORY */}
           {activeTab === "inventory" && canAccessTab("inventory") && (
             <div className="max-w-7xl mx-auto space-y-6">
