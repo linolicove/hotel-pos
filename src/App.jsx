@@ -754,32 +754,19 @@ export default function App() {
 
   const handlePrintCashierSettlement = () => {
     try {
-      const todayKey = selectedDate || getTodayKey();
-
-      // 1. Filter cash sales (matches active shift ID OR sales from today's date)
       const currentShiftCashSales = salesRecords
-        ? Object.values(salesRecords).filter((sale) => {
-            const method = String(
-              sale.settlementMethod || sale.paymentMethod || ""
-            ).trim().toLowerCase();
-            if (method !== "cash") return false;
+    ? Object.values(salesRecords).filter((sale) => {
+        const method = String(
+          sale.settlementMethod || sale.paymentMethod || ""
+        ).trim().toLowerCase();
+        return method === "cash";
+      })
+    : [];
 
-            if (sale.shiftId && cashierShift?.shiftId && sale.shiftId === cashierShift.shiftId) {
-              return true;
-            }
-
-            if (sale.date === todayKey) {
-              return true;
-            }
-
-            return false;
-          })
-        : [];
-
-      const cashSalesTotal = currentShiftCashSales.reduce(
-        (acc, s) => acc + (Number(s.totalAmount) || 0),
-        0
-      );
+  const cashSalesTotal = currentShiftCashSales.reduce(
+    (acc, s) => acc + (Number(s.totalAmount) || 0),
+    0
+  );
 
       // 2. Approved Cash Out / Disbursements
       const totalCashOut = (disbursements || [])
@@ -899,18 +886,12 @@ export default function App() {
 
   const handleCloseShiftAndHandover = async () => {
     try {
-      const todayKey = selectedDate || getTodayKey();
-
-  const currentShiftCashSales = salesRecords
+      const currentShiftCashSales = salesRecords
     ? Object.values(salesRecords).filter((sale) => {
-        const tender = String(sale.settlementMethod || sale.paymentMethod || "").trim().toLowerCase();
-        if (tender !== "cash") return false;
-
-        if (sale.shiftId && cashierShift?.shiftId && sale.shiftId === cashierShift.shiftId) {
-          return true;
-        }
-
-        return sale.date === todayKey;
+        const method = String(
+          sale.settlementMethod || sale.paymentMethod || ""
+        ).trim().toLowerCase();
+        return method === "cash";
       })
     : [];
 
@@ -3652,27 +3633,14 @@ export default function App() {
           {/* --- CASHIER SHIFT & DRAWER BALANCING TAB --- */}
 {activeTab === "cashier" && (() => {
   // 1. Match cash sales settled today OR explicitly tagged with this shift ID
-  const todayKey = selectedDate || getTodayKey();
-
   const currentShiftCashSales = salesRecords
     ? Object.values(salesRecords).filter((sale) => {
-        // Must be strictly Cash tender
         const method = String(
           sale.settlementMethod || sale.paymentMethod || ""
         ).trim().toLowerCase();
-        if (method !== "cash") return false;
 
-        // If explicitly stamped with this active shift ID
-        if (sale.shiftId && cashierShift?.shiftId && sale.shiftId === cashierShift.shiftId) {
-          return true;
-        }
-
-        // Include any cash sales recorded for today's operating date
-        if (sale.date === todayKey) {
-          return true;
-        }
-
-        return false;
+        // Strictly Cash tender only
+        return method === "cash";
       })
     : [];
 
