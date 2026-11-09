@@ -2484,10 +2484,6 @@ export default function App() {
     }
   };
 
-  // Your existing handleDeleteSalesRecord function is right here:
-  const handleDeleteSalesRecord = async (saleId, orderId) => {
-    // ...
-  };
   // Monitor Reports Array
   const allArchivedReports = Object.keys(allAttendanceRecords).flatMap((dateKey) => {
     const dayRecords = allAttendanceRecords[dateKey] || {};
