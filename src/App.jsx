@@ -702,12 +702,12 @@ export default function App() {
     quantity: "1"
   });
 
-  // --- CASHIER SHIFT & DRAWER BALANCING STATES ---
   const [cashierShift, setCashierShift] = useState({
-    shiftId: "SHIFT-20261107-3208",
-    openedBy: "W K A M C Kavindi",
-    openedAt: "21:45",
-    openingFloat: 34010.00,
+    shiftId: "SHIFT-20261109-5466",
+    openedBy: "Thushara Siriwardanage",
+    openedAt: "00:36",
+    openedTimestamp: Date.now(), // <-- Add this
+    openingFloat: 20.00,
     status: "open"
   });
 
@@ -754,11 +754,39 @@ export default function App() {
 
   const handlePrintCashierSettlement = () => {
     try {
-      const cashSalesTotal = salesRecords
-        ? Object.values(salesRecords)
-            .filter((s) => s.settlementMethod === "Cash")
-            .reduce((acc, s) => acc + (Number(s.totalAmount) || 0), 0)
-        : 4752.00;
+      // 1. Filter ONLY cash sales that occurred in THIS active shift
+  const currentShiftCashSales = salesRecords
+    ? Object.values(salesRecords).filter((sale) => {
+        // Must strictly be settled by CASH (case-insensitive check)
+        const isCashTender =
+          String(sale.settlementMethod || sale.paymentMethod || "").trim().toLowerCase() === "cash";
+        if (!isCashTender) return false;
+
+        // If sale has a direct shiftId recorded, match it directly
+        if (sale.shiftId && cashierShift.shiftId) {
+          return sale.shiftId === cashierShift.shiftId;
+        }
+
+        // Fallback: match by timestamp or date if shiftId wasn't saved on older orders
+        const shiftOpenedTimestamp = cashierShift.openedTimestamp || 0;
+        const saleTimestamp = sale.timestamp || (sale.date ? new Date(`${sale.date} ${sale.settledAt || "00:00"}`).getTime() : 0);
+
+        if (shiftOpenedTimestamp > 0 && saleTimestamp > 0) {
+          return saleTimestamp >= shiftOpenedTimestamp;
+        }
+
+        // If today's date matches and shift was opened today without timestamp
+        const todayStr = getTodayKey();
+        return sale.date === todayStr && !cashierShift.closedAt;
+      })
+    : [];
+
+  const cashSalesTotal = currentShiftCashSales.reduce(
+    (acc, s) => acc + (Number(s.totalAmount) || 0),
+    0
+  );
+
+  const cashOrdersCount = currentShiftCashSales.length;
 
       const totalCashOut = (disbursements || [])
         .filter((d) => d.status === "APPROVED")
@@ -952,7 +980,8 @@ export default function App() {
         shiftId: nextShiftId,
         openedBy: currentUser?.name || "Next Cashier",
         openedAt: closedTimeStr,
-        openingFloat: countedTotal, // CARRIED FORWARD NOTE COUNT EXACTLY
+        openedTimestamp: Date.now(), // <-- Add this
+        openingFloat: countedTotal,
         status: "open",
         previousShiftId: cashierShift.shiftId,
       };
@@ -2108,7 +2137,8 @@ export default function App() {
       orderItems: items,
       date: day,
       settledAt: formatTimeClean(),
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      shiftId: cashierShift?.shiftId || null // Stamped with current register shift
     };
     set(ref(rtdb, `sales_records/${saleId}`), saleRecord);
 
