@@ -870,6 +870,114 @@ export default function App() {
       alert("Failed to print settlement: " + err.message);
     }
   };
+  const handleCloseShiftAndHandover = async () => {
+    try {
+      // 1. Calculate live shift totals
+      const cashSalesTotal = salesRecords
+        ? Object.values(salesRecords)
+            .filter((s) => s.settlementMethod === "Cash")
+            .reduce((acc, s) => acc + (Number(s.totalAmount) || 0), 0)
+        : 4752.00;
+
+      const totalCashOut = (disbursements || [])
+        .filter((d) => d.status === "APPROVED")
+        .reduce((acc, d) => acc + (Number(d.amount) || 0), 0);
+
+      const floatVal = Number(cashierShift?.openingFloat) || 0;
+      const expectedCash = floatVal + cashSalesTotal - totalCashOut;
+
+      const countedTotal = Object.entries(noteCounts || {}).reduce(
+        (acc, [denom, count]) => acc + Number(denom) * (parseInt(count, 10) || 0),
+        0
+      );
+
+      const drawerVariance = countedTotal - expectedCash;
+
+      // 2. Validate note counts
+      if (countedTotal <= 0) {
+        alert("Physical note count cannot be zero. Please count the drawer notes before closing the shift.");
+        return;
+      }
+
+      // 3. Confirm handover with cashier
+      const varianceNotice =
+        drawerVariance === 0
+          ? "Drawer matches expected cash exactly (Rs. 0.00 variance)."
+          : drawerVariance < 0
+          ? `WARNING: Cash shortage of Rs. ${Math.abs(drawerVariance).toFixed(2)}.`
+          : `NOTICE: Cash overage of +Rs. ${drawerVariance.toFixed(2)}.`;
+
+      const confirmClose = window.confirm(
+        `CLOSE SHIFT & HANDOVER AUDIT:\n\n` +
+        `Current Shift ID: ${cashierShift.shiftId}\n` +
+        `Physical Counted Total: Rs. ${countedTotal.toFixed(2)}\n` +
+        `${varianceNotice}\n\n` +
+        `Carrying forward Rs. ${countedTotal.toFixed(2)} as the OPENING FLOAT for the next shift.\n\n` +
+        `Do you want to proceed and print the Z-Report?`
+      );
+
+      if (!confirmClose) return;
+
+      const closedTimestamp = new Date();
+      const closedDateStr = closedTimestamp.toISOString().split("T")[0];
+      const closedTimeStr = closedTimestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+
+      // 4. Record closed shift in history
+      const closedShiftRecord = {
+        ...cashierShift,
+        closedAt: `${closedDateStr} ${closedTimeStr}`,
+        closedBy: currentUser?.name || cashierShift.openedBy || "Cashier",
+        cashSalesTotal,
+        totalCashOut,
+        expectedCash,
+        physicalCounted: countedTotal,
+        drawerVariance,
+        noteCounts: { ...noteCounts },
+        disbursements: [...disbursements],
+        status: "closed"
+      };
+
+      if (rtdb) {
+        await set(ref(rtdb, `cashier_shifts_history/${cashierShift.shiftId}`), closedShiftRecord);
+      }
+
+      // 5. Generate and print the Z-Report slip
+      handlePrintCashierSettlement();
+
+      // 6. Create Next Shift with Carried Forward Float & Notes
+      const nextShiftNum = Math.floor(1000 + Math.random() * 9000);
+      const nextShiftId = `SHIFT-${closedDateStr.replace(/-/g, "")}-${nextShiftNum}`;
+
+      const nextShift = {
+        shiftId: nextShiftId,
+        openedBy: currentUser?.name || "Next Cashier",
+        openedAt: closedTimeStr,
+        openingFloat: countedTotal, // CARRIED FORWARD NOTE COUNT EXACTLY
+        status: "open",
+        previousShiftId: cashierShift.shiftId,
+      };
+
+      // Persist active shift in state & RTDB
+      setCashierShift(nextShift);
+      if (rtdb) {
+        await set(ref(rtdb, "cashier_shift/active"), nextShift);
+        await set(ref(rtdb, "cashier_shift/disbursements"), []);
+        await set(ref(rtdb, "cashier_shift/noteCounts"), noteCounts);
+      }
+
+      // Reset shift disbursements list for the new shift
+      setDisbursements([]);
+
+      alert(
+        `Shift ${cashierShift.shiftId} successfully settled and closed.\n\n` +
+        `New Shift Started: ${nextShiftId}\n` +
+        `Opening Float Carried Forward: Rs. ${countedTotal.toFixed(2)}`
+      );
+    } catch (err) {
+      console.error("Handover error:", err);
+      alert("Failed to close shift: " + err.message);
+    }
+  };
 
   // Attendance Monitor Filter State
   const [attendanceStaffFilter, setAttendanceStaffFilter] = useState("all");
@@ -1184,6 +1292,32 @@ export default function App() {
         setSettingsForm(DEFAULT_SETTINGS);
       }
     });
+    useEffect(() => {
+    if (!rtdb) return;
+
+    // Listen to Active Cashier Shift
+    const shiftRef = ref(rtdb, "cashier_shift/active");
+    const unsubShift = onValue(shiftRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setCashierShift(data);
+      }
+    });
+
+    // Listen to Active Note Counts
+    const notesRef = ref(rtdb, "cashier_shift/noteCounts");
+    const unsubNotes = onValue(notesRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setNoteCounts(data);
+      }
+    });
+
+    return () => {
+      unsubShift();
+      unsubNotes();
+    };
+  }, []);
 
     const roomsRef = ref(rtdb, "rooms");
     const unsubRooms = onValue(roomsRef, (snapshot) => {
@@ -3540,19 +3674,23 @@ export default function App() {
             Active Shift: <b>{cashierShift.shiftId}</b> • Opened by {cashierShift.openedBy} at {cashierShift.openedAt}
           </p>
         </div>
-
-        <div className="flex items-center gap-2">
+<div className="flex items-center gap-2">
+          {/* Print/Verify mid-shift without closing */}
           <button
             type="button"
             onClick={handlePrintCashierSettlement}
             className="px-4 py-2 bg-[#0D9488] hover:bg-[#0F766E] active:scale-95 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+            title="Print intermediate audit slip"
           >
             <CheckCircle className="w-4 h-4" /> Settle & Bank Drawer
           </button>
+
+          {/* Close shift, archive history, print Z-report & carry forward counted float */}
           <button
             type="button"
-            onClick={handlePrintCashierSettlement}
+            onClick={handleCloseShiftAndHandover}
             className="px-4 py-2 bg-[#F95738] hover:bg-[#E0482B] active:scale-95 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+            title="Finalize shift and carry note count to next shift"
           >
             <Lock className="w-4 h-4" /> Close Shift & Print Z-Report
           </button>
