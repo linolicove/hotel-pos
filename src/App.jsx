@@ -2459,6 +2459,35 @@ export default function App() {
         });
     }
   };
+  // --- DELETE DISBURSEMENT (ADMIN ONLY) ---
+  const handleDeleteDisbursement = async (disbursementId, title) => {
+    if (!isGeneralManager) {
+      alert("Access Denied: Only General Manager can delete disbursement records.");
+      return;
+    }
+
+    const confirmDelete = window.confirm(
+      `Are you sure you want to delete payout "${title}"?\n\nThis will remove it from the shift record and adjust drawer calculations.`
+    );
+    if (!confirmDelete) return;
+
+    try {
+      const updated = disbursements.filter((d) => d.id !== disbursementId);
+      setDisbursements(updated);
+
+      if (rtdb) {
+        await set(ref(rtdb, "cashier_shift/disbursements"), updated);
+      }
+    } catch (err) {
+      console.error("Failed to delete disbursement:", err);
+      alert("Error deleting record: " + err.message);
+    }
+  };
+
+  // Your existing handleDeleteSalesRecord function is right here:
+  const handleDeleteSalesRecord = async (saleId, orderId) => {
+    // ...
+  };
   // Monitor Reports Array
   const allArchivedReports = Object.keys(allAttendanceRecords).flatMap((dateKey) => {
     const dayRecords = allAttendanceRecords[dateKey] || {};
@@ -3912,40 +3941,77 @@ export default function App() {
 
             <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
               {disbursements.map((d) => (
-                <div
-                  key={d.id}
-                  className="bg-[#FAF9F5] p-3 rounded-2xl border border-slate-200/80 flex justify-between items-center"
-                >
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-xs text-[#091D26] capitalize">{d.title}</span>
-                      <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800">
-                        {d.status}
-                      </span>
-                    </div>
-                    <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                      {d.category} • Recipient: {d.recipient} • Req by {d.requestedBy}
-                    </div>
-                    <div className="text-[10px] text-emerald-700 font-medium mt-0.5">
-                      ✓ Approved by {d.approvedBy} ({d.time})
-                    </div>
-                  </div>
+  <div
+    key={d.id}
+    className="bg-[#FAF9F5] p-3 rounded-2xl border border-slate-200/80 flex justify-between items-center"
+  >
+    <div>
+      <div className="flex items-center gap-2">
+        <span className="font-bold text-xs text-[#091D26] capitalize">{d.title}</span>
+        <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+          {d.status}
+        </span>
+      </div>
+      <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+        {d.category} • Recipient: {d.recipient} • Req by {d.requestedBy}
+      </div>
+      <div className="text-[10px] text-emerald-700 font-medium mt-0.5">
+        ✓ Approved by {d.approvedBy} ({d.time})
+      </div>
+    </div>
 
-                  <div className="flex items-center gap-3">
-                    <span className="font-mono font-black text-sm text-[#091D26]">
-                      Rs. {d.amount.toFixed(2)}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => alert(`Reprinting voucher for ${d.title}`)}
-                      className="p-1.5 text-slate-400 hover:text-slate-800 rounded-lg border border-slate-200 bg-white shadow-2xs cursor-pointer"
-                      title="Reprint Voucher"
-                    >
-                      <Printer className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              ))}
+    <div className="flex items-center gap-2">
+      <span className="font-mono font-black text-sm text-[#091D26] mr-1">
+        Rs. {Number(d.amount).toFixed(2)}
+      </span>
+
+      {/* Reprint Thermal Voucher */}
+      <button
+        type="button"
+        onClick={() => {
+          const voucherHtml = `
+            <div style="font-family: monospace; font-size: 11px; width: 280px; padding: 6px; text-align: center;">
+              <h3 style="margin: 0; text-transform: uppercase;">${settings?.name || "LINOLI COVE"}</h3>
+              <p style="margin: 2px 0 8px; font-size: 10px;">CASH OUT VOUCHER (REPRINT)</p>
+              <hr style="border-top: 1px dashed #000;"/>
+              <div style="text-align: left; margin: 6px 0; font-size: 10px;">
+                <div><b>Voucher ID:</b> ${d.id}</div>
+                <div><b>Time:</b> ${d.time}</div>
+                <div><b>Category:</b> ${d.category}</div>
+                <div><b>Reason:</b> ${d.title}</div>
+                <div><b>Recipient:</b> ${d.recipient}</div>
+                <div><b>Requested:</b> ${d.requestedBy}</div>
+                <div><b>Approved:</b> ${d.approvedBy}</div>
+              </div>
+              <hr style="border-top: 1px dashed #000;"/>
+              <div style="font-size: 15px; font-weight: bold; margin: 8px 0;">
+                AMOUNT: Rs. ${Number(d.amount).toFixed(2)}
+              </div>
+              <hr style="border-top: 1px dashed #000;"/>
+            </div>
+          `;
+          printIsolatedDocument(voucherHtml, "thermal");
+        }}
+        className="p-1.5 text-slate-400 hover:text-slate-800 rounded-lg border border-slate-200 bg-white shadow-2xs cursor-pointer"
+        title="Reprint Voucher"
+      >
+        <Printer className="w-3.5 h-3.5" />
+      </button>
+
+      {/* Admin Delete Payout */}
+      {isGeneralManager && (
+        <button
+          type="button"
+          onClick={() => handleDeleteDisbursement(d.id, d.title)}
+          className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg border border-rose-200 bg-white shadow-2xs cursor-pointer"
+          title="Delete Payout Record (Admin Only)"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      )}
+    </div>
+  </div>
+))}
             </div>
           </div>
         </div>
@@ -4484,6 +4550,7 @@ export default function App() {
                           <th className="p-3 text-right">Amount (LKR)</th>
                           <th className="p-3 text-center">Status</th>
                           <th className="p-3 text-center">Voucher</th>
+                          {isGeneralManager && <th className="p-3 text-center text-rose-600">Delete</th>}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#F3EFE6]">
