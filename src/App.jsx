@@ -4948,43 +4948,43 @@ export default function App() {
                           <td className="p-3.5 text-right font-bold text-rose-700">
                             {symbol}{Number(room.peakRate || 0).toLocaleString()}
                           </td>
-                          <td className="p-3.5 text-center">
-                            <select
-                              value={room.rateStrategy || "standard"}
-                              onChange={(e) => handleUpdateRateStrategy(room.id, e.target.value)}
-                              className="border border-[#D3C8B7] rounded-xl px-2.5 py-1 text-xs bg-white font-bold text-slate-700 shadow-2xs focus:outline-none"
-                            >
-                              <option value="standard">Standard (Base)</option>
-                              <option value="weekend">Weekend Surge</option>
-                              <option value="peak">Peak Season</option>
-                              <option value="auto">Auto Occupancy</option>
-                            </select>
-                          </td>
-                          <td className="p-3.5 text-right font-black text-[#0D9488] text-sm">
-                            {symbol}{Number(currentDynamicRate || 0).toLocaleString()}
-                          </td>
-                          {isGeneralManager && (
-                            <td className="p-3.5 text-center">
-                              <div className="inline-flex items-center gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() => handleStartEditRoom(room)}
-                                  className="p-1.5 text-slate-400 hover:text-[#0D9488] rounded hover:bg-slate-100 transition-colors"
-                                  title="Edit Room Pricing"
-                                >
-                                  <Edit2 className="w-4 h-4" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteRoom(room)}
-                                  className="p-1.5 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors"
-                                  title="Delete Room Unit"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </td>
-                          )}
+                          {/* 1. Strategy Selector Fix: Calls handleQuickToggleStrategy */}
+<td className="p-3.5 text-center">
+  <select
+    value={room.rateStrategy || "standard"}
+    onChange={(e) => handleQuickToggleStrategy(room, e.target.value)}
+    className="border border-[#D3C8B7] rounded-xl px-2.5 py-1 text-xs bg-white font-bold text-slate-700 shadow-2xs focus:outline-none"
+  >
+    <option value="standard">Standard (Base)</option>
+    <option value="weekend">Weekend Surge</option>
+    <option value="peak">Peak Season</option>
+    <option value="auto">Auto Occupancy</option>
+  </select>
+</td>
+
+{/* 2. Delete Button Fix: Pass (room.id, room.number) */}
+{isGeneralManager && (
+  <td className="p-3.5 text-center">
+    <div className="inline-flex items-center gap-1">
+      <button
+        type="button"
+        onClick={() => handleStartEditDynamicRoom(room)}
+        className="p-1.5 text-slate-400 hover:text-[#0D9488] rounded hover:bg-slate-100 transition-colors cursor-pointer"
+        title="Edit Room Pricing"
+      >
+        <Edit2 className="w-4 h-4" />
+      </button>
+      <button
+        type="button"
+        onClick={() => handleDeleteRoom(room.id, room.number)}
+        className="p-1.5 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors cursor-pointer"
+        title="Delete Room Unit"
+      >
+        <Trash2 className="w-4 h-4" />
+      </button>
+    </div>
+  </td>
+)}
                         </tr>
                       );
                     })}
