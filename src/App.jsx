@@ -1044,13 +1044,14 @@ export default function App() {
 
         <div style="margin-bottom: 6px; font-size: 10px;">
           ${isBike ? `
-            <div><b>Passport / ID:</b> ${service.idPassportNumber || "--"}</div>
-            <div><b>Country:</b> ${service.country || "--"}</div>
-            ${service.email ? `<div><b>Email:</b> ${service.email}</div>` : ""}
-            <div style="margin-top: 3px; border-top: 1px dotted #888; padding-top: 2px;">
-              <b>Security Deposit:</b> <span style="font-weight: bold;">${formattedDeposit}</span>
-            </div>
-          ` : ""}
+  <div><b>Rental Period:</b> ${service.rentalDays || 1} Day(s)</div>
+  <div><b>Start Date:</b> ${service.date}</div>
+  <div><b>Passport / ID:</b> ${service.idPassportNumber || "--"}</div>
+  <div><b>Country:</b> ${service.country || "--"}</div>
+  <div style="margin-top: 3px; border-top: 1px dotted #888; padding-top: 2px;">
+    <b>Security Deposit:</b> <span style="font-weight: bold;">${formattedDeposit}</span>
+  </div>
+` : ""}
 
           ${isPickup ? `
             <div><b>Vehicle Type:</b> ${service.vehicleType || "Sedan"}</div>
@@ -1102,14 +1103,26 @@ export default function App() {
     }
 
     const serviceId = `SRV-${Date.now().toString().slice(-6)}`;
-    const parsedPrice = parseFloat(serviceForm.price) || 0;
+    const unitPrice = parseFloat(serviceForm.price) || 0;
+    const isBike = serviceForm.category === "bike_rental";
+    const days = isBike ? Math.max(1, parseInt(serviceForm.rentalDays, 10) || 1) : 1;
+    const calculatedTotal = unitPrice * days;
     const parsedDeposit = parseFloat(serviceForm.deposit) || 0;
     const nowTime = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+    // Calculate expected return date for bike rentals
+    const startDateObj = new Date(serviceForm.date || getTodayKey());
+    const returnDate = isBike
+      ? new Date(startDateObj.getTime() + days * 86400000).toISOString().split("T")[0]
+      : serviceForm.date;
 
     const payload = {
       id: serviceId,
       ...serviceForm,
-      price: parsedPrice,
+      rentalDays: days,
+      returnDate: returnDate,
+      unitPrice: unitPrice,
+      price: calculatedTotal,
       deposit: parsedDeposit,
       createdAt: new Date().toISOString()
     };
@@ -1125,21 +1138,21 @@ export default function App() {
           const itemId = `itm_srv_${serviceId}`;
           
           let lineDescription = "";
-          if (serviceForm.category === "bike_rental") {
-            lineDescription = `Add-on: Bike Rental (${serviceForm.guestName} • Pass: ${serviceForm.idPassportNumber || "--"})`;
+          if (isBike) {
+            lineDescription = `Add-on: Bike Rental (${days} ${days > 1 ? "Days" : "Day"} • ${serviceForm.guestName} • Pass: ${serviceForm.idPassportNumber || "--"})`;
           } else if (serviceForm.category === "airport_pickup") {
-            lineDescription = `Add-on: Airport Transfer (${serviceForm.vehicleType} • ${serviceForm.numberOfPeople} Pax)`;
+            lineDescription = `Add-on: Airport Transfer (${serviceForm.vehicleType} • ${serviceForm.numberOfPeople} Pax • ${serviceForm.guestName})`;
           } else {
             lineDescription = `Add-on: Safari / Tour (${serviceForm.guestName}${serviceForm.notes ? ` - ${serviceForm.notes}` : ""})`;
           }
 
           const folioItem = {
             id: itemId,
-            serviceId: serviceId, // linked reference
+            serviceId: serviceId,
             description: lineDescription,
-            quantity: 1,
-            unitPrice: parsedPrice,
-            total: parsedPrice,
+            quantity: days,
+            unitPrice: unitPrice,
+            total: calculatedTotal,
             currency: serviceForm.currency || "USD",
             timestamp: `${new Date().getMonth() + 1}/${new Date().getDate()} ${nowTime}`,
           };
@@ -1161,6 +1174,7 @@ export default function App() {
         currency: "USD",
         date: getTodayKey(),
         notes: "",
+        rentalDays: "1",
         deposit: "0",
         country: "",
         email: "",
@@ -1170,7 +1184,7 @@ export default function App() {
         numberOfPeople: "1",
         flightNumber: "",
         status: "Active",
-        chargedToFolio: true // default enabled so it posts to room bills
+        chargedToFolio: true
       });
     } catch (err) {
       console.error("Error creating guest service:", err);
@@ -4776,11 +4790,12 @@ export default function App() {
                     {/* Specific Details */}
                     <td className="p-3.5 text-slate-600">
                       {srv.category === "bike_rental" && (
-                        <div className="space-y-0.5 text-[11px]">
-                          <div>Passport/ID: <b className="font-mono text-slate-800">{srv.idPassportNumber || "--"}</b></div>
-                          <div>Country: <b>{srv.country || "--"}</b> | Deposit: <b className="text-emerald-700">{srv.currency} {srv.deposit}</b></div>
-                        </div>
-                      )}
+  <div className="space-y-0.5 text-[11px]">
+    <div>Duration: <b className="text-amber-900">{srv.rentalDays || 1} Day(s)</b> (From: {srv.date})</div>
+    <div>Passport/ID: <b className="font-mono text-slate-800">{srv.idPassportNumber || "--"}</b></div>
+    <div>Country: <b>{srv.country || "--"}</b> | Deposit: <b className="text-emerald-700">{srv.currency} {srv.deposit}</b></div>
+  </div>
+)}
                       {srv.category === "airport_pickup" && (
                         <div className="space-y-0.5 text-[11px]">
                           <div>Vehicle: <b>{srv.vehicleType}</b> | Pax: <b>{srv.numberOfPeople}</b></div>
@@ -8506,12 +8521,14 @@ export default function App() {
         {/* Shared Pricing & Currency */}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block font-semibold mb-1 text-slate-700">Price</label>
+            <label className="block font-semibold mb-1 text-slate-700">
+              {serviceForm.category === "bike_rental" ? "Daily Rate (Per Day)" : "Price"}
+            </label>
             <input
               type="number"
               step="any"
               required
-              placeholder="e.g. 25.00"
+              placeholder={serviceForm.category === "bike_rental" ? "e.g. 15.00" : "e.g. 25.00"}
               value={serviceForm.price}
               onChange={(e) => setServiceForm({ ...serviceForm, price: e.target.value })}
               className="w-full border rounded-xl p-2.5 font-bold text-teal-800"
@@ -8531,69 +8548,100 @@ export default function App() {
         </div>
 
         {/* DYNAMIC SECTION 1: BIKE RENTAL SPECIFICS */}
-        {serviceForm.category === "bike_rental" && (
-          <div className="p-3.5 bg-amber-50/60 border border-amber-200 rounded-2xl space-y-3">
-            <span className="text-[10px] font-black uppercase text-amber-800 block tracking-wider">
-              Bike Rental Details & Identification
-            </span>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block font-semibold mb-1 text-slate-700">Passport / ID Number</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. PA9102834"
-                  value={serviceForm.idPassportNumber}
-                  onChange={(e) => setServiceForm({ ...serviceForm, idPassportNumber: e.target.value })}
-                  className="w-full border border-amber-200 bg-white rounded-xl p-2 font-mono font-bold"
-                />
+        {serviceForm.category === "bike_rental" && (() => {
+          const daysCount = Math.max(1, parseInt(serviceForm.rentalDays, 10) || 1);
+          const startDate = new Date(serviceForm.date || getTodayKey());
+          const returnDate = new Date(startDate.getTime() + daysCount * 86400000)
+            .toISOString()
+            .split("T")[0];
+
+          return (
+            <div className="p-3.5 bg-amber-50/60 border border-amber-200 rounded-2xl space-y-3">
+              <span className="text-[10px] font-black uppercase text-amber-800 block tracking-wider">
+                Bike Rental Details & Duration
+              </span>
+
+              {/* Number of Days & Return Date Preview */}
+              <div className="grid grid-cols-2 gap-3 items-center">
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Rental Duration (Days)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={serviceForm.rentalDays}
+                    onChange={(e) => setServiceForm({ ...serviceForm, rentalDays: e.target.value })}
+                    className="w-full border border-amber-200 bg-white rounded-xl p-2 font-bold text-slate-800"
+                  />
+                </div>
+                <div className="p-2 bg-white border border-amber-200 rounded-xl text-[11px] font-mono text-slate-600">
+                  <span className="block text-[9px] uppercase text-slate-400 font-bold">Expected Return:</span>
+                  <b className="text-amber-800 text-xs">{returnDate}</b>
+                  <span className="block text-[9px] text-slate-400">({daysCount} {daysCount > 1 ? "Days" : "Day"} Rental)</span>
+                </div>
               </div>
-              <div>
-                <label className="block font-semibold mb-1 text-slate-700">Deposit Paid</label>
-                <input
-                  type="number"
-                  step="any"
-                  placeholder="0.00"
-                  value={serviceForm.deposit}
-                  onChange={(e) => setServiceForm({ ...serviceForm, deposit: e.target.value })}
-                  className="w-full border border-amber-200 bg-white rounded-xl p-2 font-bold text-emerald-700"
-                />
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Passport / ID Number</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. PA9102834"
+                    value={serviceForm.idPassportNumber}
+                    onChange={(e) => setServiceForm({ ...serviceForm, idPassportNumber: e.target.value })}
+                    className="w-full border border-amber-200 bg-white rounded-xl p-2 font-mono font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Deposit Paid</label>
+                  <input
+                    type="number"
+                    step="any"
+                    placeholder="0.00"
+                    value={serviceForm.deposit}
+                    onChange={(e) => setServiceForm({ ...serviceForm, deposit: e.target.value })}
+                    className="w-full border border-amber-200 bg-white rounded-xl p-2 font-bold text-emerald-700"
+                  />
+                </div>
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Country of Origin</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Germany"
+                    value={serviceForm.country}
+                    onChange={(e) => setServiceForm({ ...serviceForm, country: e.target.value })}
+                    className="w-full border border-amber-200 bg-white rounded-xl p-2"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Phone</label>
+                  <input
+                    type="tel"
+                    placeholder="+49 ..."
+                    value={serviceForm.phone}
+                    onChange={(e) => setServiceForm({ ...serviceForm, phone: e.target.value })}
+                    className="w-full border border-amber-200 bg-white rounded-xl p-2"
+                  />
+                </div>
+              </div>
+
               <div>
-                <label className="block font-semibold mb-1 text-slate-700">Country of Origin</label>
+                <label className="block font-semibold mb-1 text-slate-700">Email Address</label>
                 <input
-                  type="text"
-                  placeholder="e.g. Germany"
-                  value={serviceForm.country}
-                  onChange={(e) => setServiceForm({ ...serviceForm, country: e.target.value })}
+                  type="email"
+                  placeholder="guest@domain.com"
+                  value={serviceForm.email}
+                  onChange={(e) => setServiceForm({ ...serviceForm, email: e.target.value })}
                   className="w-full border border-amber-200 bg-white rounded-xl p-2"
                 />
               </div>
-              <div>
-                <label className="block font-semibold mb-1 text-slate-700">Phone</label>
-                <input
-                  type="tel"
-                  placeholder="+49 ..."
-                  value={serviceForm.phone}
-                  onChange={(e) => setServiceForm({ ...serviceForm, phone: e.target.value })}
-                  className="w-full border border-amber-200 bg-white rounded-xl p-2"
-                />
-              </div>
             </div>
-            <div>
-              <label className="block font-semibold mb-1 text-slate-700">Email Address</label>
-              <input
-                type="email"
-                placeholder="guest@domain.com"
-                value={serviceForm.email}
-                onChange={(e) => setServiceForm({ ...serviceForm, email: e.target.value })}
-                className="w-full border border-amber-200 bg-white rounded-xl p-2"
-              />
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* DYNAMIC SECTION 2: AIRPORT PICKUP SPECIFICS */}
         {serviceForm.category === "airport_pickup" && (
