@@ -66,7 +66,11 @@ import {
   CalendarRange,
   Filter,
   Eye,
-  ShieldAlert
+  ShieldAlert,
+  Compass, 
+  Car, 
+  Bike, 
+  Binoculars
 } from "lucide-react";
 
 // --- 1. FIREBASE CONFIGURATION (REALTIME DATABASE) ---
@@ -668,6 +672,34 @@ function getDynamicRoomRate(room, allRooms = []) {
   return baseRate;
 }
 
+// --- ADD-ONS & GUEST SERVICES STATE ---
+  const [guestServices, setGuestServices] = useState({});
+  const [showAddServiceModal, setShowAddServiceModal] = useState(false);
+  const [serviceCategoryFilter, setServiceCategoryFilter] = useState("all");
+
+  const [serviceForm, setServiceForm] = useState({
+    category: "bike_rental", // "bike_rental" | "safari_tour" | "airport_pickup" | "custom"
+    roomId: "",
+    guestName: "",
+    price: "",
+    currency: "USD",
+    date: getTodayKey(),
+    notes: "",
+    // Bike Rental specific:
+    deposit: "0",
+    country: "",
+    email: "",
+    phone: "",
+    idPassportNumber: "",
+    // Airport Pickup specific:
+    vehicleType: "Car / Sedan",
+    numberOfPeople: "1",
+    flightNumber: "",
+    // Status
+    status: "Active", // "Active" | "Completed" | "Cancelled"
+    chargedToFolio: false
+  });
+
 // --- 4. MAIN COMPONENT ---
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -967,6 +999,98 @@ export default function App() {
     }
   };
 
+  // Handle creating an add-on service booking
+  const handleCreateGuestService = async (e) => {
+    e.preventDefault();
+    if (!serviceForm.guestName.trim() || !serviceForm.price) {
+      alert("Please enter guest name and service price.");
+      return;
+    }
+
+    const serviceId = `SRV-${Date.now().toString().slice(-6)}`;
+    const parsedPrice = parseFloat(serviceForm.price) || 0;
+    const parsedDeposit = parseFloat(serviceForm.deposit) || 0;
+
+    const payload = {
+      id: serviceId,
+      ...serviceForm,
+      price: parsedPrice,
+      deposit: parsedDeposit,
+      createdAt: new Date().toISOString()
+    };
+
+    try {
+      // 1. Save record into Firebase
+      await set(ref(rtdb, `guest_services/${serviceId}`), payload);
+
+      // 2. If attached to an active room and requested to bill directly:
+      if (serviceForm.roomId && serviceForm.chargedToFolio) {
+        const targetRoom = rooms.find((r) => r.id === serviceForm.roomId);
+        if (targetRoom && targetRoom.status === "occupied") {
+          const itemId = `itm_${Date.now()}`;
+          const isUsd = serviceForm.currency === "USD";
+          const desc = `${serviceForm.category === "bike_rental" ? "Bike Rental" : serviceForm.category === "airport_pickup" ? "Airport Pickup" : "Tour"}: ${serviceForm.guestName}`;
+
+          const newItem = {
+            id: itemId,
+            description: desc,
+            quantity: 1,
+            unitPrice: parsedPrice,
+            total: parsedPrice,
+            currency: serviceForm.currency,
+            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          };
+
+          await set(ref(rtdb, `rooms/${targetRoom.id}/orderItems/${itemId}`), newItem);
+        }
+      }
+
+      setShowAddServiceModal(false);
+      // Reset form
+      setServiceForm({
+        category: "bike_rental",
+        roomId: "",
+        guestName: "",
+        price: "",
+        currency: "USD",
+        date: getTodayKey(),
+        notes: "",
+        deposit: "0",
+        country: "",
+        email: "",
+        phone: "",
+        idPassportNumber: "",
+        vehicleType: "Car / Sedan",
+        numberOfPeople: "1",
+        flightNumber: "",
+        status: "Active",
+        chargedToFolio: false
+      });
+
+      alert("Service booking successfully logged!");
+    } catch (err) {
+      console.error("Error creating guest service:", err);
+      alert("Failed to save booking: " + err.message);
+    }
+  };
+
+  // Delete service booking (GM Only)
+  const handleDeleteGuestService = async (serviceId) => {
+    if (!isGeneralManager) {
+      alert("Access Denied: Only General Manager can delete service records.");
+      return;
+    }
+    if (window.confirm("Permanently delete this service booking?")) {
+      await remove(ref(rtdb, `guest_services/${serviceId}`));
+    }
+  };
+
+  // Toggle Service Status
+  const handleToggleServiceStatus = async (serviceId, currentStatus) => {
+    const nextStatus = currentStatus === "Active" ? "Completed" : currentStatus === "Completed" ? "Cancelled" : "Active";
+    await update(ref(rtdb, `guest_services/${serviceId}`), { status: nextStatus });
+  };
+
   // Attendance Monitor Filter State
   const [attendanceStaffFilter, setAttendanceStaffFilter] = useState("all");
 
@@ -1123,8 +1247,9 @@ export default function App() {
     if (isGeneralManager) return true;
     if (tabId === "frontdesk") return true;
     if (tabId === "active-orders" && (isFrontDesk || isGeneralManager)) return true;
+    if (tabId === "guest-services" && (isFrontDesk || isGeneralManager)) return true; // <-- ADD THIS
     if (tabId === "inventory" && (isFrontDesk || isGeneralManager || isHousekeeping)) return true;
-    if (tabId === "room-admin" && isGeneralManager) return true; // <-- ADD THIS LINE
+    if (tabId === "room-admin" && isGeneralManager) return true;
     if (tabId === "reports" && isGeneralManager) return true;
     if (tabId === "staff") return true;
     return false;
@@ -1135,6 +1260,7 @@ export default function App() {
     { id: "frontdesk", label: "Front Desk & Status", icon: Bed },
     { id: "active-orders", label: "Active Bills & Tabs", icon: Receipt },
     { id: "cashier", label: "Cashier & Drawer", icon: ShieldAlert },
+    { id: "guest-services", label: "Add-ons & Services", icon: Compass }, // <-- ADD THIS
     { id: "inventory", label: "Stock & Minibar", icon: Boxes },
     { id: "reports", label: "Reports & Analytics", icon: BarChart3 },
     { id: "room-admin", label: "Room Management", icon: SlidersHorizontal },
@@ -1320,6 +1446,11 @@ export default function App() {
       unsubDisb();
     };
   }, []);
+
+  const servicesRef = ref(rtdb, "guest_services");
+    const unsubServices = onValue(servicesRef, (snapshot) => {
+      setGuestServices(snapshot.val() || {});
+    });
 
   // --- REALTIME DATABASE LISTENERS ---
   useEffect(() => {
@@ -4042,7 +4173,156 @@ export default function App() {
     </div>
   );
 })()}
-          
+
+{/* TAB: GUEST SERVICES & ADD-ONS */}
+{activeTab === "guest-services" && canAccessTab("guest-services") && (
+  <div className="max-w-7xl mx-auto space-y-6 pb-16">
+    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div>
+        <h2 className="text-2xl font-bold flex items-center gap-2">
+          <Compass className="w-6 h-6 text-[#14B8A6]" /> Add-ons & Guest Services
+        </h2>
+        <p className="text-sm text-slate-500">
+          Manage bike rentals with ID & deposits, safari/excursion tours, and airport pick-up logistics.
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={() => setShowAddServiceModal(true)}
+        className="inline-flex items-center gap-2 bg-[#14B8A6] hover:bg-[#0D9488] active:scale-95 text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer"
+      >
+        <Plus className="w-4 h-4" /> Book New Service
+      </button>
+    </div>
+
+    {/* Filter Buttons */}
+    <div className="flex items-center gap-1.5 p-1 bg-white border border-[#E6DFD3] rounded-2xl shadow-sm overflow-x-auto">
+      {[
+        { id: "all", label: "All Bookings" },
+        { id: "bike_rental", label: "Bike Rentals", icon: Bike },
+        { id: "safari_tour", label: "Safari & Tours", icon: Binoculars },
+        { id: "airport_pickup", label: "Airport Pickups", icon: Car },
+      ].map((tab) => (
+        <button
+          key={tab.id}
+          type="button"
+          onClick={() => setServiceCategoryFilter(tab.id)}
+          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+            serviceCategoryFilter === tab.id
+              ? "bg-[#091D26] text-white shadow-sm"
+              : "text-slate-600 hover:text-black hover:bg-[#FAF9F5]"
+          }`}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
+
+    {/* Bookings Table */}
+    <div className="bg-white rounded-3xl border border-[#E6DFD3] shadow-sm overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-xs">
+          <thead className="bg-[#F3EFE6] border-b border-[#E6DFD3] uppercase font-semibold text-slate-500">
+            <tr>
+              <th className="p-3.5">Date / ID</th>
+              <th className="p-3.5">Service Type</th>
+              <th className="p-3.5">Guest & Contact</th>
+              <th className="p-3.5">Room</th>
+              <th className="p-3.5">Service Specific Details</th>
+              <th className="p-3.5 text-right">Price</th>
+              <th className="p-3.5 text-center">Status</th>
+              {isGeneralManager && <th className="p-3.5 text-center text-rose-600">Delete</th>}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#F3EFE6]">
+            {Object.values(guestServices)
+              .filter((s) => serviceCategoryFilter === "all" || s.category === serviceCategoryFilter)
+              .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))
+              .map((srv) => (
+                <tr key={srv.id} className="hover:bg-[#FAF9F5] transition-colors">
+                  <td className="p-3.5 font-mono">
+                    <span className="font-bold text-slate-800 block">{srv.date}</span>
+                    <span className="text-[10px] text-slate-400">{srv.id}</span>
+                  </td>
+                  <td className="p-3.5">
+                    <span className={`px-2.5 py-1 rounded-full font-bold uppercase text-[10px] ${
+                      srv.category === "bike_rental" ? "bg-amber-100 text-amber-900 border border-amber-200" :
+                      srv.category === "airport_pickup" ? "bg-blue-100 text-blue-900 border border-blue-200" :
+                      "bg-emerald-100 text-emerald-900 border border-emerald-200"
+                    }`}>
+                      {srv.category === "bike_rental" ? "Bike Rental" : srv.category === "airport_pickup" ? "Airport Pickup" : "Safari / Tour"}
+                    </span>
+                  </td>
+                  <td className="p-3.5">
+                    <div className="font-bold text-[#091D26]">{srv.guestName}</div>
+                    {srv.phone && <div className="text-[10px] text-slate-400 font-mono">Tel: {srv.phone}</div>}
+                    {srv.email && <div className="text-[10px] text-slate-400">{srv.email}</div>}
+                  </td>
+                  <td className="p-3.5 font-bold">
+                    {srv.roomId ? `Room #${rooms.find(r => r.id === srv.roomId)?.number || srv.roomId}` : <span className="text-slate-400">Walk-In</span>}
+                  </td>
+                  <td className="p-3.5 text-slate-600">
+                    {srv.category === "bike_rental" && (
+                      <div className="space-y-0.5 text-[11px]">
+                        <div>Passport/ID: <b className="font-mono text-slate-800">{srv.idPassportNumber || "--"}</b></div>
+                        <div>Country: <b>{srv.country || "--"}</b> | Deposit: <b className="text-emerald-700">{srv.currency} {srv.deposit}</b></div>
+                      </div>
+                    )}
+                    {srv.category === "airport_pickup" && (
+                      <div className="space-y-0.5 text-[11px]">
+                        <div>Vehicle: <b>{srv.vehicleType}</b> | Pax: <b>{srv.numberOfPeople}</b></div>
+                        {srv.flightNumber && <div>Flight: <b className="font-mono">{srv.flightNumber}</b></div>}
+                      </div>
+                    )}
+                    {srv.category === "safari_tour" && (
+                      <div className="text-[11px] text-slate-600">
+                        Date Scheduled: <b>{srv.date}</b> {srv.notes && `• "${srv.notes}"`}
+                      </div>
+                    )}
+                  </td>
+                  <td className="p-3.5 text-right font-black text-sm text-[#0D9488]">
+                    {srv.currency === "USD" ? `$${Number(srv.price).toFixed(2)}` : `Rs. ${Number(srv.price).toLocaleString()}`}
+                  </td>
+                  <td className="p-3.5 text-center">
+                    <button
+                      type="button"
+                      onClick={() => handleToggleServiceStatus(srv.id, srv.status)}
+                      className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase transition-all cursor-pointer ${
+                        srv.status === "Active" ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200" :
+                        srv.status === "Completed" ? "bg-slate-100 text-slate-600 hover:bg-slate-200" :
+                        "bg-rose-100 text-rose-700 hover:bg-rose-200"
+                      }`}
+                    >
+                      {srv.status}
+                    </button>
+                  </td>
+                  {isGeneralManager && (
+                    <td className="p-3.5 text-center">
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteGuestService(srv.id)}
+                        className="p-1.5 text-rose-600 hover:text-rose-800 rounded hover:bg-rose-50 transition-colors cursor-pointer"
+                        title="Delete service booking"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            {Object.keys(guestServices).length === 0 && (
+              <tr>
+                <td colSpan={8} className="p-8 text-center text-slate-400 italic">
+                  No guest service add-ons booked yet. Click "+ Book New Service" to start.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+)}          
           {/* TAB 3: INVENTORY */}
           {activeTab === "inventory" && canAccessTab("inventory") && (
             <div className="max-w-7xl mx-auto space-y-6">
@@ -7397,6 +7677,275 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* MODAL: BOOK NEW GUEST SERVICE / ADD-ON */}
+{showAddServiceModal && (
+  <div className="fixed inset-0 bg-[#06151E]/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+    <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-[#E6DFD3] my-8">
+      <div className="flex justify-between items-center mb-4 pb-2 border-b">
+        <div>
+          <span className="text-xs uppercase font-bold text-[#0F766E]">Guest Add-on Service</span>
+          <h3 className="font-bold text-lg text-[#091D26]">Book Activity / Add-on</h3>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowAddServiceModal(false)}
+          className="text-slate-400 hover:text-black p-1 cursor-pointer"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+
+      <form onSubmit={handleCreateGuestService} className="space-y-4 text-xs">
+        {/* Service Type Selector */}
+        <div>
+          <label className="block font-semibold mb-1 text-slate-700">Service Category</label>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { id: "bike_rental", label: "Bike Rental" },
+              { id: "safari_tour", label: "Safari / Tour" },
+              { id: "airport_pickup", label: "Airport Pickup" }
+            ].map(cat => (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => setServiceForm({ ...serviceForm, category: cat.id })}
+                className={`py-2 rounded-xl font-bold border transition-all cursor-pointer ${
+                  serviceForm.category === cat.id
+                    ? "bg-[#091D26] text-white border-[#091D26]"
+                    : "bg-white text-slate-600 border-[#D3C8B7] hover:bg-slate-50"
+                }`}
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Attach to Active Room (Optional) */}
+        <div>
+          <label className="block font-semibold mb-1 text-slate-700">Attach to Occupied Room (Optional)</label>
+          <select
+            value={serviceForm.roomId}
+            onChange={(e) => {
+              const rId = e.target.value;
+              const r = rooms.find(rm => rm.id === rId);
+              setServiceForm({
+                ...serviceForm,
+                roomId: rId,
+                guestName: r?.guestName || serviceForm.guestName,
+                phone: r?.guestPhone || serviceForm.phone
+              });
+            }}
+            className="w-full border rounded-xl p-2.5 bg-white font-medium text-slate-700"
+          >
+            <option value="">-- Non-Resident / Walk-In --</option>
+            {rooms.filter(r => r.status === "occupied").map(r => (
+              <option key={r.id} value={r.id}>
+                Room #{r.number} ({r.guestName || "Occupied"})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Shared Guest Name & Booking Date */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block font-semibold mb-1 text-slate-700">Guest Name</label>
+            <input
+              type="text"
+              required
+              placeholder="e.g. Maya Rossi"
+              value={serviceForm.guestName}
+              onChange={(e) => setServiceForm({ ...serviceForm, guestName: e.target.value })}
+              className="w-full border rounded-xl p-2.5 font-medium"
+            />
+          </div>
+          <div>
+            <label className="block font-semibold mb-1 text-slate-700">Date Scheduled</label>
+            <input
+              type="date"
+              required
+              value={serviceForm.date}
+              onChange={(e) => setServiceForm({ ...serviceForm, date: e.target.value })}
+              className="w-full border rounded-xl p-2.5 font-mono"
+            />
+          </div>
+        </div>
+
+        {/* Shared Pricing & Currency */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block font-semibold mb-1 text-slate-700">Price</label>
+            <input
+              type="number"
+              step="any"
+              required
+              placeholder="e.g. 25.00"
+              value={serviceForm.price}
+              onChange={(e) => setServiceForm({ ...serviceForm, price: e.target.value })}
+              className="w-full border rounded-xl p-2.5 font-bold text-teal-800"
+            />
+          </div>
+          <div>
+            <label className="block font-semibold mb-1 text-slate-700">Currency</label>
+            <select
+              value={serviceForm.currency}
+              onChange={(e) => setServiceForm({ ...serviceForm, currency: e.target.value })}
+              className="w-full border rounded-xl p-2.5 bg-white font-bold"
+            >
+              <option value="USD">USD ($)</option>
+              <option value="LKR">LKR (Rs.)</option>
+            </select>
+          </div>
+        </div>
+
+        {/* DYNAMIC SECTION 1: BIKE RENTAL SPECIFICS */}
+        {serviceForm.category === "bike_rental" && (
+          <div className="p-3.5 bg-amber-50/60 border border-amber-200 rounded-2xl space-y-3">
+            <span className="text-[10px] font-black uppercase text-amber-800 block tracking-wider">
+              Bike Rental Details & Identification
+            </span>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block font-semibold mb-1 text-slate-700">Passport / ID Number</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. PA9102834"
+                  value={serviceForm.idPassportNumber}
+                  onChange={(e) => setServiceForm({ ...serviceForm, idPassportNumber: e.target.value })}
+                  className="w-full border border-amber-200 bg-white rounded-xl p-2 font-mono font-bold"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold mb-1 text-slate-700">Deposit Paid</label>
+                <input
+                  type="number"
+                  step="any"
+                  placeholder="0.00"
+                  value={serviceForm.deposit}
+                  onChange={(e) => setServiceForm({ ...serviceForm, deposit: e.target.value })}
+                  className="w-full border border-amber-200 bg-white rounded-xl p-2 font-bold text-emerald-700"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block font-semibold mb-1 text-slate-700">Country of Origin</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Germany"
+                  value={serviceForm.country}
+                  onChange={(e) => setServiceForm({ ...serviceForm, country: e.target.value })}
+                  className="w-full border border-amber-200 bg-white rounded-xl p-2"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold mb-1 text-slate-700">Phone</label>
+                <input
+                  type="tel"
+                  placeholder="+49 ..."
+                  value={serviceForm.phone}
+                  onChange={(e) => setServiceForm({ ...serviceForm, phone: e.target.value })}
+                  className="w-full border border-amber-200 bg-white rounded-xl p-2"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block font-semibold mb-1 text-slate-700">Email Address</label>
+              <input
+                type="email"
+                placeholder="guest@domain.com"
+                value={serviceForm.email}
+                onChange={(e) => setServiceForm({ ...serviceForm, email: e.target.value })}
+                className="w-full border border-amber-200 bg-white rounded-xl p-2"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* DYNAMIC SECTION 2: AIRPORT PICKUP SPECIFICS */}
+        {serviceForm.category === "airport_pickup" && (
+          <div className="p-3.5 bg-blue-50/60 border border-blue-200 rounded-2xl space-y-3">
+            <span className="text-[10px] font-black uppercase text-blue-800 block tracking-wider">
+              Airport Transfer Details
+            </span>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block font-semibold mb-1 text-slate-700">Vehicle Type</label>
+                <select
+                  value={serviceForm.vehicleType}
+                  onChange={(e) => setServiceForm({ ...serviceForm, vehicleType: e.target.value })}
+                  className="w-full border border-blue-200 bg-white rounded-xl p-2 font-medium"
+                >
+                  <option value="Car / Sedan">Car / Sedan (1-3 Pax)</option>
+                  <option value="Van / Minibus">Van / KDH (4-8 Pax)</option>
+                  <option value="SUV / Luxury">SUV / Luxury</option>
+                  <option value="Tuk Tuk">Tuk Tuk (Local Transfer)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block font-semibold mb-1 text-slate-700">Number of Passengers</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={serviceForm.numberOfPeople}
+                  onChange={(e) => setServiceForm({ ...serviceForm, numberOfPeople: e.target.value })}
+                  className="w-full border border-blue-200 bg-white rounded-xl p-2 font-bold"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block font-semibold mb-1 text-slate-700">Flight Number / ETA</label>
+              <input
+                type="text"
+                placeholder="e.g. UL-504 arriving 14:30"
+                value={serviceForm.flightNumber}
+                onChange={(e) => setServiceForm({ ...serviceForm, flightNumber: e.target.value })}
+                className="w-full border border-blue-200 bg-white rounded-xl p-2 font-mono"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Optional Folio Charge Sync Toggle */}
+        {serviceForm.roomId && (
+          <label className="flex items-center gap-2 p-3 bg-teal-50 border border-teal-200 rounded-xl cursor-pointer">
+            <input
+              type="checkbox"
+              checked={serviceForm.chargedToFolio}
+              onChange={(e) => setServiceForm({ ...serviceForm, chargedToFolio: e.target.checked })}
+              className="rounded text-teal-600 focus:ring-teal-500 w-4 h-4"
+            />
+            <span className="font-bold text-teal-900 text-xs">
+              Directly post charge to active Room Folio bill
+            </span>
+          </label>
+        )}
+
+        {/* Special Notes */}
+        <div>
+          <label className="block font-semibold mb-1 text-slate-700">Special Notes</label>
+          <textarea
+            rows={2}
+            placeholder="Special instructions, helmet sizes, flight delays..."
+            value={serviceForm.notes}
+            onChange={(e) => setServiceForm({ ...serviceForm, notes: e.target.value })}
+            className="w-full border rounded-xl p-2.5"
+          />
+        </div>
+
+        <button
+          type="submit"
+          className="w-full bg-[#14B8A6] hover:bg-[#0D9488] active:scale-[0.98] transition-all text-white font-bold py-3 rounded-xl shadow-md cursor-pointer"
+        >
+          Confirm & Save Service Booking
+        </button>
+      </form>
+    </div>
+  </div>
+)}
     </div>
   );
 }
