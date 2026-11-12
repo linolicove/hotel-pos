@@ -693,14 +693,18 @@ export default function App() {
     currency: "USD",
     date: getTodayKey(),
     notes: "",
+    rentalDays: "1", // <-- Add this field
+    // Bike Rental specific:
     deposit: "0",
     country: "",
     email: "",
     phone: "",
     idPassportNumber: "",
+    // Airport Pickup specific:
     vehicleType: "Car / Sedan",
     numberOfPeople: "1",
     flightNumber: "",
+    // Status
     status: "Active",
     chargedToFolio: false
   });
@@ -2357,25 +2361,14 @@ export default function App() {
       // 1. Post to official sales records
       await set(ref(rtdb, `sales_records/${saleId}`), saleRecord);
 
-      // 2. Mark the service as Completed in RTDB
+      // 2. Mark the service as Completed
       await update(ref(rtdb, `guest_services/${settleServiceItem.id}`), {
         status: "Completed",
         settledSaleId: saleId,
         paymentMethod: settlementMethod,
       });
 
-      // 3. Immediately update local state so the card leaves the UI right away
-      setGuestServices((prev) => ({
-        ...prev,
-        [settleServiceItem.id]: {
-          ...prev[settleServiceItem.id],
-          status: "Completed",
-          settledSaleId: saleId,
-          paymentMethod: settlementMethod,
-        },
-      }));
-
-      // 4. Print 80mm settled thermal invoice
+      // 3. Print 80mm settled thermal invoice
       const dummyRoom = {
         number: "WALK-IN",
         orderId: settleServiceItem.id,
@@ -2403,6 +2396,7 @@ export default function App() {
       console.error("Failed to settle guest service:", err);
       alert("Error settling service: " + err.message);
     }
+  };
 
   const handleConfirmOrderSettlement = () => {
     if (!settleOrderRoom) return;
@@ -4050,8 +4044,8 @@ export default function App() {
               {/* UNASSIGNED / WALK-IN ADD-ON BILLS NOT ATTACHED TO ROOMS */}
               {(() => {
                 const unassignedServices = Object.values(guestServices || {}).filter(
-  (srv) => (!srv.roomId || !srv.chargedToFolio) && srv.status !== "Completed" && srv.status !== "Cancelled"
-);
+                  (srv) => !srv.roomId || !srv.chargedToFolio
+                );
 
                 if (unassignedServices.length === 0) return null;
 
