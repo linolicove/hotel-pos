@@ -1100,6 +1100,7 @@ export default function App() {
     const serviceId = `SRV-${Date.now().toString().slice(-6)}`;
     const parsedPrice = parseFloat(serviceForm.price) || 0;
     const parsedDeposit = parseFloat(serviceForm.deposit) || 0;
+    const nowTime = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
     const payload = {
       id: serviceId,
@@ -1110,30 +1111,41 @@ export default function App() {
     };
 
     try {
-      // 1. Save record into Firebase
+      // 1. Save Add-on record into guest_services
       await set(ref(rtdb, `guest_services/${serviceId}`), payload);
 
-      // 2. If attached to an active room and requested to bill directly:
+      // 2. CONNECT TO ACTIVE BILLING (ROOM FOLIO)
       if (serviceForm.roomId && serviceForm.chargedToFolio) {
         const targetRoom = rooms.find((r) => r.id === serviceForm.roomId);
         if (targetRoom && targetRoom.status === "occupied") {
-          const itemId = `itm_${Date.now()}`;
-          const isUsd = serviceForm.currency === "USD";
-          const desc = `${serviceForm.category === "bike_rental" ? "Bike Rental" : serviceForm.category === "airport_pickup" ? "Airport Pickup" : "Tour"}: ${serviceForm.guestName}`;
+          const itemId = `itm_srv_${serviceId}`;
+          
+          let lineDescription = "";
+          if (serviceForm.category === "bike_rental") {
+            lineDescription = `Add-on: Bike Rental (${serviceForm.guestName} • Pass: ${serviceForm.idPassportNumber || "--"})`;
+          } else if (serviceForm.category === "airport_pickup") {
+            lineDescription = `Add-on: Airport Transfer (${serviceForm.vehicleType} • ${serviceForm.numberOfPeople} Pax)`;
+          } else {
+            lineDescription = `Add-on: Safari / Tour (${serviceForm.guestName}${serviceForm.notes ? ` - ${serviceForm.notes}` : ""})`;
+          }
 
-          const newItem = {
+          const folioItem = {
             id: itemId,
-            description: desc,
+            serviceId: serviceId, // linked reference
+            description: lineDescription,
             quantity: 1,
             unitPrice: parsedPrice,
             total: parsedPrice,
-            currency: serviceForm.currency,
-            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            currency: serviceForm.currency || "USD",
+            timestamp: `${new Date().getMonth() + 1}/${new Date().getDate()} ${nowTime}`,
           };
 
-          await set(ref(rtdb, `rooms/${targetRoom.id}/orderItems/${itemId}`), newItem);
+          await set(ref(rtdb, `rooms/${targetRoom.id}/orderItems/${itemId}`), folioItem);
         }
       }
+
+      // 3. Print 80mm thermal receipt voucher immediately
+      printServiceVoucherThermal(payload);
 
       setShowAddServiceModal(false);
       // Reset form
@@ -1154,10 +1166,8 @@ export default function App() {
         numberOfPeople: "1",
         flightNumber: "",
         status: "Active",
-        chargedToFolio: false
+        chargedToFolio: true // default enabled so it posts to room bills
       });
-
-      alert("Service booking successfully logged!");
     } catch (err) {
       console.error("Error creating guest service:", err);
       alert("Failed to save booking: " + err.message);
@@ -1165,13 +1175,20 @@ export default function App() {
   };
 
   // Delete service booking (GM Only)
-  const handleDeleteGuestService = async (serviceId) => {
+  const handleDeleteGuestService = async (serviceId, roomId) => {
     if (!isGeneralManager) {
       alert("Access Denied: Only General Manager can delete service records.");
       return;
     }
-    if (window.confirm("Permanently delete this service booking?")) {
-      await remove(ref(rtdb, `guest_services/${serviceId}`));
+    if (window.confirm("Permanently delete this service booking?\n\nIf posted to an active room bill, it will also be removed from the folio.")) {
+      try {
+        await remove(ref(rtdb, `guest_services/${serviceId}`));
+        if (roomId) {
+          await remove(ref(rtdb, `rooms/${roomId}/orderItems/itm_srv_${serviceId}`));
+        }
+      } catch (err) {
+        console.error("Delete service error:", err);
+      }
     }
   };
 
@@ -3789,6 +3806,85 @@ export default function App() {
                           )}
                         </div>
 
+                        {/* Quick Add Add-on Services to this Active Folio */}
+<div className="pt-2 border-t border-[#F3EFE6]">
+  <div className="flex justify-between items-center mb-1.5">
+    <span className="text-[10px] font-bold uppercase tracking-wider text-[#0F766E]">Add-on Services:</span>
+    <button
+      type="button"
+      onClick={() => {
+        setServiceForm((prev) => ({
+          ...prev,
+          roomId: room.id,
+          guestName: room.guestName || "",
+          phone: room.guestPhone || "",
+          chargedToFolio: true
+        }));
+        setShowAddServiceModal(true);
+      }}
+      className="text-[10px] font-bold text-teal-600 hover:text-teal-800 underline cursor-pointer"
+    >
+      + Custom Activity
+    </button>
+  </div>
+  <div className="flex flex-wrap gap-1.5">
+    <button
+      type="button"
+      onClick={() => {
+        setServiceForm((prev) => ({
+          ...prev,
+          category: "bike_rental",
+          roomId: room.id,
+          guestName: room.guestName || "",
+          price: "15",
+          currency: "USD",
+          chargedToFolio: true
+        }));
+        setShowAddServiceModal(true);
+      }}
+      className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+    >
+      <Bike className="w-3 h-3" /> Rent Bike ($15)
+    </button>
+    <button
+      type="button"
+      onClick={() => {
+        setServiceForm((prev) => ({
+          ...prev,
+          category: "airport_pickup",
+          roomId: room.id,
+          guestName: room.guestName || "",
+          price: "65",
+          currency: "USD",
+          chargedToFolio: true
+        }));
+        setShowAddServiceModal(true);
+      }}
+      className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-200 rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+    >
+      <Car className="w-3 h-3" /> Airport Taxi ($65)
+    </button>
+    <button
+      type="button"
+      onClick={() => {
+        setServiceForm((prev) => ({
+          ...prev,
+          category: "safari_tour",
+          roomId: room.id,
+          guestName: room.guestName || "",
+          price: "45",
+          currency: "USD",
+          chargedToFolio: true
+        }));
+        setShowAddServiceModal(true);
+      }}
+      className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+    >
+      <Binoculars className="w-3 h-3" /> Safari ($45)
+    </button>
+  </div>
+</div>
+
                         {/* Quick-add Minibar */}
                         <div className="pt-2 border-t border-[#F3EFE6]">
                           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Quick Add Minibar:</p>
@@ -4448,78 +4544,132 @@ export default function App() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#F3EFE6]">
-  {inventory.map((item) => {
-    const cost = Number(item.cost) || 0;
-    const price = Number(item.price) || 0;
-    const margin = price - cost;
+  {Object.values(guestServices)
+    .filter((s) => serviceCategoryFilter === "all" || s.category === serviceCategoryFilter)
+    .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))
+    .map((srv) => {
+      const roomObj = rooms.find((r) => r.id === srv.roomId);
+      const isRoomOccupied = roomObj && roomObj.status === "occupied";
+      const isAlreadyOnFolio = isRoomOccupied && Boolean(roomObj.orderItems?.some((i) => i.id === `itm_srv_${srv.id}` || i.serviceId === srv.id));
 
-    return (
-      <tr key={item.id} className="hover:bg-[#FAF9F5] transition-colors">
-        <td className="p-3.5 font-bold text-[#091D26]">{item.name}</td>
-        <td className="p-3.5">
-          <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase">
-            {item.category}
-          </span>
-        </td>
-        <td className="p-3.5 text-right font-medium text-slate-500">
-          Rs. {cost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-        </td>
-        <td className="p-3.5 text-right font-bold text-[#091D26]">
-          {price > 0 ? (
-            `Rs. ${price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-          ) : (
-            <span className="text-slate-400 font-normal">Complimentary</span>
-          )}
-        </td>
-        <td className="p-3.5 text-right font-bold">
-          <span className={margin >= 0 ? "text-emerald-600" : "text-rose-600"}>
-            {margin < 0 
-              ? `-Rs. ${Math.abs(margin).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
-              : `Rs. ${margin.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-          </span>
-        </td>
-        <td className="p-3.5 text-center font-bold text-sm">{item.stock}</td>
-        <td className="p-3.5 text-center">
-          <div className="inline-flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => handleUpdateStockLevel(item.id, -1)}
-              className="px-2 py-0.5 border border-[#D3C8B7] rounded hover:bg-slate-100 text-xs font-bold"
-            >
-              -
-            </button>
-            <button
-              type="button"
-              onClick={() => handleUpdateStockLevel(item.id, 1)}
-              className="px-2 py-0.5 border border-[#D3C8B7] rounded hover:bg-slate-100 text-xs font-bold"
-            >
-              +
-            </button>
-          </div>
-        </td>
-        {isGeneralManager && (
+      return (
+        <tr key={srv.id} className="hover:bg-[#FAF9F5] transition-colors">
+          <td className="p-3.5 font-mono">
+            <span className="font-bold text-slate-800 block">{srv.date}</span>
+            <span className="text-[10px] text-slate-400">{srv.id}</span>
+          </td>
+          <td className="p-3.5">
+            <span className={`px-2.5 py-1 rounded-full font-bold uppercase text-[10px] ${
+              srv.category === "bike_rental" ? "bg-amber-100 text-amber-900 border border-amber-200" :
+              srv.category === "airport_pickup" ? "bg-blue-100 text-blue-900 border border-blue-200" :
+              "bg-emerald-100 text-emerald-900 border border-emerald-200"
+            }`}>
+              {srv.category === "bike_rental" ? "Bike Rental" : srv.category === "airport_pickup" ? "Airport Transfer" : "Safari / Tour"}
+            </span>
+          </td>
+          <td className="p-3.5">
+            <div className="font-bold text-[#091D26]">{srv.guestName}</div>
+            {srv.phone && <div className="text-[10px] text-slate-400 font-mono">Tel: {srv.phone}</div>}
+            {srv.email && <div className="text-[10px] text-slate-400">{srv.email}</div>}
+          </td>
+          <td className="p-3.5 font-bold">
+            {srv.roomId ? (
+              <div>
+                <span className="text-[#0F766E]">Room #{roomObj?.number || srv.roomId}</span>
+                {isAlreadyOnFolio ? (
+                  <span className="block text-[9px] font-bold text-emerald-700 uppercase">✓ Posted to Bill</span>
+                ) : isRoomOccupied ? (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const itemId = `itm_srv_${srv.id}`;
+                      const lineDescription = `Add-on (${srv.category.replace('_', ' ')}): ${srv.guestName}`;
+                      await set(ref(rtdb, `rooms/${srv.roomId}/orderItems/${itemId}`), {
+                        id: itemId,
+                        serviceId: srv.id,
+                        description: lineDescription,
+                        quantity: 1,
+                        unitPrice: Number(srv.price),
+                        total: Number(srv.price),
+                        currency: srv.currency || "USD",
+                        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                      });
+                      alert(`Charge posted to Room #${roomObj.number} active bill!`);
+                    }}
+                    className="block text-[9px] font-bold text-teal-600 hover:text-teal-800 underline mt-0.5 cursor-pointer"
+                  >
+                    + Charge to Bill
+                  </button>
+                ) : null}
+              </div>
+            ) : (
+              <span className="text-slate-400">Walk-In</span>
+            )}
+          </td>
+          <td className="p-3.5 text-slate-600">
+            {srv.category === "bike_rental" && (
+              <div className="space-y-0.5 text-[11px]">
+                <div>Passport/ID: <b className="font-mono text-slate-800">{srv.idPassportNumber || "--"}</b></div>
+                <div>Country: <b>{srv.country || "--"}</b> | Deposit: <b className="text-emerald-700">{srv.currency} {srv.deposit}</b></div>
+              </div>
+            )}
+            {srv.category === "airport_pickup" && (
+              <div className="space-y-0.5 text-[11px]">
+                <div>Vehicle: <b>{srv.vehicleType}</b> | Pax: <b>{srv.numberOfPeople}</b></div>
+                {srv.flightNumber && <div>Flight: <b className="font-mono">{srv.flightNumber}</b></div>}
+              </div>
+            )}
+            {srv.category === "safari_tour" && (
+              <div className="text-[11px] text-slate-600">
+                Scheduled: <b>{srv.date}</b> {srv.notes && `• "${srv.notes}"`}
+              </div>
+            )}
+          </td>
+          <td className="p-3.5 text-right font-black text-sm text-[#0D9488]">
+            {srv.currency === "USD" ? `$${Number(srv.price).toFixed(2)}` : `Rs. ${Number(srv.price).toLocaleString()}`}
+          </td>
           <td className="p-3.5 text-center">
-            <div className="inline-flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => handleToggleServiceStatus(srv.id, srv.status)}
+              className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase transition-all cursor-pointer ${
+                srv.status === "Active" ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200" :
+                srv.status === "Completed" ? "bg-slate-100 text-slate-600 hover:bg-slate-200" :
+                "bg-rose-100 text-rose-700 hover:bg-rose-200"
+              }`}
+            >
+              {srv.status}
+            </button>
+          </td>
+
+          {/* PRINT THERMAL RECEIPT ANYTIME */}
+          <td className="p-3.5 text-center">
+            <button
+              type="button"
+              onClick={() => printServiceVoucherThermal(srv)}
+              className="p-1.5 text-slate-500 hover:text-slate-900 rounded-lg hover:bg-slate-200 transition-colors cursor-pointer inline-flex items-center gap-1 font-bold text-[11px]"
+              title="Print 80mm Thermal Receipt Voucher"
+            >
+              <Printer className="w-4 h-4 text-[#0D9488]" />
+              <span>Print</span>
+            </button>
+          </td>
+
+          {isGeneralManager && (
+            <td className="p-3.5 text-center">
               <button
                 type="button"
-                onClick={() => handleStartEditInventory(item)}
-                className="p-1.5 text-slate-400 hover:text-[#0D9488] rounded hover:bg-slate-100"
-              >
-                <Edit2 className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => handleDeleteInventoryItem(item)}
-                className="p-1.5 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50"
+                onClick={() => handleDeleteGuestService(srv.id, srv.roomId)}
+                className="p-1.5 text-rose-600 hover:text-rose-800 rounded hover:bg-rose-50 transition-colors cursor-pointer"
+                title="Delete service booking"
               >
                 <Trash2 className="w-4 h-4" />
               </button>
-            </div>
-          </td>
-        )}
-      </tr>
-    );
-  })}
+            </td>
+          )}
+        </tr>
+      );
+    })}
 </tbody>
                 </table>
               </div>
