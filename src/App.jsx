@@ -1233,6 +1233,7 @@ export default function App() {
   const [checkInModalRoom, setCheckInModalRoom] = useState(null);
   const [settleOrderRoom, setSettleOrderRoom] = useState(null);
   const [settlementMethod, setSettlementMethod] = useState("Credit Card");
+  const [settleServiceItem, setSettleServiceItem] = useState(null);
   const [cashTendered, setCashTendered] = useState("");
   const [guestForm, setGuestForm] = useState({ name: "", phone: "", nights: 1, customRate: "", checkInDate: getTodayKey() });
   const [guestPhoto, setGuestPhoto] = useState(null);
@@ -2299,6 +2300,98 @@ export default function App() {
     });
 
     printIsolatedDocument(html);
+  };
+
+  // Settle walk-in add-on service, record into sales ledger, and print tax invoice
+  const handleConfirmServiceSettlement = async () => {
+    if (!settleServiceItem) return;
+
+    const usdRate = Number(settings?.exchangeRates?.USD) || 337.50;
+    const isUsd = settleServiceItem.currency === "USD";
+    const rawPrice = Number(settleServiceItem.price) || 0;
+
+    const totalLkr = isUsd ? rawPrice * usdRate : rawPrice;
+    const totalUsd = isUsd ? rawPrice : Number((rawPrice / usdRate).toFixed(2));
+
+    const tenderAmount = settlementMethod === "Cash"
+      ? (parseFloat(cashTendered) || totalLkr)
+      : totalLkr;
+    const balanceReturned = Math.max(0, tenderAmount - totalLkr);
+
+    const day = getTodayKey();
+    const saleId = `SALE-SRV-${Date.now()}`;
+    const serviceCategoryName = settleServiceItem.category.replace("_", " ").toUpperCase();
+
+    const saleRecord = {
+      id: saleId,
+      orderId: settleServiceItem.id,
+      roomNumber: "Walk-In (Service)",
+      guestName: settleServiceItem.guestName || "Walk-In Guest",
+      guestPhone: settleServiceItem.phone || "",
+      guestPhoto: null,
+      checkIn: settleServiceItem.date || day,
+      checkOut: settleServiceItem.date || day,
+      totalAmount: totalLkr,
+      totalAmountUsd: totalUsd,
+      appliedUsdRate: usdRate,
+      cashTendered: tenderAmount,
+      changeReturned: balanceReturned,
+      settlementMethod: settlementMethod,
+      orderItems: [
+        {
+          description: `${serviceCategoryName}: ${settleServiceItem.guestName}`,
+          quantity: 1,
+          unitPrice: totalLkr,
+          total: totalLkr,
+          currency: "LKR",
+        },
+      ],
+      date: day,
+      settledAt: formatTimeClean(),
+      timestamp: Date.now(),
+      shiftId: cashierShift?.shiftId || null, // Connects to active cashier drawer if Cash
+      isGuestServiceSale: true,
+    };
+
+    try {
+      // 1. Post to official sales records
+      await set(ref(rtdb, `sales_records/${saleId}`), saleRecord);
+
+      // 2. Mark the service as Completed
+      await update(ref(rtdb, `guest_services/${settleServiceItem.id}`), {
+        status: "Completed",
+        settledSaleId: saleId,
+        paymentMethod: settlementMethod,
+      });
+
+      // 3. Print 80mm settled thermal invoice
+      const dummyRoom = {
+        number: "WALK-IN",
+        orderId: settleServiceItem.id,
+        guestName: settleServiceItem.guestName,
+        orderItems: saleRecord.orderItems,
+      };
+
+      const html = buildThermalHtml({
+        settings,
+        room: dummyRoom,
+        isTemporary: false,
+        settlementMethod,
+        total: totalLkr,
+        cashTendered: tenderAmount,
+        changeDue: balanceReturned,
+        usdEquivalent: totalUsd,
+        exchangeRate: usdRate,
+      });
+
+      printIsolatedDocument(html);
+
+      setSettleServiceItem(null);
+      setCashTendered("");
+    } catch (err) {
+      console.error("Failed to settle guest service:", err);
+      alert("Error settling service: " + err.message);
+    }
   };
 
   const handleConfirmOrderSettlement = () => {
@@ -4050,17 +4143,18 @@ export default function App() {
                                 <Printer className="w-3.5 h-3.5 text-teal-400" />
                                 <span>Print Slip</span>
                               </button>
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  if (window.confirm(`Mark ${srv.guestName}'s ${srv.category.replace('_', ' ')} as paid & completed?`)) {
-                                    await update(ref(rtdb, `guest_services/${srv.id}`), { status: "Completed" });
-                                  }
-                                }}
-                                className="flex-1 bg-[#0D9488] hover:bg-[#0F766E] text-white py-2 rounded-xl text-xs font-bold cursor-pointer"
-                              >
-                                Settle Paid
-                              </button>
+                              {/* Replace the old button with this: */}
+<button
+  type="button"
+  onClick={() => {
+    setSettleServiceItem(srv);
+    setSettlementMethod("Cash");
+    setCashTendered("");
+  }}
+  className="flex-1 bg-[#0D9488] hover:bg-[#0F766E] text-white py-2 rounded-xl text-xs font-bold cursor-pointer transition-all active:scale-95"
+>
+  Settle & Print
+</button>
                             </div>
                           </div>
                         </div>
@@ -7296,6 +7390,147 @@ export default function App() {
                   className="flex-2 bg-[#0D9488] hover:bg-[#0F766E] active:scale-95 text-white py-3 px-6 rounded-xl text-xs font-bold shadow-md flex items-center justify-center gap-1.5 cursor-pointer transition-all"
                 >
                   <Check className="w-4 h-4" /> Confirm & Auto-Print Invoice
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+      {/* >>> PASTE STEP 4 CODE RIGHT HERE <<< */}
+      {/* MODAL: WALK-IN SERVICE BILL SETTLEMENT */}
+      {settleServiceItem && (() => {
+        const usdRate = Number(settings?.exchangeRates?.USD) || 337.50;
+        const isUsd = settleServiceItem.currency === "USD";
+        const rawPrice = Number(settleServiceItem.price) || 0;
+
+        const totalLkr = isUsd ? rawPrice * usdRate : rawPrice;
+        const totalUsd = isUsd ? rawPrice : Number((rawPrice / usdRate).toFixed(2));
+
+        const tenderAmount = parseFloat(cashTendered) || 0;
+        const modalChangeDue = Math.max(0, tenderAmount - totalLkr);
+
+        return (
+          <div className="fixed inset-0 bg-[#06151E]/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-[#E6DFD3]">
+              <div className="flex justify-between items-start mb-4 pb-3 border-b border-[#E6DFD3]">
+                <div>
+                  <span className="text-xs uppercase font-bold text-[#0F766E]">Direct Add-on Settlement</span>
+                  <h3 className="font-black text-xl text-[#091D26]">
+                    {settleServiceItem.category.replace("_", " ").toUpperCase()}
+                  </h3>
+                  <p className="text-xs text-slate-500">Guest: {settleServiceItem.guestName} ({settleServiceItem.id})</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSettleServiceItem(null)}
+                  className="text-slate-400 hover:text-black p-1 rounded-lg"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Bill Summary */}
+              <div className="border border-[#E6DFD3] rounded-2xl p-4 bg-[#FAF9F5] mb-4 text-xs space-y-2">
+                <div className="flex justify-between items-center pb-2 border-b border-slate-200">
+                  <span className="font-bold text-slate-700">Scheduled Date:</span>
+                  <span className="font-mono text-slate-600">{settleServiceItem.date}</span>
+                </div>
+                {settleServiceItem.idPassportNumber && (
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-200">
+                    <span className="font-bold text-slate-700">Passport / ID:</span>
+                    <span className="font-mono">{settleServiceItem.idPassportNumber}</span>
+                  </div>
+                )}
+                {settleServiceItem.deposit > 0 && (
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-200">
+                    <span className="font-bold text-slate-700">Deposit Logged:</span>
+                    <span className="font-bold text-emerald-700">
+                      {settleServiceItem.currency} {settleServiceItem.deposit}
+                    </span>
+                  </div>
+                )}
+                <div className="pt-2 flex justify-between items-start">
+                  <div>
+                    <span className="text-xs uppercase font-black text-slate-700 block">Total Due:</span>
+                    {isUsd && (
+                      <span className="text-[10px] font-mono font-bold text-teal-700">
+                        Rate: 1 USD = Rs. {usdRate.toFixed(2)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xl font-black text-[#0D9488] block">
+                      Rs. {totalLkr.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                    <span className="text-[11px] font-mono text-slate-700 font-bold block mt-0.5">
+                      ≈ ${totalUsd.toFixed(2)} USD
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tender Selector */}
+              <div className="mb-4">
+                <label className="block text-xs font-semibold text-slate-700 mb-2">Tender Method:</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: "Cash", icon: Banknote },
+                    { id: "Credit Card", icon: CreditCard },
+                    { id: "Transfer", icon: Building2 },
+                  ].map(({ id, icon: Icon }) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setSettlementMethod(id)}
+                      className={`py-2.5 text-xs font-bold rounded-xl border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                        settlementMethod === id
+                          ? "bg-[#0F2D3C] text-white border-[#0F2D3C]"
+                          : "bg-white text-slate-700 border-[#E6DFD3] hover:bg-[#F3EFE6]"
+                      }`}
+                    >
+                      <Icon className="w-3.5 h-3.5" /> {id}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Cash Tender & Change */}
+              {settlementMethod === "Cash" && (
+                <div className="bg-[#FAF9F5] p-3 rounded-2xl border border-[#E6DFD3] mb-4 flex items-center gap-3 text-xs">
+                  <div className="flex-1">
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Cash Tendered (LKR):</label>
+                    <input
+                      type="number"
+                      placeholder={totalLkr.toFixed(2)}
+                      value={cashTendered}
+                      onChange={(e) => setCashTendered(e.target.value)}
+                      className="w-full border border-[#D3C8B7] rounded-lg px-2.5 py-1.5 font-bold text-sm bg-white focus:outline-none"
+                    />
+                  </div>
+                  <div className="flex-1 text-right">
+                    <span className="block text-[11px] font-semibold text-slate-600">Change Due (LKR):</span>
+                    <span className="text-base font-black text-[#0D9488]">
+                      Rs. {modalChangeDue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setSettleServiceItem(null)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-3 rounded-xl text-xs font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmServiceSettlement}
+                  className="flex-2 bg-[#0D9488] hover:bg-[#0F766E] active:scale-95 text-white py-3 px-6 rounded-xl text-xs font-bold shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Check className="w-4 h-4" /> Settle & Print Invoice
                 </button>
               </div>
             </div>
