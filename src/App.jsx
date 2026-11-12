@@ -1254,7 +1254,20 @@ export default function App() {
   const [settlementMethod, setSettlementMethod] = useState("Credit Card");
   const [settleServiceItem, setSettleServiceItem] = useState(null);
   const [cashTendered, setCashTendered] = useState("");
-  const [guestForm, setGuestForm] = useState({ name: "", phone: "", nights: 1, customRate: "", discountPercent: "", checkInDate: getTodayKey() });
+ const [guestForm, setGuestForm] = useState({
+    name: "",
+    phone: "",
+    email: "",
+    country: "",
+    idPassportNumber: "",
+    purposeOfVisit: "Leisure / Tourism",
+    arrivalFrom: "",
+    nextDestination: "",
+    nights: 1,
+    customRate: "",
+    discountPercent: "",
+    checkInDate: getTodayKey()
+  });
   const [guestPhoto, setGuestPhoto] = useState(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
 
@@ -2423,6 +2436,12 @@ export default function App() {
         number: "WALK-IN",
         orderId: settleServiceItem.id,
         guestName: settleServiceItem.guestName,
+        guestEmail: settleServiceItem.guestEmail,
+        guestCountry: settleServiceItem.guestCountry,
+        guestIdPassport: settleServiceItem.guestIdPassport,
+        purposeOfVisit: settleServiceItem.purposeOfVisit,
+        arrivalFrom: settleServiceItem.arrivalFrom,
+        nextDestination: settleServiceItem.nextDestination,
         orderItems: saleRecord.orderItems,
       };
 
@@ -2483,7 +2502,12 @@ export default function App() {
       roomNumber: settleOrderRoom.number,
       guestName: settleOrderRoom.guestName || "Walk-In",
       guestPhone: settleOrderRoom.guestPhone || "",
-      guestPhoto: settleOrderRoom.guestPhoto || null,
+      guestEmail: settleOrderRoom.guestEmail || "",
+      guestCountry: settleOrderRoom.guestCountry || "",
+      guestIdPassport: settleOrderRoom.guestIdPassport || "",
+      purposeOfVisit: settleOrderRoom.purposeOfVisit || "",
+      arrivalFrom: settleOrderRoom.arrivalFrom || "",
+      nextDestination: settleOrderRoom.nextDestination || "",
       checkIn: settleOrderRoom.checkIn || day,
       checkOut: settleOrderRoom.checkOut || day,
       totalAmount: totalLkr,
@@ -2520,9 +2544,15 @@ export default function App() {
       openedAt: null,
       guestName: "",
       guestPhone: "",
-      guestPhoto: null,
+      guestEmail: "",
+      guestCountry: "",
+      guestIdPassport: "",
+      purposeOfVisit: "",
+      arrivalFrom: "",
+      nextDestination: "",
       checkIn: "",
       checkOut: "",
+      discountPercent: 0,
       orderItems: null,
     });
     setSettleOrderRoom(null);
@@ -2625,8 +2655,10 @@ export default function App() {
 
   const handleOpenOrderAndCheckIn = (e) => {
     e.preventDefault();
-    if (!checkInModalRoom || !guestForm.name) return;
-    stopCamera();
+    if (!checkInModalRoom || !guestForm.name || !guestForm.idPassportNumber) {
+      alert("Please fill in Guest Name and Passport / NIC Number.");
+      return;
+    }
 
     const nights = parseInt(guestForm.nights, 10) || 1;
     const now = new Date();
@@ -2660,7 +2692,12 @@ export default function App() {
       openedAt: now.toLocaleString(),
       guestName: sanitizeInput(guestForm.name),
       guestPhone: sanitizeInput(guestForm.phone),
-      guestPhoto: guestPhoto || null,
+      guestEmail: sanitizeInput(guestForm.email),
+      guestCountry: sanitizeInput(guestForm.country),
+      guestIdPassport: sanitizeInput(guestForm.idPassportNumber),
+      purposeOfVisit: sanitizeInput(guestForm.purposeOfVisit),
+      arrivalFrom: sanitizeInput(guestForm.arrivalFrom),
+      nextDestination: sanitizeInput(guestForm.nextDestination),
       checkIn: checkInDateStr,
       checkOut: checkOutDateStr,
       discountPercent: discountPct,
@@ -2668,9 +2705,21 @@ export default function App() {
     };
 
     update(ref(rtdb, `rooms/${checkInModalRoom.id}`), roomPayload);
-    setGuestPhoto(null);
     setCheckInModalRoom(null);
-    setGuestForm({ name: "", phone: "", nights: 1, customRate: "", discountPercent: "", checkInDate: getTodayKey() });
+    setGuestForm({
+      name: "",
+      phone: "",
+      email: "",
+      country: "",
+      idPassportNumber: "",
+      purposeOfVisit: "Leisure / Tourism",
+      arrivalFrom: "",
+      nextDestination: "",
+      nights: 1,
+      customRate: "",
+      discountPercent: "",
+      checkInDate: getTodayKey()
+    });
   };
 
   const handleAddItemToOrder = (e) => {
@@ -3505,16 +3554,16 @@ export default function App() {
                                     </div>
                                   )}
                                   <div className="truncate min-w-0">
-                                    <span className="font-extrabold text-[#091D26] text-xs block truncate leading-tight">
-                                      {room.guestName || "Walk-In Guest"}
-                                    </span>
-                                    <span className="text-[10px] text-slate-500 block truncate mt-0.5">
-                                      {room.guestPhone || "No contact logged"}
-                                    </span>
-                                    <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
-                                      Out: {room.checkOut || "Today"}
-                                    </span>
-                                  </div>
+  <span className="font-extrabold text-[#091D26] text-xs block truncate leading-tight">
+    {room.guestName || "Walk-In Guest"}
+  </span>
+  <span className="text-[10px] font-mono font-bold text-[#0F766E] block mt-0.5">
+    ID/Pass: {room.guestIdPassport || "--"} {room.guestCountry ? `(${room.guestCountry})` : ""}
+  </span>
+  <span className="text-[10px] text-slate-500 block truncate">
+    {room.guestEmail || "No email"} • {room.guestPhone || "No contact"} • Out: {room.checkOut || "Today"}
+  </span>
+</div>
                                 </div>
 
                                 {room.guestPhoto && isGeneralManager && (
@@ -5282,7 +5331,7 @@ export default function App() {
                           <th className="p-3.5">Folio / Order</th>
                           <th className="p-3.5">Room</th>
                           <th className="p-3.5">Guest Info</th>
-                          <th className="p-3.5 text-center">Guest ID Image</th>
+                          <th className="p-3.5">Passport / NIC & Country</th>
                           <th className="p-3.5 text-center">Tender</th>
                           <th className="p-3.5 text-right font-black text-slate-700">TOTAL PAID (LKR)</th>
                           <th className="p-3.5 text-center">Receipt</th>
@@ -5303,24 +5352,13 @@ export default function App() {
                               <div className="text-[10px] text-slate-400 font-normal">{sale.guestPhone || "No contact"}</div>
                             </td>
 
-                            <td className="p-3.5 text-center">
-                              {sale.guestPhoto ? (
-                                <button
-                                  type="button"
-                                  onClick={() => setViewPhotoModalData({
-                                    title: `Guest ID - ${sale.guestName} (Room #${sale.roomNumber})`,
-                                    image: sale.guestPhoto,
-                                    details: `Folio: ${sale.orderId} | Settled: ${sale.date} ${sale.settledAt || ""}`
-                                  })}
-                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-teal-50 hover:bg-teal-100 text-[#0F766E] font-bold border border-teal-200 transition-all shadow-xs"
-                                >
-                                  <img src={sale.guestPhoto} alt="Thumb" className="w-5 h-5 rounded-md object-cover border border-[#0D9488]" />
-                                  <span>View Photo</span>
-                                </button>
-                              ) : (
-                                <span className="text-[10px] text-slate-400">No Image</span>
-                              )}
-                            </td>
+                            <td className="p-3.5 font-mono text-[11px]">
+  <div className="font-bold text-slate-800">{sale.guestIdPassport || "--"}</div>
+  <div className="text-[10px] text-slate-500 font-sans">
+    {sale.guestCountry || "--"}
+    {sale.purposeOfVisit ? ` • ${sale.purposeOfVisit}` : ""}
+  </div>
+</td>
 
                             <td className="p-3.5 text-center">
                               <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full text-[10px] font-bold">
@@ -7137,115 +7175,170 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: CHECK-IN WITH CAMERA */}
+      {/* MODAL: SRI LANKA TOURISM / POLICE GUEST REGISTRATION & CHECK-IN */}
       {checkInModalRoom && (
         <div className="fixed inset-0 bg-[#06151E]/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-[#E6DFD3] my-8">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-[#E6DFD3] my-8">
             <div className="flex justify-between items-center mb-4 pb-2 border-b">
               <div>
-                <span className="text-xs uppercase font-bold text-[#0F766E]">Guest Registration & Check-In</span>
-                <h3 className="font-bold text-lg">Room #{checkInModalRoom.number} ({checkInModalRoom.type})</h3>
+                <span className="text-xs uppercase font-bold text-[#0F766E]">
+                  Guest Registration Manifest (SLTDA / Police Compliance)
+                </span>
+                <h3 className="font-bold text-lg text-[#091D26]">
+                  Room #{checkInModalRoom.number} ({checkInModalRoom.type})
+                </h3>
               </div>
-              <button type="button" onClick={handleCloseCheckInModal} className="text-slate-400">
+              <button
+                type="button"
+                onClick={() => setCheckInModalRoom(null)}
+                className="text-slate-400 hover:text-black p-1"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <canvas ref={canvasRef} className="hidden" />
 
             <form onSubmit={handleOpenOrderAndCheckIn} className="space-y-4 text-xs">
-              <div className="bg-[#FAF9F5] p-3 rounded-xl border space-y-2">
-                <span className="font-bold text-[11px] block">Guest Photo / Passport</span>
-                {isCameraActive ? (
-                  <div className="relative rounded overflow-hidden aspect-video bg-black flex items-center justify-center">
-                    <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
-                    <button
-                      type="button"
-                      onClick={takeSnapshot}
-                      className="absolute bottom-2 px-4 py-1 bg-[#14B8A6] text-white rounded-full font-bold shadow"
-                    >
-                      Snap Photo
-                    </button>
-                  </div>
-                ) : guestPhoto ? (
-                  <img src={guestPhoto} alt="ID" className="w-full aspect-video object-cover rounded" />
-                ) : (
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={startCamera}
-                      className="flex-1 p-3 border border-dashed rounded-lg bg-teal-50 text-teal-800 font-bold flex flex-col items-center gap-1"
-                    >
-                      <Camera className="w-4 h-4" /> Open Camera
-                    </button>
-                    <label className="flex-1 p-3 border border-dashed rounded-lg bg-white text-slate-700 font-bold flex flex-col items-center gap-1 cursor-pointer">
-                      <Upload className="w-4 h-4" /> Pick File
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*"
-                        onChange={handleFileUpload}
-                        className="hidden"
-                      />
-                    </label>
-                  </div>
-                )}
+              {/* Privacy Notice Banner */}
+              <div className="p-2.5 bg-teal-50 border border-teal-200 rounded-xl flex items-center gap-2 text-teal-900 text-[11px]">
+                <ShieldCheck className="w-4 h-4 text-[#0D9488] shrink-0" />
+                <span>
+                  <b>Data Protection Active:</b> No ID/Passport images are captured or stored. Only statutory text fields are recorded.
+                </span>
               </div>
 
-              <div>
-                <label className="block font-semibold mb-1">Guest Full Name</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Thushara Perera"
-                  value={guestForm.name}
-                  onChange={(e) => setGuestForm({ ...guestForm, name: e.target.value })}
-                  className="w-full border rounded-lg p-2.5"
-                />
-              </div>
-
-              {/* Contact Phone & Check-In Date */}
-              <div className="grid grid-cols-2 gap-3">
+              {/* Row 1: Full Name & Passport / NIC */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold mb-1">Contact Phone</label>
+                  <label className="block font-semibold mb-1 text-slate-700">Full Name (As per Passport/NIC) *</label>
                   <input
-                    type="tel"
-                    placeholder="+94 77 ..."
-                    value={guestForm.phone}
-                    onChange={(e) => setGuestForm({ ...guestForm, phone: e.target.value })}
-                    className="w-full border rounded-lg p-2.5"
+                    type="text"
+                    required
+                    placeholder="e.g. Kasun Perera / Elena Rossi"
+                    value={guestForm.name}
+                    onChange={(e) => setGuestForm({ ...guestForm, name: e.target.value })}
+                    className="w-full border rounded-xl p-2.5 font-medium"
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold mb-1">Check-In Date</label>
+                  <label className="block font-semibold mb-1 text-slate-700">Passport Number or Sri Lankan NIC *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. N8492014 or 941234567V"
+                    value={guestForm.idPassportNumber}
+                    onChange={(e) => setGuestForm({ ...guestForm, idPassportNumber: e.target.value })}
+                    className="w-full border rounded-xl p-2.5 font-mono font-bold uppercase"
+                  />
+                </div>
+              </div>
+
+              {/* Row 2: Country / Nationality & Purpose of Visit */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Country / Nationality *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Sri Lanka, United Kingdom, Germany"
+                    value={guestForm.country}
+                    onChange={(e) => setGuestForm({ ...guestForm, country: e.target.value })}
+                    className="w-full border rounded-xl p-2.5 font-medium"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Purpose of Visit</label>
+                  <select
+                    value={guestForm.purposeOfVisit}
+                    onChange={(e) => setGuestForm({ ...guestForm, purposeOfVisit: e.target.value })}
+                    className="w-full border rounded-xl p-2.5 bg-white font-medium"
+                  >
+                    <option value="Leisure / Tourism">Leisure / Tourism</option>
+                    <option value="Surfing / Water Sports">Surfing / Water Sports</option>
+                    <option value="Business / Official">Business / Official</option>
+                    <option value="Transit / Stopover">Transit / Stopover</option>
+                    <option value="Visiting Friends / Family">Visiting Friends / Family</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Row 3: Phone & Email */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Contact Phone / WhatsApp *</label>
+                  <input
+                    type="tel"
+                    required
+                    placeholder="+94 77 ... or +44 ..."
+                    value={guestForm.phone}
+                    onChange={(e) => setGuestForm({ ...guestForm, phone: e.target.value })}
+                    className="w-full border rounded-xl p-2.5 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Email Address</label>
+                  <input
+                    type="email"
+                    placeholder="guest@example.com"
+                    value={guestForm.email}
+                    onChange={(e) => setGuestForm({ ...guestForm, email: e.target.value })}
+                    className="w-full border rounded-xl p-2.5"
+                  />
+                </div>
+              </div>
+
+              {/* Row 4: Arriving From & Next Destination (SLTDA Statutory Fields) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Arriving From (City / Airport)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. BIA Airport / Galle / Ella"
+                    value={guestForm.arrivalFrom}
+                    onChange={(e) => setGuestForm({ ...guestForm, arrivalFrom: e.target.value })}
+                    className="w-full border rounded-xl p-2.5"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Next Destination</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Mirissa / Yala / Colombo"
+                    value={guestForm.nextDestination}
+                    onChange={(e) => setGuestForm({ ...guestForm, nextDestination: e.target.value })}
+                    className="w-full border rounded-xl p-2.5"
+                  />
+                </div>
+              </div>
+
+              {/* Row 5: Check-In Date, Nights & Departure */}
+              <div className="grid grid-cols-3 gap-3 items-center">
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Check-In Date</label>
                   <input
                     type="date"
                     required
                     value={guestForm.checkInDate || getTodayKey()}
                     onChange={(e) => setGuestForm({ ...guestForm, checkInDate: e.target.value })}
-                    className="w-full border rounded-lg p-2.5 font-mono text-xs bg-white font-bold text-slate-800"
+                    className="w-full border rounded-xl p-2.5 font-mono text-xs bg-white font-bold text-slate-800"
                   />
                 </div>
-              </div>
-
-              {/* Nights Duration & Auto Departure Preview */}
-              <div className="grid grid-cols-2 gap-3 items-center">
                 <div>
-                  <label className="block font-semibold mb-1">Nights Duration</label>
+                  <label className="block font-semibold mb-1 text-slate-700">Nights</label>
                   <input
                     type="number"
                     min="1"
                     required
                     value={guestForm.nights}
                     onChange={(e) => setGuestForm({ ...guestForm, nights: parseInt(e.target.value, 10) || 1 })}
-                    className="w-full border rounded-lg p-2.5 font-bold"
+                    className="w-full border rounded-xl p-2.5 font-bold"
                   />
                 </div>
                 <div className="pt-5">
-                  <div className="p-2 bg-slate-100 border border-slate-200 rounded-lg text-[11px] text-slate-600 font-mono">
+                  <div className="p-2 bg-slate-100 border border-slate-200 rounded-xl text-[11px] text-slate-600 font-mono">
                     <span className="block text-[9px] uppercase text-slate-400">Departure:</span>
                     <b className="text-[#0D9488]">
                       {new Date(
-                        (new Date(guestForm.checkInDate || getTodayKey()).getTime()) + 
+                        new Date(guestForm.checkInDate || getTodayKey()).getTime() +
                         ((parseInt(guestForm.nights, 10) || 1) * 86400000)
                       ).toISOString().split("T")[0]}
                     </b>
@@ -7253,7 +7346,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Custom Percentage Discount Section */}
+              {/* Rate & Custom Discount Section */}
               {(() => {
                 const isLocalModalRoom =
                   checkInModalRoom.currency === "LKR" ||
@@ -7265,48 +7358,59 @@ export default function App() {
                 const rawRate = parseFloat(guestForm.customRate) || 0;
                 const nightsCount = Math.max(1, parseInt(guestForm.nights, 10) || 1);
                 const discPct = Math.min(100, Math.max(0, parseFloat(guestForm.discountPercent) || 0));
-                
-                const subtotal = rawRate * nightsCount;
-                const discountAmt = subtotal * (discPct / 100);
-                const finalTotal = Math.max(0, subtotal - discountAmt);
+                const finalTotal = Math.max(0, (rawRate * nightsCount) * (1 - discPct / 100));
 
                 return (
-                  <div className="bg-purple-50/60 p-3 rounded-xl border border-purple-200 space-y-2">
-                    <div className="flex justify-between items-center">
-                      <label className="font-bold text-[11px] text-purple-900 flex items-center gap-1">
-                        <Percent className="w-3.5 h-3.5 text-purple-600" /> Custom Discount (%)
-                      </label>
-                      {discPct > 0 && (
-                        <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded">
-                          -{symbol}{discountAmt.toFixed(2)} Off
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-[#FAF9F5] p-3.5 rounded-2xl border border-[#E6DFD3]">
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="font-bold text-[11px] text-slate-700">
+                          Nightly Rate ({isLocalModalRoom ? "LKR" : "USD"}):
                         </span>
-                      )}
+                        <span className="text-[9px] font-bold uppercase text-[#0F766E] bg-[#CCFBF1] px-1.5 py-0.5 rounded">
+                          {checkInModalRoom.rateStrategy || "Standard"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-slate-500 font-mono">{symbol}</span>
+                        <input
+                          type="number"
+                          step="any"
+                          required
+                          value={guestForm.customRate}
+                          onChange={(e) => setGuestForm({ ...guestForm, customRate: e.target.value })}
+                          className="w-full border rounded-xl p-2 font-bold text-sm bg-white"
+                        />
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
+
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="font-bold text-[11px] text-purple-900">Custom Discount (%)</span>
+                        <span className="text-[10px] font-black text-[#0D9488]">
+                          Total: {symbol}{finalTotal.toFixed(2)}
+                        </span>
+                      </div>
                       <input
                         type="number"
                         step="any"
                         min="0"
                         max="100"
-                        placeholder="e.g. 10 (Leave empty for 0%)"
+                        placeholder="Empty = 0%"
                         value={guestForm.discountPercent}
                         onChange={(e) => setGuestForm({ ...guestForm, discountPercent: e.target.value })}
-                        className="w-full border border-purple-200 rounded-lg p-2 font-bold text-sm bg-white focus:outline-none focus:border-purple-500"
+                        className="w-full border border-purple-200 rounded-xl p-2 font-bold text-sm bg-white"
                       />
-                      <span className="text-sm font-black text-purple-800 px-2">%</span>
-                    </div>
-                    <div className="flex justify-between items-center pt-1.5 border-t border-purple-200/60 text-[11px]">
-                      <span className="text-slate-600 font-medium">Final Stay Total ({nightsCount}N):</span>
-                      <span className="font-black text-sm text-[#0D9488]">
-                        {symbol}{finalTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </span>
                     </div>
                   </div>
                 );
               })()}
 
-              <button type="submit" className="w-full bg-[#14B8A6] hover:bg-[#0D9488] text-white font-bold py-3 rounded-xl shadow">
-                Complete Check In
+              <button
+                type="submit"
+                className="w-full bg-[#14B8A6] hover:bg-[#0D9488] text-white font-bold py-3 rounded-xl shadow cursor-pointer"
+              >
+                Complete Guest Registration & Check In
               </button>
             </form>
           </div>
