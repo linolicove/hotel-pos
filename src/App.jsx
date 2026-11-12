@@ -8541,100 +8541,69 @@ export default function App() {
         </div>
 
         {/* DYNAMIC SECTION 1: BIKE RENTAL SPECIFICS */}
-        {serviceForm.category === "bike_rental" && (() => {
-          const daysCount = Math.max(1, parseInt(serviceForm.rentalDays, 10) || 1);
-          const startDate = new Date(serviceForm.date || getTodayKey());
-          const returnDate = new Date(startDate.getTime() + daysCount * 86400000)
-            .toISOString()
-            .split("T")[0];
-
-          return (
-            <div className="p-3.5 bg-amber-50/60 border border-amber-200 rounded-2xl space-y-3">
-              <span className="text-[10px] font-black uppercase text-amber-800 block tracking-wider">
-                Bike Rental Details & Duration
-              </span>
-
-              {/* Number of Days & Return Date Preview */}
-              <div className="grid grid-cols-2 gap-3 items-center">
-                <div>
-                  <label className="block font-semibold mb-1 text-slate-700">Rental Duration (Days)</label>
-                  <input
-                    type="number"
-                    min="1"
-                    required
-                    value={serviceForm.rentalDays}
-                    onChange={(e) => setServiceForm({ ...serviceForm, rentalDays: e.target.value })}
-                    className="w-full border border-amber-200 bg-white rounded-xl p-2 font-bold text-slate-800"
-                  />
-                </div>
-                <div className="p-2 bg-white border border-amber-200 rounded-xl text-[11px] font-mono text-slate-600">
-                  <span className="block text-[9px] uppercase text-slate-400 font-bold">Expected Return:</span>
-                  <b className="text-amber-800 text-xs">{returnDate}</b>
-                  <span className="block text-[9px] text-slate-400">({daysCount} {daysCount > 1 ? "Days" : "Day"} Rental)</span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold mb-1 text-slate-700">Passport / ID Number</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. PA9102834"
-                    value={serviceForm.idPassportNumber}
-                    onChange={(e) => setServiceForm({ ...serviceForm, idPassportNumber: e.target.value })}
-                    className="w-full border border-amber-200 bg-white rounded-xl p-2 font-mono font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1 text-slate-700">Deposit Paid</label>
-                  <input
-                    type="number"
-                    step="any"
-                    placeholder="0.00"
-                    value={serviceForm.deposit}
-                    onChange={(e) => setServiceForm({ ...serviceForm, deposit: e.target.value })}
-                    className="w-full border border-amber-200 bg-white rounded-xl p-2 font-bold text-emerald-700"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold mb-1 text-slate-700">Country of Origin</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Germany"
-                    value={serviceForm.country}
-                    onChange={(e) => setServiceForm({ ...serviceForm, country: e.target.value })}
-                    className="w-full border border-amber-200 bg-white rounded-xl p-2"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1 text-slate-700">Phone</label>
-                  <input
-                    type="tel"
-                    placeholder="+49 ..."
-                    value={serviceForm.phone}
-                    onChange={(e) => setServiceForm({ ...serviceForm, phone: e.target.value })}
-                    className="w-full border border-amber-200 bg-white rounded-xl p-2"
-                  />
-                </div>
-              </div>
-
+        {serviceForm.category === "bike_rental" && (
+          <div className="p-3.5 bg-amber-50/60 border border-amber-200 rounded-2xl space-y-3">
+            <span className="text-[10px] font-black uppercase text-amber-800 block tracking-wider">
+              Bike Rental Details & Identification
+            </span>
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block font-semibold mb-1 text-slate-700">Email Address</label>
+                <label className="block font-semibold mb-1 text-slate-700">Passport / ID Number</label>
                 <input
-                  type="email"
-                  placeholder="guest@domain.com"
-                  value={serviceForm.email}
-                  onChange={(e) => setServiceForm({ ...serviceForm, email: e.target.value })}
+                  type="text"
+                  required
+                  placeholder="e.g. PA9102834"
+                  value={serviceForm.idPassportNumber}
+                  onChange={(e) => setServiceForm({ ...serviceForm, idPassportNumber: e.target.value })}
+                  className="w-full border border-amber-200 bg-white rounded-xl p-2 font-mono font-bold"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold mb-1 text-slate-700">Deposit Paid</label>
+                <input
+                  type="number"
+                  step="any"
+                  placeholder="0.00"
+                  value={serviceForm.deposit}
+                  onChange={(e) => setServiceForm({ ...serviceForm, deposit: e.target.value })}
+                  className="w-full border border-amber-200 bg-white rounded-xl p-2 font-bold text-emerald-700"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block font-semibold mb-1 text-slate-700">Country of Origin</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Germany"
+                  value={serviceForm.country}
+                  onChange={(e) => setServiceForm({ ...serviceForm, country: e.target.value })}
+                  className="w-full border border-amber-200 bg-white rounded-xl p-2"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold mb-1 text-slate-700">Phone</label>
+                <input
+                  type="tel"
+                  placeholder="+49 ..."
+                  value={serviceForm.phone}
+                  onChange={(e) => setServiceForm({ ...serviceForm, phone: e.target.value })}
                   className="w-full border border-amber-200 bg-white rounded-xl p-2"
                 />
               </div>
             </div>
-          );
-        })()}
+            <div>
+              <label className="block font-semibold mb-1 text-slate-700">Email Address</label>
+              <input
+                type="email"
+                placeholder="guest@domain.com"
+                value={serviceForm.email}
+                onChange={(e) => setServiceForm({ ...serviceForm, email: e.target.value })}
+                className="w-full border border-amber-200 bg-white rounded-xl p-2"
+              />
+            </div>
+          </div>
+        )}
 
         {/* DYNAMIC SECTION 2: AIRPORT PICKUP SPECIFICS */}
         {serviceForm.category === "airport_pickup" && (
