@@ -1239,6 +1239,7 @@ export default function App() {
     checkOutDate: new Date(Date.now() + 86400000).toISOString().split("T")[0],
     depositAmount: "0",
     totalRate: "18000",
+    discountPercent: "",
     status: "Confirmed",
     notes: ""
   });
@@ -1253,7 +1254,7 @@ export default function App() {
   const [settlementMethod, setSettlementMethod] = useState("Credit Card");
   const [settleServiceItem, setSettleServiceItem] = useState(null);
   const [cashTendered, setCashTendered] = useState("");
-  const [guestForm, setGuestForm] = useState({ name: "", phone: "", nights: 1, customRate: "", checkInDate: getTodayKey() });
+  const [guestForm, setGuestForm] = useState({ name: "", phone: "", nights: 1, customRate: "", discountPercent: "", checkInDate: getTodayKey() });
   const [guestPhoto, setGuestPhoto] = useState(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
 
@@ -2051,6 +2052,11 @@ export default function App() {
     }
 
     const bookingId = `BK-${Date.now().toString().slice(-6)}`;
+    const nights = Math.max(1, parseInt(newBookingForm.nights || 1, 10));
+    const baseNightlyRate = parseFloat(newBookingForm.totalRate) || 18;
+    const discountPct = Math.min(100, Math.max(0, parseFloat(newBookingForm.discountPercent) || 0));
+    const discountedTotal = (baseNightlyRate * nights) * (1 - discountPct / 100);
+
     const newBooking = {
       id: bookingId,
       guestName: sanitizeInput(newBookingForm.guestName),
@@ -2058,7 +2064,9 @@ export default function App() {
       roomNumber: sanitizeInput(newBookingForm.roomNumber),
       checkInDate: newBookingForm.checkInDate,
       checkOutDate: newBookingForm.checkOutDate,
-      totalRate: parseFloat(newBookingForm.totalRate) || 18,
+      nights: nights,
+      totalRate: Number(discountedTotal.toFixed(2)),
+      discountPercent: discountPct,
       depositAmount: parseFloat(newBookingForm.depositAmount) || 0,
       status: newBookingForm.status || "Confirmed",
       notes: sanitizeInput(newBookingForm.notes),
@@ -2068,11 +2076,11 @@ export default function App() {
     // 1. Save reservation in prebookings
     set(ref(rtdb, `prebookings/${bookingId}`), newBooking);
 
-    // 2. Lock the room if the check-in is for today or upcoming active hold
+    // 2. Lock the room if the check-in is for today
     const today = getTodayKey();
     if (newBookingForm.checkInDate === today && targetRoom.status === "available") {
       update(ref(rtdb, `rooms/${targetRoom.id}`), {
-        status: "maintenance", // Or keep a reserved status
+        status: "maintenance",
         lockedUntil: newBookingForm.checkOutDate,
         reservedFor: sanitizeInput(newBookingForm.guestName)
       });
@@ -2085,8 +2093,10 @@ export default function App() {
       roomNumber: "",
       checkInDate: getTodayKey(),
       checkOutDate: new Date(Date.now() + 86400000).toISOString().split("T")[0],
+      nights: 1,
       depositAmount: "0",
       totalRate: "18",
+      discountPercent: "",
       status: "Confirmed",
       notes: ""
     });
@@ -2120,9 +2130,10 @@ export default function App() {
     const itemId = `itm_${Date.now()}`;
     const rateUsd = parseFloat(booking.totalRate) || 18;
 
+    const discNote = booking.discountPercent > 0 ? ` • ${booking.discountPercent}% Discount Applied` : "";
     const initialItem = {
       id: itemId,
-      description: `Advance Room Stay (${booking.checkInDate} to ${booking.checkOutDate})`,
+      description: `Advance Room Stay (${booking.checkInDate} to ${booking.checkOutDate}${discNote})`,
       quantity: 1,
       unitPrice: rateUsd,
       total: rateUsd,
@@ -2621,19 +2632,25 @@ export default function App() {
     const now = new Date();
     const orderId = `ORD-${checkInModalRoom.number}-${Date.now().toString().slice(-4)}`;
     const itemId = `itm_${Date.now()}`;
-    const dynamicRate = parseFloat(guestForm.customRate) || getDynamicRoomRate(checkInModalRoom, rooms);
+    
+    const baseRate = parseFloat(guestForm.customRate) || getDynamicRoomRate(checkInModalRoom, rooms);
+    const discountPct = Math.min(100, Math.max(0, parseFloat(guestForm.discountPercent) || 0));
+    const discountedUnitRate = baseRate * (1 - discountPct / 100);
+    const finalStayTotal = discountedUnitRate * nights;
 
-    // Read chosen check-in date
     const checkInDateStr = guestForm.checkInDate || getTodayKey();
     const checkInTime = new Date(checkInDateStr).getTime();
     const checkOutDateStr = new Date(checkInTime + nights * 86400000).toISOString().split("T")[0];
 
+    const discountTag = discountPct > 0 ? ` • ${discountPct}% OFF` : "";
+
     const initialOrderItem = {
       id: itemId,
-      description: `Room Stay (${nights} Night${nights > 1 ? "s" : ""} @ ${checkInModalRoom.rateStrategy?.toUpperCase() || "STANDARD"} Rate)`,
+      description: `Room Stay (${nights} Night${nights > 1 ? "s" : ""} @ ${checkInModalRoom.rateStrategy?.toUpperCase() || "STANDARD"} Rate${discountTag})`,
       quantity: nights,
-      unitPrice: dynamicRate,
-      total: dynamicRate * nights,
+      unitPrice: Number(discountedUnitRate.toFixed(2)),
+      total: Number(finalStayTotal.toFixed(2)),
+      discountPercent: discountPct,
       timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
     };
 
@@ -2646,13 +2663,14 @@ export default function App() {
       guestPhoto: guestPhoto || null,
       checkIn: checkInDateStr,
       checkOut: checkOutDateStr,
+      discountPercent: discountPct,
       orderItems: { [itemId]: initialOrderItem },
     };
 
     update(ref(rtdb, `rooms/${checkInModalRoom.id}`), roomPayload);
     setGuestPhoto(null);
     setCheckInModalRoom(null);
-    setGuestForm({ name: "", phone: "", nights: 1, customRate: "", checkInDate: getTodayKey() });
+    setGuestForm({ name: "", phone: "", nights: 1, customRate: "", discountPercent: "", checkInDate: getTodayKey() });
   };
 
   const handleAddItemToOrder = (e) => {
@@ -7051,8 +7069,8 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Departure Summary & Rate */}
-              <div className="grid grid-cols-2 gap-3 items-center">
+              {/* Departure Summary, Deposit & Custom Discount */}
+              <div className="grid grid-cols-3 gap-2 items-center">
                 <div className="p-2.5 bg-slate-100 border border-slate-200 rounded-xl text-[11px] font-mono text-slate-600">
                   <span className="block text-[9px] uppercase text-slate-400">Departure:</span>
                   <b className="text-teal-700">{newBookingForm.checkOutDate}</b>
@@ -7065,6 +7083,19 @@ export default function App() {
                     value={newBookingForm.depositAmount}
                     onChange={(e) => setNewBookingForm({ ...newBookingForm, depositAmount: e.target.value })}
                     className="w-full border rounded-xl p-2.5 font-bold text-emerald-700"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1 text-purple-800">Discount (%)</label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    max="100"
+                    placeholder="e.g. 10"
+                    value={newBookingForm.discountPercent || ""}
+                    onChange={(e) => setNewBookingForm({ ...newBookingForm, discountPercent: e.target.value })}
+                    className="w-full border border-purple-200 bg-purple-50/40 rounded-xl p-2.5 font-bold text-purple-900 focus:outline-none focus:border-purple-500"
                   />
                 </div>
               </div>
@@ -7222,39 +7253,57 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Custom Percentage Discount Section */}
               {(() => {
-  const isLocalModalRoom =
-    checkInModalRoom.currency === "LKR" ||
-    String(checkInModalRoom.number || "").toLowerCase().includes("local") ||
-    String(checkInModalRoom.type || "").toLowerCase().includes("local") ||
-    Number(guestForm.customRate) > 500;
+                const isLocalModalRoom =
+                  checkInModalRoom.currency === "LKR" ||
+                  String(checkInModalRoom.number || "").toLowerCase().includes("local") ||
+                  String(checkInModalRoom.type || "").toLowerCase().includes("local") ||
+                  Number(guestForm.customRate) > 500;
 
-  return (
-    <div className="bg-[#FAF9F5] p-3 rounded-xl border border-[#E6DFD3] space-y-2">
-      <div className="flex justify-between items-center">
-        <span className="font-bold text-[11px] text-slate-700">
-          Nightly Rate Applied ({isLocalModalRoom ? "Local LKR" : "USD Base"}):
-        </span>
-        <span className="text-[10px] font-bold uppercase text-[#0F766E] bg-[#CCFBF1] px-2 py-0.5 rounded">
-          Tier: {checkInModalRoom.rateStrategy || "Standard"}
-        </span>
-      </div>
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-bold text-slate-600 font-mono">
-          {isLocalModalRoom ? "Rs." : "US $"}
-        </span>
-        <input
-          type="number"
-          step="any"
-          required
-          value={guestForm.customRate}
-          onChange={(e) => setGuestForm({ ...guestForm, customRate: e.target.value })}
-          className="w-full border rounded-lg p-2 font-bold text-sm bg-white"
-        />
-      </div>
-    </div>
-  );
-})()}
+                const symbol = isLocalModalRoom ? "Rs." : "US $";
+                const rawRate = parseFloat(guestForm.customRate) || 0;
+                const nightsCount = Math.max(1, parseInt(guestForm.nights, 10) || 1);
+                const discPct = Math.min(100, Math.max(0, parseFloat(guestForm.discountPercent) || 0));
+                
+                const subtotal = rawRate * nightsCount;
+                const discountAmt = subtotal * (discPct / 100);
+                const finalTotal = Math.max(0, subtotal - discountAmt);
+
+                return (
+                  <div className="bg-purple-50/60 p-3 rounded-xl border border-purple-200 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <label className="font-bold text-[11px] text-purple-900 flex items-center gap-1">
+                        <Percent className="w-3.5 h-3.5 text-purple-600" /> Custom Discount (%)
+                      </label>
+                      {discPct > 0 && (
+                        <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded">
+                          -{symbol}{discountAmt.toFixed(2)} Off
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        step="any"
+                        min="0"
+                        max="100"
+                        placeholder="e.g. 10 (Leave empty for 0%)"
+                        value={guestForm.discountPercent}
+                        onChange={(e) => setGuestForm({ ...guestForm, discountPercent: e.target.value })}
+                        className="w-full border border-purple-200 rounded-lg p-2 font-bold text-sm bg-white focus:outline-none focus:border-purple-500"
+                      />
+                      <span className="text-sm font-black text-purple-800 px-2">%</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-1.5 border-t border-purple-200/60 text-[11px]">
+                      <span className="text-slate-600 font-medium">Final Stay Total ({nightsCount}N):</span>
+                      <span className="font-black text-sm text-[#0D9488]">
+                        {symbol}{finalTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <button type="submit" className="w-full bg-[#14B8A6] hover:bg-[#0D9488] text-white font-bold py-3 rounded-xl shadow">
                 Complete Check In
