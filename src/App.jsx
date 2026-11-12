@@ -672,34 +672,6 @@ function getDynamicRoomRate(room, allRooms = []) {
   return baseRate;
 }
 
-// --- ADD-ONS & GUEST SERVICES STATE ---
-  const [guestServices, setGuestServices] = useState({});
-  const [showAddServiceModal, setShowAddServiceModal] = useState(false);
-  const [serviceCategoryFilter, setServiceCategoryFilter] = useState("all");
-
-  const [serviceForm, setServiceForm] = useState({
-    category: "bike_rental", // "bike_rental" | "safari_tour" | "airport_pickup" | "custom"
-    roomId: "",
-    guestName: "",
-    price: "",
-    currency: "USD",
-    date: getTodayKey(),
-    notes: "",
-    // Bike Rental specific:
-    deposit: "0",
-    country: "",
-    email: "",
-    phone: "",
-    idPassportNumber: "",
-    // Airport Pickup specific:
-    vehicleType: "Car / Sedan",
-    numberOfPeople: "1",
-    flightNumber: "",
-    // Status
-    status: "Active", // "Active" | "Completed" | "Cancelled"
-    chargedToFolio: false
-  });
-
 // --- 4. MAIN COMPONENT ---
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -707,6 +679,31 @@ export default function App() {
   const [pinError, setPinError] = useState("");
   const [failedPinAttempts, setFailedPinAttempts] = useState(0);
   const [pinLockoutUntil, setPinLockoutUntil] = useState(0);
+
+  // >>> ADD-ONS & GUEST SERVICES STATE (CORRECT LOCATION) <<<
+  const [guestServices, setGuestServices] = useState({});
+  const [showAddServiceModal, setShowAddServiceModal] = useState(false);
+  const [serviceCategoryFilter, setServiceCategoryFilter] = useState("all");
+
+  const [serviceForm, setServiceForm] = useState({
+    category: "bike_rental",
+    roomId: "",
+    guestName: "",
+    price: "",
+    currency: "USD",
+    date: getTodayKey(),
+    notes: "",
+    deposit: "0",
+    country: "",
+    email: "",
+    phone: "",
+    idPassportNumber: "",
+    vehicleType: "Car / Sedan",
+    numberOfPeople: "1",
+    flightNumber: "",
+    status: "Active",
+    chargedToFolio: false
+  });
 
   const [activeTab, setActiveTab] = useState("frontdesk");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -997,6 +994,99 @@ export default function App() {
       console.error("Handover error:", err);
       alert("Failed to close shift: " + err.message);
     }
+  };
+
+  // Thermal slip generator for guest add-on services
+  const printServiceVoucherThermal = (service) => {
+    const now = new Date();
+    const isBike = service.category === "bike_rental";
+    const isPickup = service.category === "airport_pickup";
+
+    const voucherTitle = isBike
+      ? "BIKE RENTAL AGREEMENT & VOUCHER"
+      : isPickup
+      ? "AIRPORT TRANSFER DISPATCH SLIP"
+      : "TOUR / SAFARI EXCURSION VOUCHER";
+
+    const formattedPrice =
+      service.currency === "USD"
+        ? `$${Number(service.price).toFixed(2)} USD`
+        : `Rs. ${Number(service.price).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+
+    const formattedDeposit =
+      service.currency === "USD"
+        ? `$${Number(service.deposit || 0).toFixed(2)} USD`
+        : `Rs. ${Number(service.deposit || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+
+    const roomText = service.roomId
+      ? `Room #${rooms.find((r) => r.id === service.roomId)?.number || service.roomId}`
+      : "Non-Resident / Walk-In";
+
+    const html = `
+      <div style="font-family: 'Courier New', Courier, monospace; font-size: 11px; width: 280px; padding: 4px; color: #000; line-height: 1.3; text-align: left;">
+        <div style="text-align: center; margin-bottom: 6px;">
+          <h2 style="margin: 0; font-size: 14px; text-transform: uppercase;">${settings?.hotelName || "LINOLI COVE MIDIGAMA"}</h2>
+          <div style="font-size: 9px; font-weight: bold; margin-top: 2px;">${voucherTitle}</div>
+          <div style="font-size: 8px; margin-top: 2px;">Issued: ${now.toLocaleDateString()} ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+        </div>
+
+        <div style="border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 4px 0; margin-bottom: 6px; font-size: 10px;">
+          <div><b>Booking Ref:</b> ${service.id}</div>
+          <div><b>Guest:</b> ${service.guestName}</div>
+          <div><b>Room:</b> ${roomText}</div>
+          <div><b>Scheduled Date:</b> ${service.date}</div>
+          ${service.phone ? `<div><b>Contact:</b> ${service.phone}</div>` : ""}
+        </div>
+
+        <div style="margin-bottom: 6px; font-size: 10px;">
+          ${isBike ? `
+            <div><b>Passport / ID:</b> ${service.idPassportNumber || "--"}</div>
+            <div><b>Country:</b> ${service.country || "--"}</div>
+            ${service.email ? `<div><b>Email:</b> ${service.email}</div>` : ""}
+            <div style="margin-top: 3px; border-top: 1px dotted #888; padding-top: 2px;">
+              <b>Security Deposit:</b> <span style="font-weight: bold;">${formattedDeposit}</span>
+            </div>
+          ` : ""}
+
+          ${isPickup ? `
+            <div><b>Vehicle Type:</b> ${service.vehicleType || "Sedan"}</div>
+            <div><b>Passengers:</b> ${service.numberOfPeople || 1} Pax</div>
+            ${service.flightNumber ? `<div><b>Flight / ETA:</b> ${service.flightNumber}</div>` : ""}
+          ` : ""}
+
+          ${!isBike && !isPickup ? `
+            <div><b>Excursion:</b> Safari / Guided Island Tour</div>
+            ${service.notes ? `<div><b>Itinerary Note:</b> ${service.notes}</div>` : ""}
+          ` : ""}
+        </div>
+
+        <div style="border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 4px 0; margin: 6px 0;">
+          <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold;">
+            <span>SERVICE CHARGE:</span>
+            <span>${formattedPrice}</span>
+          </div>
+          <div style="font-size: 9px; margin-top: 2px; color: #333;">
+            ${service.chargedToFolio ? "Status: [CHARGED DIRECTLY TO ROOM FOLIO]" : "Status: [PAID AT DESK / DIRECT SETTLEMENT]"}
+          </div>
+        </div>
+
+        ${isBike ? `
+          <div style="font-size: 8px; margin-top: 6px; text-align: justify; line-height: 1.1;">
+            <b>Renter Declaration:</b> I accept full responsibility for the rented equipment, road regulations, and agree to return the bike in original condition before deposit release.
+          </div>
+        ` : ""}
+
+        <div style="margin-top: 26px; font-size: 9px;">
+          <div style="display: flex; justify-content: space-between; text-align: center;">
+            <div style="border-top: 1px solid #000; width: 44%; padding-top: 2px;">Guest Signature</div>
+            <div style="border-top: 1px solid #000; width: 44%; padding-top: 2px;">Front Desk Agent</div>
+          </div>
+          <p style="text-align: center; margin-top: 10px; font-size: 8px;">TERMINAL: LINOLI-MAIN-01 • GUEST COPY</p>
+        </div>
+      </div>
+    `;
+
+    printIsolatedDocument(html);
   };
 
   // Handle creating an add-on service booking
@@ -1439,6 +1529,12 @@ export default function App() {
       }
     });
 
+    // 5. Guest Services Add-ons Listener
+    const servicesRef = ref(rtdb, "guest_services");
+    const unsubServices = onValue(servicesRef, (snapshot) => {
+      setGuestServices(snapshot.val() || {});
+    });
+
     return () => {
       unsubSettings();
       unsubShift();
@@ -1446,11 +1542,6 @@ export default function App() {
       unsubDisb();
     };
   }, []);
-
-  const servicesRef = ref(rtdb, "guest_services");
-    const unsubServices = onValue(servicesRef, (snapshot) => {
-      setGuestServices(snapshot.val() || {});
-    });
 
   // --- REALTIME DATABASE LISTENERS ---
   useEffect(() => {
