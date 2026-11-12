@@ -1250,6 +1250,7 @@ export default function App() {
 
   // Front Desk Modals & Camera/File State
   const [checkInModalRoom, setCheckInModalRoom] = useState(null);
+  const [activePrebookingId, setActivePrebookingId] = useState(null);
   const [settleOrderRoom, setSettleOrderRoom] = useState(null);
   const [settlementMethod, setSettlementMethod] = useState("Credit Card");
   const [settleServiceItem, setSettleServiceItem] = useState(null);
@@ -2128,7 +2129,7 @@ export default function App() {
   };
 
   const handleConvertPrebookingToCheckIn = (booking) => {
-    const targetRoom = rooms.find(r => String(r.number) === String(booking.roomNumber));
+    const targetRoom = rooms.find((r) => String(r.number) === String(booking.roomNumber));
     if (!targetRoom) {
       alert(`Room #${booking.roomNumber} does not exist in catalog.`);
       return;
@@ -2138,39 +2139,35 @@ export default function App() {
       return;
     }
 
-    const orderId = `ORD-${booking.roomNumber}-${Date.now().toString().slice(-4)}`;
-    const now = new Date();
-    const itemId = `itm_${Date.now()}`;
-    const rateUsd = parseFloat(booking.totalRate) || 18;
+    // Calculate nights from checkInDate and checkOutDate
+    const startMs = new Date(booking.checkInDate || getTodayKey()).getTime();
+    const endMs = new Date(booking.checkOutDate || getTodayKey()).getTime();
+    const calculatedNights = Math.max(1, Math.round((endMs - startMs) / 86400000));
 
-    const discNote = booking.discountPercent > 0 ? ` • ${booking.discountPercent}% Discount Applied` : "";
-    const initialItem = {
-      id: itemId,
-      description: `Advance Room Stay (${booking.checkInDate} to ${booking.checkOutDate}${discNote})`,
-      quantity: 1,
-      unitPrice: rateUsd,
-      total: rateUsd,
-      currency: "USD",
-      timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
-    };
+    // Calculate nightly rate from totalRate if multi-night, or fallback to dynamic room rate
+    const rawTotal = parseFloat(booking.totalRate) || 0;
+    const perNightRate = rawTotal > 0 ? Number((rawTotal / calculatedNights).toFixed(2)) : getDynamicRoomRate(targetRoom, rooms);
 
-    // Update Room to Occupied
-    update(ref(rtdb, `rooms/${targetRoom.id}`), {
-      status: "occupied",
-      orderId,
-      openedAt: now.toLocaleString(),
-      guestName: booking.guestName,
-      guestPhone: booking.guestPhone || "",
-      checkIn: booking.checkInDate,
-      checkOut: booking.checkOutDate,
-      orderItems: { [itemId]: initialItem },
-      lockedUntil: null,
-      reservedFor: null
+    // Pre-fill the SLTDA / Police Guest Registration Form
+    setGuestForm({
+      name: booking.guestName || "",
+      phone: booking.guestPhone && !booking.guestPhone.includes("@") ? booking.guestPhone : "",
+      email: booking.guestPhone && booking.guestPhone.includes("@") ? booking.guestPhone : (booking.guestEmail || ""),
+      country: booking.guestCountry || "",
+      idPassportNumber: booking.idPassportNumber || "",
+      purposeOfVisit: "Leisure / Tourism",
+      arrivalFrom: "",
+      nextDestination: "",
+      nights: booking.nights ? parseInt(booking.nights, 10) : calculatedNights,
+      customRate: String(perNightRate),
+      discountPercent: booking.discountPercent ? String(booking.discountPercent) : "",
+      checkInDate: booking.checkInDate || getTodayKey(),
     });
 
-    // Mark pre-booking as Checked In
-    update(ref(rtdb, `prebookings/${booking.id}`), { status: "Checked In" });
-    alert(`Guest ${booking.guestName} successfully checked into Room #${booking.roomNumber}!`);
+    // Track this pre-booking ID and open the Room Registration Modal
+    setActivePrebookingId(booking.id);
+    setSelectedRoomId(targetRoom.id);
+    setCheckInModalRoom(targetRoom);
   };
 
   // Settings & Database Backup
@@ -2406,24 +2403,24 @@ export default function App() {
         paymentMethod: settlementMethod,
       });
 
-      // 3. INSTANT LOCAL STATE UPDATE (Forces immediate removal without refresh)
+      // 3. Immediately update local state so the card disappears from Active Bills without a page refresh
       setGuestServices((prev) => {
         const next = { ...prev };
-        // Delete or mark complete so Object.values() immediately omits it
         if (next[settleServiceItem.id]) {
           next[settleServiceItem.id] = {
             ...next[settleServiceItem.id],
             status: "Completed",
             settledSaleId: saleId,
+            paymentMethod: settlementMethod,
           };
         } else {
-          // Fallback if stored with array indices
           Object.keys(next).forEach((key) => {
             if (next[key]?.id === settleServiceItem.id) {
               next[key] = {
                 ...next[key],
                 status: "Completed",
                 settledSaleId: saleId,
+                paymentMethod: settlementMethod,
               };
             }
           });
@@ -2431,17 +2428,11 @@ export default function App() {
         return next;
       });
 
-      // 4. Print 80mm settled thermal invoice
+      // 4. Print 80mm settled thermal tax invoice
       const dummyRoom = {
         number: "WALK-IN",
         orderId: settleServiceItem.id,
         guestName: settleServiceItem.guestName,
-        guestEmail: settleServiceItem.guestEmail,
-        guestCountry: settleServiceItem.guestCountry,
-        guestIdPassport: settleServiceItem.guestIdPassport,
-        purposeOfVisit: settleServiceItem.purposeOfVisit,
-        arrivalFrom: settleServiceItem.arrivalFrom,
-        nextDestination: settleServiceItem.nextDestination,
         orderItems: saleRecord.orderItems,
       };
 
@@ -2459,7 +2450,7 @@ export default function App() {
 
       printIsolatedDocument(html);
 
-      // 5. Close Modal
+      // 5. Close modal and reset cash tendered
       setSettleServiceItem(null);
       setCashTendered("");
     } catch (err) {
@@ -4159,11 +4150,8 @@ export default function App() {
   Array.isArray(guestServices) ? guestServices : Object.values(guestServices || {})
 ).filter((srv) => {
   if (!srv || !srv.id) return false;
-
-  // Exclude if already charged to a room folio
   if (srv.roomId && srv.chargedToFolio) return false;
 
-  // Exclude if settled or completed
   const st = String(srv.status || "").trim().toLowerCase();
   if (st === "completed" || st === "settled" || st === "cancelled" || Boolean(srv.settledSaleId)) {
     return false;
@@ -7195,7 +7183,10 @@ export default function App() {
               </div>
               <button
                 type="button"
-                onClick={() => setCheckInModalRoom(null)}
+                onClick={() => {
+                  setCheckInModalRoom(null);
+                  setActivePrebookingId(null);
+                }}
                 className="text-slate-400 hover:text-black p-1"
               >
                 <X className="w-5 h-5" />
