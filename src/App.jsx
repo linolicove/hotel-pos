@@ -2372,26 +2372,37 @@ export default function App() {
     };
 
     try {
-      // 1. Post to official sales records
+      // 1. Post to official sales records in Firebase
       await set(ref(rtdb, `sales_records/${saleId}`), saleRecord);
 
-      // 2. Update service status in Firebase RTDB
+      // 2. Mark the service as Completed in Firebase RTDB
       await update(ref(rtdb, `guest_services/${settleServiceItem.id}`), {
         status: "Completed",
         settledSaleId: saleId,
         paymentMethod: settlementMethod,
       });
 
-      // 3. Immediately remove from local state so it leaves the screen instantly
+      // 3. INSTANT LOCAL STATE UPDATE (Forces immediate removal without refresh)
       setGuestServices((prev) => {
         const next = { ...prev };
+        // Delete or mark complete so Object.values() immediately omits it
         if (next[settleServiceItem.id]) {
           next[settleServiceItem.id] = {
             ...next[settleServiceItem.id],
             status: "Completed",
             settledSaleId: saleId,
-            paymentMethod: settlementMethod,
           };
+        } else {
+          // Fallback if stored with array indices
+          Object.keys(next).forEach((key) => {
+            if (next[key]?.id === settleServiceItem.id) {
+              next[key] = {
+                ...next[key],
+                status: "Completed",
+                settledSaleId: saleId,
+              };
+            }
+          });
         }
         return next;
       });
@@ -2418,7 +2429,7 @@ export default function App() {
 
       printIsolatedDocument(html);
 
-      // 5. Close modal
+      // 5. Close Modal
       setSettleServiceItem(null);
       setCashTendered("");
     } catch (err) {
@@ -4072,14 +4083,17 @@ export default function App() {
               )}
               {/* UNASSIGNED / WALK-IN ADD-ON BILLS NOT ATTACHED TO ROOMS */}
               {(() => {
-                const unassignedServices = Object.values(guestServices || {}).filter((srv) => {
-  // 1. Must NOT be assigned/charged to a room folio
-  const hasRoom = Boolean(srv.roomId && srv.chargedToFolio);
-  if (hasRoom) return false;
+                const unassignedServices = (
+  Array.isArray(guestServices) ? guestServices : Object.values(guestServices || {})
+).filter((srv) => {
+  if (!srv || !srv.id) return false;
 
-  // 2. Strict status check: exclude completed, settled, or cancelled (case-insensitive)
+  // Exclude if already charged to a room folio
+  if (srv.roomId && srv.chargedToFolio) return false;
+
+  // Exclude if settled or completed
   const st = String(srv.status || "").trim().toLowerCase();
-  if (st === "completed" || st === "settled" || st === "cancelled" || srv.settledSaleId) {
+  if (st === "completed" || st === "settled" || st === "cancelled" || Boolean(srv.settledSaleId)) {
     return false;
   }
 
