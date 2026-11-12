@@ -3944,6 +3944,131 @@ export default function App() {
                   <p className="text-xs text-slate-400 mt-1">Check in a guest at the Front Desk to open an active room folio.</p>
                 </div>
               )}
+              {/* UNASSIGNED / WALK-IN ADD-ON BILLS NOT ATTACHED TO ROOMS */}
+              {(() => {
+                const unassignedServices = Object.values(guestServices || {}).filter(
+                  (srv) => !srv.roomId || !srv.chargedToFolio
+                );
+
+                if (unassignedServices.length === 0) return null;
+
+                return (
+                  <div className="mt-8 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-base font-bold text-[#091D26] flex items-center gap-2">
+                          <Compass className="w-5 h-5 text-amber-600" /> Unassigned & Walk-In Add-on Bills
+                        </h3>
+                        <p className="text-xs text-slate-500">
+                          Add-ons not attached to room folios. Settle separately, attach to an occupied room, or reprint slips.
+                        </p>
+                      </div>
+                      <span className="text-xs font-mono font-bold bg-amber-100 text-amber-800 px-2.5 py-1 rounded-full">
+                        {unassignedServices.length} Pending
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {unassignedServices.map((srv) => (
+                        <div
+                          key={srv.id}
+                          className="bg-white rounded-3xl border border-amber-200 p-5 shadow-xs space-y-3 flex flex-col justify-between"
+                        >
+                          <div>
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <span className="text-[10px] font-mono font-bold text-amber-700 uppercase">
+                                  {srv.id}
+                                </span>
+                                <h4 className="font-black text-base text-[#091D26]">{srv.guestName}</h4>
+                                <span className="text-[10px] font-bold uppercase text-slate-400">
+                                  {srv.category.replace("_", " ")} • {srv.date}
+                                </span>
+                              </div>
+                              <span className="text-base font-black text-[#0D9488]">
+                                {srv.currency === "USD" ? `$${Number(srv.price).toFixed(2)}` : `Rs. ${Number(srv.price).toLocaleString()}`}
+                              </span>
+                            </div>
+
+                            <div className="mt-2 p-2.5 bg-[#FAF9F5] rounded-xl border border-slate-100 text-xs text-slate-600 space-y-1">
+                              {srv.phone && <div>Tel: <span className="font-mono">{srv.phone}</span></div>}
+                              {srv.idPassportNumber && <div>ID/Passport: <span className="font-mono font-bold">{srv.idPassportNumber}</span></div>}
+                              {srv.deposit > 0 && <div>Deposit: <span className="text-emerald-700 font-bold">{srv.currency} {srv.deposit}</span></div>}
+                              {srv.notes && <div className="italic text-slate-500">"{srv.notes}"</div>}
+                            </div>
+                          </div>
+
+                          <div className="space-y-2 pt-2 border-t border-slate-100">
+                            {/* Attach to an occupied room */}
+                            <select
+                              defaultValue=""
+                              onChange={async (e) => {
+                                const targetRoomId = e.target.value;
+                                if (!targetRoomId) return;
+                                const targetRoom = rooms.find((r) => r.id === targetRoomId);
+                                if (!targetRoom) return;
+
+                                const itemId = `itm_srv_${srv.id}`;
+                                const lineDesc = `Add-on (${srv.category.replace("_", " ")}): ${srv.guestName}`;
+
+                                await set(ref(rtdb, `rooms/${targetRoomId}/orderItems/${itemId}`), {
+                                  id: itemId,
+                                  serviceId: srv.id,
+                                  description: lineDesc,
+                                  quantity: 1,
+                                  unitPrice: Number(srv.price),
+                                  total: Number(srv.price),
+                                  currency: srv.currency || "USD",
+                                  timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                                });
+
+                                await update(ref(rtdb, `guest_services/${srv.id}`), {
+                                  roomId: targetRoomId,
+                                  chargedToFolio: true,
+                                });
+
+                                alert(`Moved and charged to Room #${targetRoom.number} bill!`);
+                              }}
+                              className="w-full border border-slate-300 rounded-xl p-2 text-xs font-semibold bg-white text-slate-700"
+                            >
+                              <option value="">Move & Add to Room Folio...</option>
+                              {rooms
+                                .filter((r) => r.status === "occupied")
+                                .map((r) => (
+                                  <option key={r.id} value={r.id}>
+                                    Room #{r.number} ({r.guestName || "Occupied"})
+                                  </option>
+                                ))}
+                            </select>
+
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => printServiceVoucherThermal(srv)}
+                                className="flex-1 bg-[#0F2D3C] hover:bg-[#091D26] text-white py-2 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                              >
+                                <Printer className="w-3.5 h-3.5 text-teal-400" />
+                                <span>Print Slip</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  if (window.confirm(`Mark ${srv.guestName}'s ${srv.category.replace('_', ' ')} as paid & completed?`)) {
+                                    await update(ref(rtdb, `guest_services/${srv.id}`), { status: "Completed" });
+                                  }
+                                }}
+                                className="flex-1 bg-[#0D9488] hover:bg-[#0F766E] text-white py-2 rounded-xl text-xs font-bold cursor-pointer"
+                              >
+                                Settle Paid
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
           {/* --- CASHIER SHIFT & DRAWER BALANCING TAB --- */}
@@ -4418,88 +4543,213 @@ export default function App() {
               <th className="p-3.5">Service Specific Details</th>
               <th className="p-3.5 text-right">Price</th>
               <th className="p-3.5 text-center">Status</th>
+              <th className="p-3.5 text-center">Print Voucher</th>
               {isGeneralManager && <th className="p-3.5 text-center text-rose-600">Delete</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-[#F3EFE6]">
-            {Object.values(guestServices)
+            {Object.values(guestServices || {})
               .filter((s) => serviceCategoryFilter === "all" || s.category === serviceCategoryFilter)
               .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))
-              .map((srv) => (
-                <tr key={srv.id} className="hover:bg-[#FAF9F5] transition-colors">
-                  <td className="p-3.5 font-mono">
-                    <span className="font-bold text-slate-800 block">{srv.date}</span>
-                    <span className="text-[10px] text-slate-400">{srv.id}</span>
-                  </td>
-                  <td className="p-3.5">
-                    <span className={`px-2.5 py-1 rounded-full font-bold uppercase text-[10px] ${
-                      srv.category === "bike_rental" ? "bg-amber-100 text-amber-900 border border-amber-200" :
-                      srv.category === "airport_pickup" ? "bg-blue-100 text-blue-900 border border-blue-200" :
-                      "bg-emerald-100 text-emerald-900 border border-emerald-200"
-                    }`}>
-                      {srv.category === "bike_rental" ? "Bike Rental" : srv.category === "airport_pickup" ? "Airport Pickup" : "Safari / Tour"}
-                    </span>
-                  </td>
-                  <td className="p-3.5">
-                    <div className="font-bold text-[#091D26]">{srv.guestName}</div>
-                    {srv.phone && <div className="text-[10px] text-slate-400 font-mono">Tel: {srv.phone}</div>}
-                    {srv.email && <div className="text-[10px] text-slate-400">{srv.email}</div>}
-                  </td>
-                  <td className="p-3.5 font-bold">
-                    {srv.roomId ? `Room #${rooms.find(r => r.id === srv.roomId)?.number || srv.roomId}` : <span className="text-slate-400">Walk-In</span>}
-                  </td>
-                  <td className="p-3.5 text-slate-600">
-                    {srv.category === "bike_rental" && (
-                      <div className="space-y-0.5 text-[11px]">
-                        <div>Passport/ID: <b className="font-mono text-slate-800">{srv.idPassportNumber || "--"}</b></div>
-                        <div>Country: <b>{srv.country || "--"}</b> | Deposit: <b className="text-emerald-700">{srv.currency} {srv.deposit}</b></div>
-                      </div>
-                    )}
-                    {srv.category === "airport_pickup" && (
-                      <div className="space-y-0.5 text-[11px]">
-                        <div>Vehicle: <b>{srv.vehicleType}</b> | Pax: <b>{srv.numberOfPeople}</b></div>
-                        {srv.flightNumber && <div>Flight: <b className="font-mono">{srv.flightNumber}</b></div>}
-                      </div>
-                    )}
-                    {srv.category === "safari_tour" && (
-                      <div className="text-[11px] text-slate-600">
-                        Date Scheduled: <b>{srv.date}</b> {srv.notes && `• "${srv.notes}"`}
-                      </div>
-                    )}
-                  </td>
-                  <td className="p-3.5 text-right font-black text-sm text-[#0D9488]">
-                    {srv.currency === "USD" ? `$${Number(srv.price).toFixed(2)}` : `Rs. ${Number(srv.price).toLocaleString()}`}
-                  </td>
-                  <td className="p-3.5 text-center">
-                    <button
-                      type="button"
-                      onClick={() => handleToggleServiceStatus(srv.id, srv.status)}
-                      className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase transition-all cursor-pointer ${
-                        srv.status === "Active" ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200" :
-                        srv.status === "Completed" ? "bg-slate-100 text-slate-600 hover:bg-slate-200" :
-                        "bg-rose-100 text-rose-700 hover:bg-rose-200"
-                      }`}
-                    >
-                      {srv.status}
-                    </button>
-                  </td>
-                  {isGeneralManager && (
+              .map((srv) => {
+                const roomObj = rooms.find((r) => r.id === srv.roomId);
+                const isRoomOccupied = roomObj && roomObj.status === "occupied";
+                const isAlreadyOnFolio =
+                  isRoomOccupied &&
+                  Boolean(
+                    roomObj.orderItems?.some(
+                      (i) => i.id === `itm_srv_${srv.id}` || i.serviceId === srv.id
+                    )
+                  );
+
+                return (
+                  <tr key={srv.id} className="hover:bg-[#FAF9F5] transition-colors">
+                    <td className="p-3.5 font-mono">
+                      <span className="font-bold text-slate-800 block">{srv.date}</span>
+                      <span className="text-[10px] text-slate-400">{srv.id}</span>
+                    </td>
+                    <td className="p-3.5">
+                      <span
+                        className={`px-2.5 py-1 rounded-full font-bold uppercase text-[10px] ${
+                          srv.category === "bike_rental"
+                            ? "bg-amber-100 text-amber-900 border border-amber-200"
+                            : srv.category === "airport_pickup"
+                            ? "bg-blue-100 text-blue-900 border border-blue-200"
+                            : "bg-emerald-100 text-emerald-900 border border-emerald-200"
+                        }`}
+                      >
+                        {srv.category === "bike_rental"
+                          ? "Bike Rental"
+                          : srv.category === "airport_pickup"
+                          ? "Airport Pickup"
+                          : "Safari / Tour"}
+                      </span>
+                    </td>
+                    <td className="p-3.5">
+                      <div className="font-bold text-[#091D26]">{srv.guestName}</div>
+                      {srv.phone && (
+                        <div className="text-[10px] text-slate-400 font-mono">Tel: {srv.phone}</div>
+                      )}
+                      {srv.email && <div className="text-[10px] text-slate-400">{srv.email}</div>}
+                    </td>
+
+                    {/* Room & Assignment Action */}
+                    <td className="p-3.5 font-bold">
+                      {srv.roomId && roomObj ? (
+                        <div>
+                          <span className="text-[#0F766E]">Room #{roomObj.number}</span>
+                          {isAlreadyOnFolio ? (
+                            <span className="block text-[9px] font-bold text-emerald-700 uppercase">
+                              ✓ Added to Bill
+                            </span>
+                          ) : isRoomOccupied ? (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const itemId = `itm_srv_${srv.id}`;
+                                const lineDesc = `Add-on (${srv.category.replace("_", " ")}): ${srv.guestName}`;
+                                await set(ref(rtdb, `rooms/${srv.roomId}/orderItems/${itemId}`), {
+                                  id: itemId,
+                                  serviceId: srv.id,
+                                  description: lineDesc,
+                                  quantity: 1,
+                                  unitPrice: Number(srv.price),
+                                  total: Number(srv.price),
+                                  currency: srv.currency || "USD",
+                                  timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                                });
+                                await update(ref(rtdb, `guest_services/${srv.id}`), { chargedToFolio: true });
+                                alert(`Charge added to Room #${roomObj.number} active bill!`);
+                              }}
+                              className="block text-[10px] font-bold text-teal-600 hover:text-teal-800 underline mt-0.5 cursor-pointer"
+                            >
+                              + Charge to Room #{roomObj.number}
+                            </button>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <div>
+                          <span className="text-slate-400 block">Walk-In</span>
+                          {/* Quick assign walk-in to an occupied room */}
+                          <select
+                            defaultValue=""
+                            onChange={async (e) => {
+                              const targetRoomId = e.target.value;
+                              if (!targetRoomId) return;
+                              const targetRoom = rooms.find((r) => r.id === targetRoomId);
+                              if (!targetRoom) return;
+
+                              const itemId = `itm_srv_${srv.id}`;
+                              const lineDesc = `Add-on (${srv.category.replace("_", " ")}): ${srv.guestName}`;
+
+                              await set(ref(rtdb, `rooms/${targetRoomId}/orderItems/${itemId}`), {
+                                id: itemId,
+                                serviceId: srv.id,
+                                description: lineDesc,
+                                quantity: 1,
+                                unitPrice: Number(srv.price),
+                                total: Number(srv.price),
+                                currency: srv.currency || "USD",
+                                timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                              });
+
+                              await update(ref(rtdb, `guest_services/${srv.id}`), {
+                                roomId: targetRoomId,
+                                chargedToFolio: true,
+                              });
+
+                              alert(`Assigned and charged to Room #${targetRoom.number}!`);
+                            }}
+                            className="mt-1 border border-slate-300 rounded-lg px-1.5 py-0.5 text-[10px] font-medium bg-white text-slate-700"
+                          >
+                            <option value="">Attach to Room...</option>
+                            {rooms
+                              .filter((r) => r.status === "occupied")
+                              .map((r) => (
+                                <option key={r.id} value={r.id}>
+                                  Room #{r.number} ({r.guestName || "Occupied"})
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+                      )}
+                    </td>
+
+                    {/* Specific Details */}
+                    <td className="p-3.5 text-slate-600">
+                      {srv.category === "bike_rental" && (
+                        <div className="space-y-0.5 text-[11px]">
+                          <div>Passport/ID: <b className="font-mono text-slate-800">{srv.idPassportNumber || "--"}</b></div>
+                          <div>Country: <b>{srv.country || "--"}</b> | Deposit: <b className="text-emerald-700">{srv.currency} {srv.deposit}</b></div>
+                        </div>
+                      )}
+                      {srv.category === "airport_pickup" && (
+                        <div className="space-y-0.5 text-[11px]">
+                          <div>Vehicle: <b>{srv.vehicleType}</b> | Pax: <b>{srv.numberOfPeople}</b></div>
+                          {srv.flightNumber && <div>Flight: <b className="font-mono">{srv.flightNumber}</b></div>}
+                        </div>
+                      )}
+                      {srv.category === "safari_tour" && (
+                        <div className="text-[11px] text-slate-600">
+                          Scheduled: <b>{srv.date}</b> {srv.notes && `• "${srv.notes}"`}
+                        </div>
+                      )}
+                    </td>
+
+                    {/* Price */}
+                    <td className="p-3.5 text-right font-black text-sm text-[#0D9488]">
+                      {srv.currency === "USD" ? `$${Number(srv.price).toFixed(2)}` : `Rs. ${Number(srv.price).toLocaleString()}`}
+                    </td>
+
+                    {/* Status */}
                     <td className="p-3.5 text-center">
                       <button
                         type="button"
-                        onClick={() => handleDeleteGuestService(srv.id)}
-                        className="p-1.5 text-rose-600 hover:text-rose-800 rounded hover:bg-rose-50 transition-colors cursor-pointer"
-                        title="Delete service booking"
+                        onClick={() => handleToggleServiceStatus(srv.id, srv.status)}
+                        className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase transition-all cursor-pointer ${
+                          srv.status === "Active"
+                            ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
+                            : srv.status === "Completed"
+                            ? "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                            : "bg-rose-100 text-rose-700 hover:bg-rose-200"
+                        }`}
                       >
-                        <Trash2 className="w-4 h-4" />
+                        {srv.status}
                       </button>
                     </td>
-                  )}
-                </tr>
-              ))}
-            {Object.keys(guestServices).length === 0 && (
+
+                    {/* PRINT THERMAL VOUCHER BUTTON */}
+                    <td className="p-3.5 text-center">
+                      <button
+                        type="button"
+                        onClick={() => printServiceVoucherThermal(srv)}
+                        className="px-2.5 py-1.5 bg-[#0F2D3C] hover:bg-[#091D26] text-white rounded-xl text-xs font-bold inline-flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                        title="Print 80mm Thermal Receipt Voucher"
+                      >
+                        <Printer className="w-3.5 h-3.5 text-teal-400" />
+                        <span>Print</span>
+                      </button>
+                    </td>
+
+                    {/* Delete */}
+                    {isGeneralManager && (
+                      <td className="p-3.5 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteGuestService(srv.id, srv.roomId)}
+                          className="p-1.5 text-rose-600 hover:text-rose-800 rounded hover:bg-rose-50 transition-colors cursor-pointer"
+                          title="Delete service booking"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+            {Object.keys(guestServices || {}).length === 0 && (
               <tr>
-                <td colSpan={8} className="p-8 text-center text-slate-400 italic">
+                <td colSpan={9} className="p-8 text-center text-slate-400 italic">
                   No guest service add-ons booked yet. Click "+ Book New Service" to start.
                 </td>
               </tr>
