@@ -693,18 +693,14 @@ export default function App() {
     currency: "USD",
     date: getTodayKey(),
     notes: "",
-    rentalDays: "1", // <-- Add this field
-    // Bike Rental specific:
     deposit: "0",
     country: "",
     email: "",
     phone: "",
     idPassportNumber: "",
-    // Airport Pickup specific:
     vehicleType: "Car / Sedan",
     numberOfPeople: "1",
     flightNumber: "",
-    // Status
     status: "Active",
     chargedToFolio: false
   });
