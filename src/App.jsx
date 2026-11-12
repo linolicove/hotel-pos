@@ -2375,14 +2375,28 @@ export default function App() {
       // 1. Post to official sales records
       await set(ref(rtdb, `sales_records/${saleId}`), saleRecord);
 
-      // 2. Mark the service as Completed
+      // 2. Update service status in Firebase RTDB
       await update(ref(rtdb, `guest_services/${settleServiceItem.id}`), {
         status: "Completed",
         settledSaleId: saleId,
         paymentMethod: settlementMethod,
       });
 
-      // 3. Print 80mm settled thermal invoice
+      // 3. Immediately remove from local state so it leaves the screen instantly
+      setGuestServices((prev) => {
+        const next = { ...prev };
+        if (next[settleServiceItem.id]) {
+          next[settleServiceItem.id] = {
+            ...next[settleServiceItem.id],
+            status: "Completed",
+            settledSaleId: saleId,
+            paymentMethod: settlementMethod,
+          };
+        }
+        return next;
+      });
+
+      // 4. Print 80mm settled thermal invoice
       const dummyRoom = {
         number: "WALK-IN",
         orderId: settleServiceItem.id,
@@ -2404,6 +2418,7 @@ export default function App() {
 
       printIsolatedDocument(html);
 
+      // 5. Close modal
       setSettleServiceItem(null);
       setCashTendered("");
     } catch (err) {
@@ -4057,11 +4072,19 @@ export default function App() {
               )}
               {/* UNASSIGNED / WALK-IN ADD-ON BILLS NOT ATTACHED TO ROOMS */}
               {(() => {
-                const unassignedServices = Object.values(guestServices || {}).filter(
-                  (srv) => !srv.roomId || !srv.chargedToFolio
-                );
+                const unassignedServices = Object.values(guestServices || {}).filter((srv) => {
+  // 1. Must NOT be assigned/charged to a room folio
+  const hasRoom = Boolean(srv.roomId && srv.chargedToFolio);
+  if (hasRoom) return false;
 
-                if (unassignedServices.length === 0) return null;
+  // 2. Strict status check: exclude completed, settled, or cancelled (case-insensitive)
+  const st = String(srv.status || "").trim().toLowerCase();
+  if (st === "completed" || st === "settled" || st === "cancelled" || srv.settledSaleId) {
+    return false;
+  }
+
+  return true;
+});
 
                 return (
                   <div className="mt-8 space-y-4">
