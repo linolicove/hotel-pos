@@ -2653,73 +2653,78 @@ export default function App() {
     update(ref(rtdb, `rooms/${roomId}`), { status });
   };
 
-  const handleOpenOrderAndCheckIn = (e) => {
+  const handleOpenOrderAndCheckIn = async (e) => {
     e.preventDefault();
-    if (!checkInModalRoom || !guestForm.name || !guestForm.idPassportNumber) {
+    if (!checkInModalRoom || !guestForm.name?.trim() || !guestForm.idPassportNumber?.trim()) {
       alert("Please fill in Guest Name and Passport / NIC Number.");
       return;
     }
 
-    const nights = parseInt(guestForm.nights, 10) || 1;
-    const now = new Date();
-    const orderId = `ORD-${checkInModalRoom.number}-${Date.now().toString().slice(-4)}`;
-    const itemId = `itm_${Date.now()}`;
-    
-    const baseRate = parseFloat(guestForm.customRate) || getDynamicRoomRate(checkInModalRoom, rooms);
-    const discountPct = Math.min(100, Math.max(0, parseFloat(guestForm.discountPercent) || 0));
-    const discountedUnitRate = baseRate * (1 - discountPct / 100);
-    const finalStayTotal = discountedUnitRate * nights;
+    try {
+      const nights = Math.max(1, parseInt(guestForm.nights, 10) || 1);
+      const now = new Date();
+      const orderId = `ORD-${checkInModalRoom.number}-${Date.now().toString().slice(-4)}`;
+      const itemId = `itm_${Date.now()}`;
 
-    const checkInDateStr = guestForm.checkInDate || getTodayKey();
-    const checkInTime = new Date(checkInDateStr).getTime();
-    const checkOutDateStr = new Date(checkInTime + nights * 86400000).toISOString().split("T")[0];
+      const baseRate = parseFloat(guestForm.customRate) || getDynamicRoomRate(checkInModalRoom, rooms);
+      const discountPct = Math.min(100, Math.max(0, parseFloat(guestForm.discountPercent) || 0));
+      const discountedUnitRate = baseRate * (1 - discountPct / 100);
+      const finalStayTotal = discountedUnitRate * nights;
 
-    const discountTag = discountPct > 0 ? ` • ${discountPct}% OFF` : "";
+      const checkInDateStr = guestForm.checkInDate || getTodayKey();
+      const checkInTime = new Date(checkInDateStr).getTime();
+      const checkOutDateStr = new Date(checkInTime + nights * 86400000).toISOString().split("T")[0];
+      const discountTag = discountPct > 0 ? ` • ${discountPct}% OFF` : "";
 
-    const initialOrderItem = {
-      id: itemId,
-      description: `Room Stay (${nights} Night${nights > 1 ? "s" : ""} @ ${checkInModalRoom.rateStrategy?.toUpperCase() || "STANDARD"} Rate${discountTag})`,
-      quantity: nights,
-      unitPrice: Number(discountedUnitRate.toFixed(2)),
-      total: Number(finalStayTotal.toFixed(2)),
-      discountPercent: discountPct,
-      timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
-    };
+      const initialOrderItem = {
+        id: itemId,
+        description: `Room Stay (${nights} Night${nights > 1 ? "s" : ""} @ ${checkInModalRoom.rateStrategy?.toUpperCase() || "STANDARD"} Rate${discountTag})`,
+        quantity: nights,
+        unitPrice: Number(discountedUnitRate.toFixed(2)),
+        total: Number(finalStayTotal.toFixed(2)),
+        discountPercent: discountPct,
+        timestamp: `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
+      };
 
-    const roomPayload = {
-      status: "occupied",
-      orderId,
-      openedAt: now.toLocaleString(),
-      guestName: sanitizeInput(guestForm.name),
-      guestPhone: sanitizeInput(guestForm.phone),
-      guestEmail: sanitizeInput(guestForm.email),
-      guestCountry: sanitizeInput(guestForm.country),
-      guestIdPassport: sanitizeInput(guestForm.idPassportNumber),
-      purposeOfVisit: sanitizeInput(guestForm.purposeOfVisit),
-      arrivalFrom: sanitizeInput(guestForm.arrivalFrom),
-      nextDestination: sanitizeInput(guestForm.nextDestination),
-      checkIn: checkInDateStr,
-      checkOut: checkOutDateStr,
-      discountPercent: discountPct,
-      orderItems: { [itemId]: initialOrderItem },
-    };
+      const roomPayload = {
+        status: "occupied",
+        orderId,
+        openedAt: now.toLocaleString(),
+        guestName: sanitizeInput(guestForm.name),
+        guestPhone: sanitizeInput(guestForm.phone || ""),
+        guestEmail: sanitizeInput(guestForm.email || ""),
+        guestCountry: sanitizeInput(guestForm.country || ""),
+        guestIdPassport: sanitizeInput(guestForm.idPassportNumber),
+        purposeOfVisit: sanitizeInput(guestForm.purposeOfVisit || "Leisure / Tourism"),
+        arrivalFrom: sanitizeInput(guestForm.arrivalFrom || ""),
+        nextDestination: sanitizeInput(guestForm.nextDestination || ""),
+        checkIn: checkInDateStr,
+        checkOut: checkOutDateStr,
+        discountPercent: discountPct,
+        orderItems: { [itemId]: initialOrderItem },
+      };
 
-    update(ref(rtdb, `rooms/${checkInModalRoom.id}`), roomPayload);
-    setCheckInModalRoom(null);
-    setGuestForm({
-      name: "",
-      phone: "",
-      email: "",
-      country: "",
-      idPassportNumber: "",
-      purposeOfVisit: "Leisure / Tourism",
-      arrivalFrom: "",
-      nextDestination: "",
-      nights: 1,
-      customRate: "",
-      discountPercent: "",
-      checkInDate: getTodayKey()
-    });
+      await update(ref(rtdb, `rooms/${checkInModalRoom.id}`), roomPayload);
+
+      setCheckInModalRoom(null);
+      setGuestForm({
+        name: "",
+        phone: "",
+        email: "",
+        country: "",
+        idPassportNumber: "",
+        purposeOfVisit: "Leisure / Tourism",
+        arrivalFrom: "",
+        nextDestination: "",
+        nights: 1,
+        customRate: "",
+        discountPercent: "",
+        checkInDate: getTodayKey(),
+      });
+    } catch (err) {
+      console.error("Check-in error:", err);
+      alert("Check-in failed: " + err.message);
+    }
   };
 
   const handleAddItemToOrder = (e) => {
