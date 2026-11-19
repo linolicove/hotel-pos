@@ -727,6 +727,23 @@ export default function App() {
   const [filterAllDates, setFilterAllDates] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // --- ADMIN-ONLY ACTIVE BILL EDITOR STATE ---
+  const [editingFolioItem, setEditingFolioItem] = useState(null); // { roomId, roomNumber, item }
+  const [editFolioForm, setEditFolioForm] = useState({
+    description: "",
+    unitPrice: "",
+    quantity: "1",
+    discountPercent: "",
+    currency: "USD"
+  });
+
+  const [editingServiceBill, setEditingServiceBill] = useState(null); // walk-in service object
+  const [editServiceBillForm, setEditServiceBillForm] = useState({
+    price: "",
+    discountPercent: "",
+    currency: "LKR"
+  });
+
   // Active Orders: Direct Add Folio Item Modal State
   const [folioModalRoom, setFolioModalRoom] = useState(null);
   const [folioItemForm, setFolioItemForm] = useState({
@@ -2045,6 +2062,83 @@ export default function App() {
     set(ref(rtdb, `rooms/${folioModalRoom.id}/orderItems/${itemId}`), newItem);
     setFolioItemForm({ description: "", unitPrice: "", quantity: "1", currency: "LKR" });
     setFolioModalRoom(null);
+  };
+
+  // 1. Save Admin Price / Discount Edit on an Active Room Folio Item
+  const handleSaveAdminFolioEdit = async (e) => {
+    e.preventDefault();
+    if (!isGeneralManager || !editingFolioItem) {
+      alert("Access Denied: Only General Manager / Admin can modify active bill prices or add discounts.");
+      return;
+    }
+
+    const { roomId, item } = editingFolioItem;
+    const baseUnitPrice = parseFloat(editFolioForm.unitPrice) || 0;
+    const qty = Math.max(1, parseInt(editFolioForm.quantity, 10) || 1);
+    const discPct = Math.min(100, Math.max(0, parseFloat(editFolioForm.discountPercent) || 0));
+
+    const discountedUnit = Number((baseUnitPrice * (1 - discPct / 100)).toFixed(2));
+    const finalTotal = Number((discountedUnit * qty).toFixed(2));
+
+    // Clean any previous discount tag from description before appending the updated one
+    const cleanDesc = sanitizeInput(editFolioForm.description).replace(/\s•\s\d+(\.\d+)?%\sOFF/gi, "");
+    const finalDesc = discPct > 0 ? `${cleanDesc} • ${discPct}% OFF` : cleanDesc;
+
+    try {
+      await update(ref(rtdb, `rooms/${roomId}/orderItems/${item.id}`), {
+        description: finalDesc,
+        unitPrice: discountedUnit,
+        quantity: qty,
+        total: finalTotal,
+        discountPercent: discPct,
+        currency: editFolioForm.currency || item.currency || "USD",
+        editedByAdmin: currentUser?.name || "Admin",
+        editedAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+      });
+
+      setEditingFolioItem(null);
+    } catch (err) {
+      console.error("Failed to update folio item:", err);
+      alert("Error updating bill: " + err.message);
+    }
+  };
+
+  // 2. Save Admin Price / Discount Edit on an Unassigned Walk-In Add-on Bill
+  const handleSaveAdminServiceBillEdit = async (e) => {
+    e.preventDefault();
+    if (!isGeneralManager || !editingServiceBill) {
+      alert("Access Denied: Only General Manager / Admin can modify service bill prices or add discounts.");
+      return;
+    }
+
+    const rawPrice = parseFloat(editServiceBillForm.price) || 0;
+    const discPct = Math.min(100, Math.max(0, parseFloat(editServiceBillForm.discountPercent) || 0));
+    const finalPrice = Number((rawPrice * (1 - discPct / 100)).toFixed(2));
+
+    try {
+      await update(ref(rtdb, `guest_services/${editingServiceBill.id}`), {
+        price: finalPrice,
+        discountPercent: discPct,
+        currency: editServiceBillForm.currency || editingServiceBill.currency || "LKR",
+        editedByAdmin: currentUser?.name || "Admin"
+      });
+
+      // Update local state immediately
+      setGuestServices((prev) => ({
+        ...prev,
+        [editingServiceBill.id]: {
+          ...prev[editingServiceBill.id],
+          price: finalPrice,
+          discountPercent: discPct,
+          currency: editServiceBillForm.currency || editingServiceBill.currency || "LKR"
+        }
+      }));
+
+      setEditingServiceBill(null);
+    } catch (err) {
+      console.error("Failed to update service bill:", err);
+      alert("Error updating service bill: " + err.message);
+    }
   };
 
   const handleRemoveItemFromAnyRoom = (roomId, itemId) => {
@@ -3989,6 +4083,30 @@ export default function App() {
                                           : `≈ $${(rawTotal / usdRate).toFixed(2)} USD`}
                                       </span>
                                     </div>
+                                    {/* >>> PASTE ADMIN EDIT BUTTON HERE <<< */}
+  {isGeneralManager && (
+    <button
+      type="button"
+      onClick={() => {
+        setEditingFolioItem({
+          roomId: room.id,
+          roomNumber: room.number,
+          item
+        });
+        setEditFolioForm({
+          description: item.description || "",
+          unitPrice: String(item.unitPrice ?? rawTotal),
+          quantity: String(item.quantity || 1),
+          discountPercent: item.discountPercent ? String(item.discountPercent) : "",
+          currency: isUsd ? "USD" : "LKR"
+        });
+      }}
+      className="p-1 text-slate-400 hover:text-[#0D9488] rounded hover:bg-teal-50 transition-colors cursor-pointer"
+      title="Admin: Edit Price or Add Discount"
+    >
+      <Edit2 className="w-3.5 h-3.5" />
+    </button>
+  )}
                                     <button
                                       type="button"
                                       onClick={() => handleRemoveItemFromAnyRoom(room.id, item.id)}
@@ -4193,9 +4311,33 @@ export default function App() {
                                   {srv.category.replace("_", " ")} • {srv.date}
                                 </span>
                               </div>
-                              <span className="text-base font-black text-[#0D9488]">
-                                {srv.currency === "USD" ? `$${Number(srv.price).toFixed(2)}` : `Rs. ${Number(srv.price).toLocaleString()}`}
-                              </span>
+                              <div className="text-right">
+  <span className="text-base font-black text-[#0D9488] block">
+    {srv.currency === "USD" ? `$${Number(srv.price).toFixed(2)}` : `Rs. ${Number(srv.price).toLocaleString()}`}
+  </span>
+  {srv.discountPercent > 0 && (
+    <span className="text-[10px] font-bold text-purple-700 block">
+      ({srv.discountPercent}% OFF Applied)
+    </span>
+  )}
+  {isGeneralManager && (
+    <button
+      type="button"
+      onClick={() => {
+        setEditingServiceBill(srv);
+        setEditServiceBillForm({
+          price: String(srv.price || 0),
+          discountPercent: srv.discountPercent ? String(srv.discountPercent) : "",
+          currency: srv.currency || "LKR"
+        });
+      }}
+      className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-slate-500 hover:text-[#0D9488] bg-slate-100 hover:bg-teal-50 px-2 py-0.5 rounded-lg transition-colors cursor-pointer"
+      title="Admin: Edit Price or Apply Discount"
+    >
+      <Edit2 className="w-3 h-3" /> Edit / Discount
+    </button>
+  )}
+</div>
                             </div>
 
                             <div className="mt-2 p-2.5 bg-[#FAF9F5] rounded-xl border border-slate-100 text-xs text-slate-600 space-y-1">
@@ -8910,6 +9052,221 @@ export default function App() {
     </div>
   </div>
 )}
+{/* MODAL: ADMIN EDIT ACTIVE ROOM FOLIO ITEM (PRICE & DISCOUNT) */}
+      {editingFolioItem && isGeneralManager && (() => {
+        const basePrice = parseFloat(editFolioForm.unitPrice) || 0;
+        const qty = Math.max(1, parseInt(editFolioForm.quantity, 10) || 1);
+        const discPct = Math.min(100, Math.max(0, parseFloat(editFolioForm.discountPercent) || 0));
+        const finalTotal = Math.max(0, (basePrice * qty) * (1 - discPct / 100));
+        const sym = editFolioForm.currency === "USD" ? "$" : "Rs. ";
+
+        return (
+          <div className="fixed inset-0 bg-[#06151E]/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl max-w-md w-full p-6 border border-[#E6DFD3] shadow-2xl">
+              <div className="flex justify-between items-center mb-4 pb-2 border-b">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-purple-700 flex items-center gap-1">
+                    <ShieldCheck className="w-3.5 h-3.5" /> General Manager Override
+                  </span>
+                  <h3 className="font-bold text-lg text-[#091D26]">
+                    Edit Bill Item • Room #{editingFolioItem.roomNumber}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditingFolioItem(null)}
+                  className="text-slate-400 hover:text-black p-1"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveAdminFolioEdit} className="space-y-4 text-xs">
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Line Item Description</label>
+                  <input
+                    type="text"
+                    required
+                    value={editFolioForm.description}
+                    onChange={(e) => setEditFolioForm({ ...editFolioForm, description: e.target.value })}
+                    className="w-full border border-slate-300 rounded-xl p-2.5 font-medium"
+                  />
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Unit Price</label>
+                    <input
+                      type="number"
+                      step="any"
+                      required
+                      value={editFolioForm.unitPrice}
+                      onChange={(e) => setEditFolioForm({ ...editFolioForm, unitPrice: e.target.value })}
+                      className="w-full border border-slate-300 rounded-xl p-2.5 font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Qty / Nights</label>
+                    <input
+                      type="number"
+                      min="1"
+                      required
+                      value={editFolioForm.quantity}
+                      onChange={(e) => setEditFolioForm({ ...editFolioForm, quantity: e.target.value })}
+                      className="w-full border border-slate-300 rounded-xl p-2.5 font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Currency</label>
+                    <select
+                      value={editFolioForm.currency}
+                      onChange={(e) => setEditFolioForm({ ...editFolioForm, currency: e.target.value })}
+                      className="w-full border border-slate-300 rounded-xl p-2.5 bg-white font-bold"
+                    >
+                      <option value="USD">USD ($)</option>
+                      <option value="LKR">LKR (Rs.)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Admin Custom Discount */}
+                <div className="p-3.5 bg-purple-50/70 border border-purple-200 rounded-2xl space-y-2">
+                  <div className="flex justify-between items-center">
+                    <label className="font-bold text-[11px] text-purple-900 flex items-center gap-1">
+                      <Percent className="w-3.5 h-3.5 text-purple-600" /> Apply Discount (%)
+                    </label>
+                    <span className="text-xs font-black text-[#0D9488]">
+                      New Total: {sym}{finalTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    max="100"
+                    placeholder="Empty = 0% discount"
+                    value={editFolioForm.discountPercent}
+                    onChange={(e) => setEditFolioForm({ ...editFolioForm, discountPercent: e.target.value })}
+                    className="w-full border border-purple-200 rounded-xl p-2.5 font-bold text-sm bg-white"
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingFolioItem(null)}
+                    className="flex-1 bg-slate-100 hover:bg-slate-200 py-3 rounded-xl font-bold text-slate-700"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 bg-[#0D9488] hover:bg-[#0F766E] text-white py-3 rounded-xl font-bold shadow-md cursor-pointer"
+                  >
+                    Save Bill Adjustment
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* MODAL: ADMIN EDIT UNASSIGNED WALK-IN SERVICE BILL */}
+      {editingServiceBill && isGeneralManager && (() => {
+        const rawPrice = parseFloat(editServiceBillForm.price) || 0;
+        const discPct = Math.min(100, Math.max(0, parseFloat(editServiceBillForm.discountPercent) || 0));
+        const finalPrice = Math.max(0, rawPrice * (1 - discPct / 100));
+        const sym = editServiceBillForm.currency === "USD" ? "$" : "Rs. ";
+
+        return (
+          <div className="fixed inset-0 bg-[#06151E]/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl max-w-md w-full p-6 border border-[#E6DFD3] shadow-2xl">
+              <div className="flex justify-between items-center mb-4 pb-2 border-b">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-purple-700 flex items-center gap-1">
+                    <ShieldCheck className="w-3.5 h-3.5" /> General Manager Override
+                  </span>
+                  <h3 className="font-bold text-lg text-[#091D26]">
+                    Edit Service Bill • {editingServiceBill.guestName}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditingServiceBill(null)}
+                  className="text-slate-400 hover:text-black p-1"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveAdminServiceBillEdit} className="space-y-4 text-xs">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Service Price</label>
+                    <input
+                      type="number"
+                      step="any"
+                      required
+                      value={editServiceBillForm.price}
+                      onChange={(e) => setEditServiceBillForm({ ...editServiceBillForm, price: e.target.value })}
+                      className="w-full border border-slate-300 rounded-xl p-2.5 font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Currency</label>
+                    <select
+                      value={editServiceBillForm.currency}
+                      onChange={(e) => setEditServiceBillForm({ ...editServiceBillForm, currency: e.target.value })}
+                      className="w-full border border-slate-300 rounded-xl p-2.5 bg-white font-bold"
+                    >
+                      <option value="USD">USD ($)</option>
+                      <option value="LKR">LKR (Rs.)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="p-3.5 bg-purple-50/70 border border-purple-200 rounded-2xl space-y-2">
+                  <div className="flex justify-between items-center">
+                    <label className="font-bold text-[11px] text-purple-900 flex items-center gap-1">
+                      <Percent className="w-3.5 h-3.5 text-purple-600" /> Apply Discount (%)
+                    </label>
+                    <span className="text-xs font-black text-[#0D9488]">
+                      Final Price: {sym}{finalPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    max="100"
+                    placeholder="Empty = 0% discount"
+                    value={editServiceBillForm.discountPercent}
+                    onChange={(e) => setEditServiceBillForm({ ...editServiceBillForm, discountPercent: e.target.value })}
+                    className="w-full border border-purple-200 rounded-xl p-2.5 font-bold text-sm bg-white"
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingServiceBill(null)}
+                    className="flex-1 bg-slate-100 hover:bg-slate-200 py-3 rounded-xl font-bold text-slate-700"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 bg-[#0D9488] hover:bg-[#0F766E] text-white py-3 rounded-xl font-bold shadow-md cursor-pointer"
+                  >
+                    Save Service Adjustment
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
