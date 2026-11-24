@@ -41,6 +41,7 @@ import {
   LogOut,
   FileSpreadsheet,
   FileText,
+  Landmark, // <-- ADD THIS
   Coins,
   Lock,
   ShieldCheck,
@@ -716,6 +717,9 @@ export default function App() {
   const [vendorStatusFilter, setVendorStatusFilter] = useState("all");
   const [vendorCategoryFilter, setVendorCategoryFilter] = useState("all");
   const [vendorSearchQuery, setVendorSearchQuery] = useState("");
+  // --- ACCOUNTING & PROFITABILITY STATE ---
+  const [accountingPeriod, setAccountingPeriod] = useState("this_month");
+  const [accountingIncludeUnpaidBills, setAccountingIncludeUnpaidBills] = useState(true);
 
   const [vendorBillForm, setVendorBillForm] = useState({
     vendorName: "",
@@ -1571,6 +1575,7 @@ export default function App() {
     if (tabId === "active-orders" && (isFrontDesk || isGeneralManager)) return true;
     if (tabId === "guest-services" && (isFrontDesk || isGeneralManager)) return true; // <-- ADD THIS
     if (tabId === "vendor-bills" && (isFrontDesk || isGeneralManager)) return true; // <-- ADD THIS
+    if (tabId === "accounting" && (isFrontDesk || isGeneralManager)) return true; // <-- ADD THIS
     if (tabId === "inventory" && (isFrontDesk || isGeneralManager || isHousekeeping)) return true;
     if (tabId === "room-admin" && isGeneralManager) return true;
     if (tabId === "reports" && isGeneralManager) return true;
@@ -1585,6 +1590,7 @@ export default function App() {
     { id: "cashier", label: "Cashier & Drawer", icon: ShieldAlert },
     { id: "guest-services", label: "Add-ons & Services", icon: Compass }, // <-- ADD THIS
     { id: "vendor-bills", label: "Vendor Bills & Expenses", icon: FileText }, // <-- ADD THIS
+    { id: "accounting", label: "Accounting & P&L", icon: Landmark }, // <-- ADD THIS
     { id: "inventory", label: "Stock & Minibar", icon: Boxes },
     { id: "reports", label: "Reports & Analytics", icon: BarChart3 },
     { id: "room-admin", label: "Room Management", icon: SlidersHorizontal },
@@ -5522,6 +5528,691 @@ export default function App() {
                 <tr>
                   <td colSpan={9} className="p-8 text-center text-slate-400 italic">
                     No vendor bills or expenses match the current filter.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+})()}
+
+{/* TAB: ACCOUNTING & PROFITABILITY (CONNECTED ENGINE) */}
+{activeTab === "accounting" && isGeneralManager && (() => {
+  const usdRate = Number(settings?.exchangeRates?.USD) || 337.50;
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = String(now.getMonth() + 1).padStart(2, "0");
+  const currentMonthPrefix = `${currentYear}-${currentMonth}`;
+
+  const prevMonthDate = new Date(currentYear, now.getMonth() - 1, 1);
+  const lastMonthPrefix = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, "0")}`;
+
+  // Date filter helper matching YYYY-MM-DD strings
+  const matchesPeriod = (dateStr) => {
+    if (!dateStr) return accountingPeriod === "all";
+    if (accountingPeriod === "all") return true;
+    if (accountingPeriod === "ytd") return dateStr.startsWith(String(currentYear));
+    if (accountingPeriod === "this_month") return dateStr.startsWith(currentMonthPrefix);
+    if (accountingPeriod === "last_month") return dateStr.startsWith(lastMonthPrefix);
+    return true;
+  };
+
+  // =========================================================================
+  // 1. REVENUE ENGINE (Connected to sales_records: Room Stays, Add-ons, Minibar)
+  // =========================================================================
+  const allSales = Object.values(salesRecords || {}).filter((s) => matchesPeriod(s.date));
+
+  let roomRevenueLkr = 0;
+  let addOnRevenueLkr = 0;
+  let minibarRevenueLkr = 0;
+  let cashCollectedLkr = 0;
+  let cardTransferCollectedLkr = 0;
+
+  allSales.forEach((sale) => {
+    const saleTotalLkr = Number(sale.total) || 0;
+    if (sale.settlementMethod === "Cash") {
+      cashCollectedLkr += saleTotalLkr;
+    } else {
+      cardTransferCollectedLkr += saleTotalLkr;
+    }
+
+    const items = Array.isArray(sale.orderItems)
+      ? sale.orderItems
+      : Object.values(sale.orderItems || {});
+
+    if (items.length === 0) {
+      roomRevenueLkr += saleTotalLkr;
+      return;
+    }
+
+    // Distribute line-item revenue accurately into Room, Add-ons, and Minibar
+    let rawItemsSumLkr = 0;
+    const categorizedItems = items.map((itm) => {
+      const desc = String(itm.description || "").toLowerCase();
+      const rawAmt = Number(itm.total) || 0;
+      const isUsdItem = itm.currency === "USD" || (!itm.currency && rawAmt < 500 && !desc.includes("minibar") && !desc.includes("rs."));
+      const amtLkr = isUsdItem ? rawAmt * usdRate : rawAmt;
+      rawItemsSumLkr += amtLkr;
+
+      let bucket = "room";
+      if (desc.includes("add-on") || desc.includes("bike") || desc.includes("airport") || desc.includes("safari") || desc.includes("tour")) {
+        bucket = "addon";
+      } else if (desc.includes("minibar") || desc.includes("artisanal") || desc.includes("organic") || desc.includes("water") || desc.includes("beer")) {
+        bucket = "minibar";
+      }
+      return { bucket, amtLkr };
+    });
+
+    // Normalize against exact settled sale total to account for any checkout discounts/adjustments
+    const scaleFactor = rawItemsSumLkr > 0 ? saleTotalLkr / rawItemsSumLkr : 1;
+    categorizedItems.forEach(({ bucket, amtLkr }) => {
+      const adjusted = amtLkr * scaleFactor;
+      if (bucket === "addon") addOnRevenueLkr += adjusted;
+      else if (bucket === "minibar") minibarRevenueLkr += adjusted;
+      else roomRevenueLkr += adjusted;
+    });
+  });
+
+  // Also calculate Unbilled / Active Occupied Room Accrued Revenue (Live Pipeline)
+  const activeFolioAccruedLkr = (rooms || [])
+    .filter((r) => r.status === "occupied")
+    .reduce((sum, r) => {
+      const items = Object.values(r.orderItems || {});
+      const roomSum = items.reduce((acc, itm) => {
+        const val = Number(itm.total) || 0;
+        const isUsd = itm.currency === "USD" || (!itm.currency && val < 500);
+        return acc + (isUsd ? val * usdRate : val);
+      }, 0);
+      return sum + roomSum;
+    }, 0);
+
+  const totalRevenueLkr = roomRevenueLkr + addOnRevenueLkr + minibarRevenueLkr;
+
+  // =========================================================================
+  // 2. EXPENSE ENGINE (Connected to vendor_bills, staff payroll, cashier drawer)
+  // =========================================================================
+  const filteredVendorBills = Object.values(vendorBills || {}).filter((b) => {
+    if (!matchesPeriod(b.billDate)) return false;
+    if (!accountingIncludeUnpaidBills && b.paymentStatus !== "Paid") return false;
+    return true;
+  });
+
+  // Group vendor expenses by category
+  const expenseByCategory = {};
+  let totalVendorExpensesLkr = 0;
+  let unpaidPayablesLkr = 0;
+
+  filteredVendorBills.forEach((b) => {
+    const amt = Number(b.amount) || 0;
+    const cat = b.category || "Other Expense";
+    expenseByCategory[cat] = (expenseByCategory[cat] || 0) + amt;
+    totalVendorExpensesLkr += amt;
+    if (b.paymentStatus !== "Paid") {
+      unpaidPayablesLkr += amt;
+    }
+  });
+
+  // Connect Staff Payroll (Monthly salaries of active staff scaled by period)
+  const monthlyPayrollLkr = (staffList || [])
+    .filter((s) => s.status !== "Inactive")
+    .reduce((acc, s) => acc + (Number(s.baseSalary) || 0), 0);
+
+  const periodMultiplier =
+    accountingPeriod === "ytd"
+      ? now.getMonth() + 1
+      : accountingPeriod === "all"
+      ? Math.max(1, new Set(allSales.map((s) => (s.date || "").slice(0, 7))).size)
+      : 1;
+
+  const estimatedPayrollLkr = monthlyPayrollLkr * periodMultiplier;
+  if (estimatedPayrollLkr > 0) {
+    expenseByCategory["Staff Salaries & Payroll"] = estimatedPayrollLkr;
+  }
+
+  // Connect Petty Cash Disbursements from Cashier Drawer (excluding vendor bills already synced)
+  const pettyCashDisbursementsLkr = (disbursements || [])
+    .filter((d) => d.status === "APPROVED" && !String(d.title || "").startsWith("Vendor Bill"))
+    .reduce((acc, d) => acc + (Number(d.amount) || 0), 0);
+
+  if (pettyCashDisbursementsLkr > 0) {
+    expenseByCategory["Cashier Petty Cash"] = pettyCashDisbursementsLkr;
+  }
+
+  const totalExpensesLkr = totalVendorExpensesLkr + estimatedPayrollLkr + pettyCashDisbursementsLkr;
+
+  // =========================================================================
+  // 3. PROFITABILITY & MARGINS
+  // =========================================================================
+  const netProfitLkr = totalRevenueLkr - totalExpensesLkr;
+  const netProfitUsd = netProfitLkr / usdRate;
+  const profitMarginPct = totalRevenueLkr > 0 ? (netProfitLkr / totalRevenueLkr) * 100 : 0;
+
+  // =========================================================================
+  // 4. MONTHLY TREND DATA FOR BAR CHART (Last 6 Months)
+  // =========================================================================
+  const monthlyTrend = Array.from({ length: 6 }, (_, idx) => {
+    const d = new Date(currentYear, now.getMonth() - (5 - idx), 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const label = d.toLocaleString("en-US", { month: "short" });
+
+    const rev = Object.values(salesRecords || {})
+      .filter((s) => (s.date || "").startsWith(key))
+      .reduce((sum, s) => sum + (Number(s.total) || 0), 0);
+
+    const expBills = Object.values(vendorBills || {})
+      .filter((b) => (b.billDate || "").startsWith(key) && (accountingIncludeUnpaidBills || b.paymentStatus === "Paid"))
+      .reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
+
+    const exp = expBills + (rev > 0 || expBills > 0 ? monthlyPayrollLkr : 0);
+    return { key, label, rev, exp, profit: rev - exp };
+  });
+
+  const maxChartVal = Math.max(10000, ...monthlyTrend.map((m) => Math.max(m.rev, m.exp)));
+
+  // =========================================================================
+  // 5. UNIFIED GENERAL LEDGER ENTRIES (Chronological)
+  // =========================================================================
+  const ledgerEntries = [
+    ...allSales.map((s) => ({
+      id: s.id,
+      date: s.date || "",
+      type: "INCOME",
+      account: `Room #${s.roomNumber} (${s.guestName || "Guest"})`,
+      reference: s.orderId || s.id,
+      method: s.settlementMethod || "Cash",
+      amount: Number(s.total) || 0
+    })),
+    ...filteredVendorBills.map((b) => ({
+      id: b.id,
+      date: b.billDate || "",
+      type: "EXPENSE",
+      account: `${b.vendorName} • ${b.category}`,
+      reference: b.invoiceNumber || b.id,
+      method: b.paymentStatus === "Paid" ? b.paymentMethod : "UNPAID (AP)",
+      amount: Number(b.amount) || 0
+    }))
+  ].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+
+  // CSV Export Handler for Accountant / Tax Filing
+  const handleExportAccountingCSV = () => {
+    const headers = ["Date", "Entry Type", "Account / Description", "Reference", "Payment Status/Method", "Debit (Expense LKR)", "Credit (Income LKR)"];
+    const rows = ledgerEntries.map((e) => [
+      e.date,
+      e.type,
+      `"${e.account.replace(/"/g, '""')}"`,
+      e.reference,
+      e.method,
+      e.type === "EXPENSE" ? e.amount.toFixed(2) : "0.00",
+      e.type === "INCOME" ? e.amount.toFixed(2) : "0.00"
+    ]);
+    const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `Linoli_Cove_PL_Ledger_${accountingPeriod}_${getTodayKey()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Donut Chart Angles for Revenue Mix
+  const revTotalSafe = Math.max(1, totalRevenueLkr);
+  const roomPct = (roomRevenueLkr / revTotalSafe) * 100;
+  const addOnPct = (addOnRevenueLkr / revTotalSafe) * 100;
+  const minibarPct = (minibarRevenueLkr / revTotalSafe) * 100;
+
+  return (
+    <div className="max-w-7xl mx-auto space-y-6 pb-16">
+      {/* HEADER & ACCOUNTING CONTROLS */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+        <div>
+          <h2 className="text-2xl font-bold flex items-center gap-2 text-[#091D26]">
+            <Landmark className="w-6 h-6 text-[#14B8A6]" /> Hotel Accounting & Profitability (P&L)
+          </h2>
+          <p className="text-sm text-slate-500">
+            Real-time financial consolidation across Room Folios, Add-on Services, Minibar, Vendor Bills & Payroll.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Period Selector */}
+          <div className="bg-white border border-[#E6DFD3] rounded-xl p-1 flex items-center gap-1 shadow-xs">
+            {[
+              { id: "this_month", label: "This Month" },
+              { id: "last_month", label: "Last Month" },
+              { id: "ytd", label: "Year to Date" },
+              { id: "all", label: "All Time" }
+            ].map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setAccountingPeriod(p.id)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  accountingPeriod === p.id
+                    ? "bg-[#091D26] text-white"
+                    : "text-slate-600 hover:bg-[#FAF9F5]"
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Accrual vs Cash Basis Toggle */}
+          <button
+            type="button"
+            onClick={() => setAccountingIncludeUnpaidBills(!accountingIncludeUnpaidBills)}
+            className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+              accountingIncludeUnpaidBills
+                ? "bg-amber-50 border-amber-300 text-amber-900"
+                : "bg-white border-[#E6DFD3] text-slate-600"
+            }`}
+            title="Toggle between Accrual Basis (includes Unpaid Vendor Bills) and Cash Basis (Paid Bills only)"
+          >
+            Basis: {accountingIncludeUnpaidBills ? "Accrual (Incl. Unpaid AP)" : "Cash (Paid Only)"}
+          </button>
+
+          {/* Export CSV */}
+          <button
+            type="button"
+            onClick={handleExportAccountingCSV}
+            className="inline-flex items-center gap-1.5 bg-[#0D9488] hover:bg-[#0F766E] text-white px-4 py-2 rounded-xl text-xs font-bold shadow-sm cursor-pointer"
+          >
+            <Download className="w-4 h-4" /> Export P&L CSV
+          </button>
+        </div>
+      </div>
+
+      {/* ROW 1: EXECUTIVE PROFITABILITY KPI CARDS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Gross Revenue */}
+        <div className="bg-white border border-[#E6DFD3] rounded-3xl p-5 shadow-sm">
+          <div className="flex justify-between items-center">
+            <span className="text-[11px] font-bold uppercase text-slate-400">Gross Settled Revenue</span>
+            <span className="text-[10px] font-bold bg-teal-50 text-[#0F766E] px-2 py-0.5 rounded-full">
+              {allSales.length} Invoices
+            </span>
+          </div>
+          <p className="text-2xl font-black text-[#091D26] mt-2 font-mono">
+            Rs. {totalRevenueLkr.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+          </p>
+          <p className="text-xs font-mono text-slate-500 mt-1">
+            ≈ ${(totalRevenueLkr / usdRate).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
+          </p>
+        </div>
+
+        {/* Total Operating Expenses */}
+        <div className="bg-white border border-[#E6DFD3] rounded-3xl p-5 shadow-sm">
+          <div className="flex justify-between items-center">
+            <span className="text-[11px] font-bold uppercase text-slate-400">Total Operating Expenses</span>
+            <span className="text-[10px] font-bold bg-rose-50 text-rose-700 px-2 py-0.5 rounded-full">
+              Bills + Payroll
+            </span>
+          </div>
+          <p className="text-2xl font-black text-rose-600 mt-2 font-mono">
+            Rs. {totalExpensesLkr.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+          </p>
+          <p className="text-xs font-mono text-slate-500 mt-1">
+            ≈ ${(totalExpensesLkr / usdRate).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
+          </p>
+        </div>
+
+        {/* Net Profit / Loss */}
+        <div
+          className={`rounded-3xl p-5 shadow-sm border ${
+            netProfitLkr >= 0
+              ? "bg-emerald-950 text-white border-emerald-800"
+              : "bg-rose-950 text-white border-rose-800"
+          }`}
+        >
+          <div className="flex justify-between items-center">
+            <span className="text-[11px] font-bold uppercase opacity-75">Net Hotel Profit</span>
+            <span
+              className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                netProfitLkr >= 0 ? "bg-emerald-500/20 text-emerald-300" : "bg-rose-500/20 text-rose-300"
+              }`}
+            >
+              {profitMarginPct.toFixed(1)}% Margin
+            </span>
+          </div>
+          <p className="text-2xl font-black mt-2 font-mono">
+            {netProfitLkr < 0 ? "-" : ""}Rs. {Math.abs(netProfitLkr).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+          </p>
+          <p className="text-xs font-mono opacity-80 mt-1">
+            ≈ {netProfitUsd < 0 ? "-" : ""}${Math.abs(netProfitUsd).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
+          </p>
+        </div>
+
+        {/* Live Pipeline & Payables Health */}
+        <div className="bg-white border border-[#E6DFD3] rounded-3xl p-5 shadow-sm space-y-2">
+          <div>
+            <span className="text-[10px] font-bold uppercase text-teal-700 block">Unbilled Active Room Tabs</span>
+            <span className="text-sm font-black font-mono text-[#0D9488]">
+              + Rs. {activeFolioAccruedLkr.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            </span>
+          </div>
+          <div className="pt-2 border-t border-slate-100">
+            <span className="text-[10px] font-bold uppercase text-amber-700 block">Unpaid Vendor Bills (AP)</span>
+            <span className="text-sm font-black font-mono text-amber-700">
+              - Rs. {unpaidPayablesLkr.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* ROW 2: CHARTS (6-MONTH REVENUE VS EXPENSE BAR CHART & REVENUE MIX DONUT) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* 6-Month Revenue vs Expenses Chart */}
+        <div className="lg:col-span-2 bg-white border border-[#E6DFD3] rounded-3xl p-6 shadow-sm">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-6">
+            <div>
+              <h3 className="font-bold text-base text-[#091D26]">6-Month Revenue vs. Expense Trend</h3>
+              <p className="text-xs text-slate-500">Monthly comparison of settled income against operating costs (LKR)</p>
+            </div>
+            <div className="flex items-center gap-4 text-xs font-bold">
+              <span className="flex items-center gap-1.5 text-slate-700">
+                <span className="w-3 h-3 rounded-sm bg-[#0D9488] inline-block" /> Revenue
+              </span>
+              <span className="flex items-center gap-1.5 text-slate-700">
+                <span className="w-3 h-3 rounded-sm bg-rose-400 inline-block" /> Expenses
+              </span>
+            </div>
+          </div>
+
+          {/* Responsive Bar Chart */}
+          <div className="h-56 flex items-end justify-between gap-3 pt-6 pb-2 px-2 border-b border-slate-200">
+            {monthlyTrend.map((m) => {
+              const revHeightPct = Math.min(100, Math.round((m.rev / maxChartVal) * 100));
+              const expHeightPct = Math.min(100, Math.round((m.exp / maxChartVal) * 100));
+              return (
+                <div key={m.key} className="flex-1 flex flex-col items-center h-full justify-end group">
+                  <div className="w-full flex items-end justify-center gap-1.5 h-44">
+                    {/* Revenue Bar */}
+                    <div
+                      style={{ height: `${Math.max(4, revHeightPct)}%` }}
+                      className="w-5 sm:w-7 bg-[#0D9488] hover:bg-[#0F766E] rounded-t-lg transition-all relative"
+                      title={`${m.label} Revenue: Rs. ${m.rev.toLocaleString()}`}
+                    />
+                    {/* Expense Bar */}
+                    <div
+                      style={{ height: `${Math.max(4, expHeightPct)}%` }}
+                      className="w-5 sm:w-7 bg-rose-400 hover:bg-rose-500 rounded-t-lg transition-all relative"
+                      title={`${m.label} Expenses: Rs. ${m.exp.toLocaleString()}`}
+                    />
+                  </div>
+                  <span className="text-xs font-bold text-slate-600 mt-2">{m.label}</span>
+                  <span
+                    className={`text-[10px] font-mono font-bold ${
+                      m.profit >= 0 ? "text-emerald-700" : "text-rose-600"
+                    }`}
+                  >
+                    {m.profit >= 0 ? "+" : ""}
+                    {(m.profit / 1000).toFixed(0)}k
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Revenue Mix Breakdown Donut */}
+        <div className="bg-white border border-[#E6DFD3] rounded-3xl p-6 shadow-sm flex flex-col justify-between">
+          <div>
+            <h3 className="font-bold text-base text-[#091D26]">Revenue Stream Breakdown</h3>
+            <p className="text-xs text-slate-500">Contribution by hotel department</p>
+          </div>
+
+          {/* CSS Conic Gradient Donut Chart */}
+          <div className="my-4 flex items-center justify-center">
+            <div
+              className="w-40 h-40 rounded-full flex items-center justify-center shadow-inner"
+              style={{
+                background:
+                  totalRevenueLkr > 0
+                    ? `conic-gradient(
+                        #0D9488 0% ${roomPct}%,
+                        #F59E0B ${roomPct}% ${roomPct + addOnPct}%,
+                        #6366F1 ${roomPct + addOnPct}% 100%
+                      )`
+                    : "#E2E8F0"
+              }}
+            >
+              <div className="w-24 h-24 bg-white rounded-full flex flex-col items-center justify-center text-center p-2 shadow-xs">
+                <span className="text-[9px] uppercase font-bold text-slate-400">Total Mix</span>
+                <span className="text-xs font-black text-[#091D26]">100%</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Legend */}
+          <div className="space-y-2 text-xs">
+            <div className="flex justify-between items-center">
+              <span className="flex items-center gap-2 font-semibold text-slate-700">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#0D9488]" /> Room Stays
+              </span>
+              <span className="font-mono font-bold">
+                Rs. {roomRevenueLkr.toLocaleString(undefined, { maximumFractionDigits: 0 })} ({roomPct.toFixed(0)}%)
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="flex items-center gap-2 font-semibold text-slate-700">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Add-ons & Tours
+              </span>
+              <span className="font-mono font-bold">
+                Rs. {addOnRevenueLkr.toLocaleString(undefined, { maximumFractionDigits: 0 })} ({addOnPct.toFixed(0)}%)
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="flex items-center gap-2 font-semibold text-slate-700">
+                <span className="w-2.5 h-2.5 rounded-full bg-indigo-500" /> Minibar & Stock
+              </span>
+              <span className="font-mono font-bold">
+                Rs. {minibarRevenueLkr.toLocaleString(undefined, { maximumFractionDigits: 0 })} ({minibarPct.toFixed(0)}%)
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ROW 3: FORMAL PROFIT & LOSS (P&L) STATEMENT & EXPENSE CATEGORY BREAKDOWN */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Formal P&L Statement Table */}
+        <div className="bg-white border border-[#E6DFD3] rounded-3xl overflow-hidden shadow-sm">
+          <div className="p-5 border-b border-[#E6DFD3] bg-[#FAF9F5]">
+            <h3 className="font-bold text-base text-[#091D26]">Income Statement (Profit & Loss)</h3>
+            <p className="text-xs text-slate-500">Consolidated statement in Sri Lankan Rupees (LKR)</p>
+          </div>
+          <table className="w-full text-xs">
+            <tbody className="divide-y divide-[#F3EFE6]">
+              <tr className="bg-teal-50/40 font-bold text-[#0F766E]">
+                <td className="p-3.5 uppercase">1. Operating Revenue</td>
+                <td className="p-3.5 text-right font-mono">Amount (LKR)</td>
+              </tr>
+              <tr>
+                <td className="p-3.5 pl-6 text-slate-700">Room Accommodation Revenue</td>
+                <td className="p-3.5 text-right font-mono font-semibold">
+                  {roomRevenueLkr.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </td>
+              </tr>
+              <tr>
+                <td className="p-3.5 pl-6 text-slate-700">Guest Add-ons (Bikes, Transfers, Tours)</td>
+                <td className="p-3.5 text-right font-mono font-semibold">
+                  {addOnRevenueLkr.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </td>
+              </tr>
+              <tr>
+                <td className="p-3.5 pl-6 text-slate-700">Minibar & In-Room Dining</td>
+                <td className="p-3.5 text-right font-mono font-semibold">
+                  {minibarRevenueLkr.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </td>
+              </tr>
+              <tr className="bg-slate-50 font-black text-[#091D26]">
+                <td className="p-3.5">TOTAL GROSS REVENUE</td>
+                <td className="p-3.5 text-right font-mono text-[#0D9488]">
+                  Rs. {totalRevenueLkr.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </td>
+              </tr>
+
+              <tr className="bg-rose-50/40 font-bold text-rose-800">
+                <td className="p-3.5 uppercase">2. Operating Expenses</td>
+                <td className="p-3.5 text-right font-mono">Amount (LKR)</td>
+              </tr>
+              {Object.entries(expenseByCategory).map(([cat, amt]) => (
+                <tr key={cat}>
+                  <td className="p-3.5 pl-6 text-slate-700">{cat}</td>
+                  <td className="p-3.5 text-right font-mono font-semibold text-rose-700">
+                    ({amt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                  </td>
+                </tr>
+              ))}
+              {Object.keys(expenseByCategory).length === 0 && (
+                <tr>
+                  <td colSpan={2} className="p-3.5 pl-6 text-slate-400 italic">
+                    No expenses recorded for this period.
+                  </td>
+                </tr>
+              )}
+              <tr className="bg-slate-50 font-black text-[#091D26]">
+                <td className="p-3.5">TOTAL OPERATING EXPENSES</td>
+                <td className="p-3.5 text-right font-mono text-rose-600">
+                  (Rs. {totalExpensesLkr.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                </td>
+              </tr>
+
+              <tr className={netProfitLkr >= 0 ? "bg-emerald-50 font-black text-emerald-900" : "bg-rose-100 font-black text-rose-900"}>
+                <td className="p-4 text-sm uppercase">NET OPERATING PROFIT / (LOSS)</td>
+                <td className="p-4 text-right font-mono text-sm">
+                  Rs. {netProfitLkr.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* Cash Flow & Expense Distribution Bars */}
+        <div className="bg-white border border-[#E6DFD3] rounded-3xl p-6 shadow-sm flex flex-col justify-between space-y-6">
+          <div>
+            <h3 className="font-bold text-base text-[#091D26] mb-1">Expense Allocation by Category</h3>
+            <p className="text-xs text-slate-500 mb-4">Where hotel operating funds are spent</p>
+
+            <div className="space-y-3">
+              {Object.entries(expenseByCategory)
+                .sort((a, b) => b[1] - a[1])
+                .map(([cat, amt]) => {
+                  const pct = totalExpensesLkr > 0 ? (amt / totalExpensesLkr) * 100 : 0;
+                  return (
+                    <div key={cat} className="space-y-1">
+                      <div className="flex justify-between text-xs">
+                        <span className="font-bold text-slate-700">{cat}</span>
+                        <span className="font-mono font-bold text-slate-900">
+                          Rs. {amt.toLocaleString(undefined, { maximumFractionDigits: 0 })} ({pct.toFixed(1)}%)
+                        </span>
+                      </div>
+                      <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          style={{ width: `${Math.min(100, pct)}%` }}
+                          className="h-full bg-rose-500 rounded-full"
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              {Object.keys(expenseByCategory).length === 0 && (
+                <p className="text-xs text-slate-400 italic py-6 text-center">
+                  Log vendor bills or staff salaries to visualize expense distribution.
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Payment Tender Summary */}
+          <div className="p-4 bg-[#FAF9F5] border border-[#E6DFD3] rounded-2xl space-y-2">
+            <span className="text-[10px] font-black uppercase text-slate-500 block">
+              Collections Breakdown (Settled Invoices)
+            </span>
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="bg-white p-3 rounded-xl border border-slate-200">
+                <span className="text-slate-400 block text-[10px] font-bold">CASH COLLECTED</span>
+                <span className="font-mono font-black text-sm text-[#091D26]">
+                  Rs. {cashCollectedLkr.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                </span>
+              </div>
+              <div className="bg-white p-3 rounded-xl border border-slate-200">
+                <span className="text-slate-400 block text-[10px] font-bold">CARD / BANK TRANSFER</span>
+                <span className="font-mono font-black text-sm text-[#0D9488]">
+                  Rs. {cardTransferCollectedLkr.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ROW 4: UNIFIED GENERAL LEDGER (ALL CREDITS & DEBITS) */}
+      <div className="bg-white border border-[#E6DFD3] rounded-3xl overflow-hidden shadow-sm">
+        <div className="p-5 border-b border-[#E6DFD3] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+          <div>
+            <h3 className="font-bold text-base text-[#091D26]">General Ledger (Connected Journal)</h3>
+            <p className="text-xs text-slate-500">
+              Combined chronological stream of settled room/service invoices (Credits) and vendor bills (Debits).
+            </p>
+          </div>
+          <span className="text-xs font-mono font-bold bg-slate-100 px-3 py-1 rounded-full text-slate-700">
+            {ledgerEntries.length} Journal Entries
+          </span>
+        </div>
+
+        <div className="overflow-x-auto max-h-96">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-[#F3EFE6] border-b border-[#E6DFD3] uppercase font-semibold text-slate-500 sticky top-0">
+              <tr>
+                <th className="p-3.5">Date</th>
+                <th className="p-3.5">Type</th>
+                <th className="p-3.5">Account / Description</th>
+                <th className="p-3.5">Ref #</th>
+                <th className="p-3.5">Method / Status</th>
+                <th className="p-3.5 text-right text-rose-700">Debit (Expense)</th>
+                <th className="p-3.5 text-right text-emerald-700">Credit (Income)</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#F3EFE6]">
+              {ledgerEntries.map((entry) => (
+                <tr key={entry.id} className="hover:bg-[#FAF9F5]">
+                  <td className="p-3.5 font-mono text-slate-600">{entry.date}</td>
+                  <td className="p-3.5">
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                        entry.type === "INCOME"
+                          ? "bg-emerald-100 text-emerald-800"
+                          : "bg-rose-100 text-rose-700"
+                      }`}
+                    >
+                      {entry.type}
+                    </span>
+                  </td>
+                  <td className="p-3.5 font-semibold text-[#091D26]">{entry.account}</td>
+                  <td className="p-3.5 font-mono text-slate-500">{entry.reference}</td>
+                  <td className="p-3.5 text-slate-600">{entry.method}</td>
+                  <td className="p-3.5 text-right font-mono font-bold text-rose-600">
+                    {entry.type === "EXPENSE"
+                      ? `Rs. ${entry.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                      : "--"}
+                  </td>
+                  <td className="p-3.5 text-right font-mono font-bold text-emerald-700">
+                    {entry.type === "INCOME"
+                      ? `Rs. ${entry.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                      : "--"}
+                  </td>
+                </tr>
+              ))}
+              {ledgerEntries.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="p-8 text-center text-slate-400 italic">
+                    No accounting entries recorded for the selected period.
                   </td>
                 </tr>
               )}
