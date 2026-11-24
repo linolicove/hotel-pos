@@ -5619,6 +5619,43 @@ export default function App() {
     }, 0);
   };
 
+  // Helper: Extract exact number of nights stayed from any settled invoice
+  const getSaleNightsStayed = (sale) => {
+    if (!sale) return 0;
+
+    // 1. Check direct nights field if saved on the sale record
+    if (Number(sale.nights) > 0) return Number(sale.nights);
+
+    // 2. Check Room Stay line items inside orderItems
+    const items = Array.isArray(sale.orderItems)
+      ? sale.orderItems
+      : Object.values(sale.orderItems || {});
+
+    const roomItemNights = items.reduce((sum, itm) => {
+      const desc = String(itm.description || "").toLowerCase();
+      if (desc.includes("room stay") || desc.includes("night")) {
+        return sum + (Number(itm.quantity) || 1);
+      }
+      return sum;
+    }, 0);
+
+    if (roomItemNights > 0) return roomItemNights;
+
+    // 3. Fallback: Calculate difference between checkIn and checkOut dates
+    if (sale.checkIn && sale.checkOut) {
+      const diff = Math.round(
+        (new Date(sale.checkOut).getTime() - new Date(sale.checkIn).getTime()) / 86400000
+      );
+      if (diff > 0) return diff;
+    }
+
+    // 4. Default 1 night if it's a room checkout without explicit night count
+    const isWalkInOnly =
+      String(sale.roomNumber || "").toLowerCase().includes("walk") ||
+      String(sale.orderId || "").startsWith("SRV-");
+    return isWalkInOnly ? 0 : 1;
+  };
+
   // =========================================================================
   // 1. REVENUE ENGINE (Connected to sales_records: Room Stays, Add-ons, Minibar)
   // =========================================================================
@@ -5629,9 +5666,18 @@ export default function App() {
   let minibarRevenueLkr = 0;
   let cashCollectedLkr = 0;
   let cardTransferCollectedLkr = 0;
+  let totalRoomsSold = 0;
+  let totalNightsSold = 0;
 
   allSales.forEach((sale) => {
     const saleTotalLkr = getSaleAmountLkr(sale);
+    const saleNights = getSaleNightsStayed(sale);
+
+    if (saleNights > 0) {
+      totalRoomsSold += 1;
+      totalNightsSold += saleNights;
+    }
+
     if (sale.settlementMethod === "Cash") {
       cashCollectedLkr += saleTotalLkr;
     } else {
@@ -5760,20 +5806,27 @@ export default function App() {
   // 5. UNIFIED GENERAL LEDGER ENTRIES (Chronological)
   // =========================================================================
   const ledgerEntries = [
-    ...allSales.map((s) => ({
-      id: s.id,
-      date: s.date || "",
-      type: "INCOME",
-      account: `Room #${s.roomNumber} (${s.guestName || "Guest"})`,
-      reference: s.orderId || s.id,
-      method: s.settlementMethod || "Cash",
-      amount: getSaleAmountLkr(s)
-    })),
+    ...allSales.map((s) => {
+      const nights = getSaleNightsStayed(s);
+      return {
+        id: s.id,
+        date: s.date || "",
+        type: "INCOME",
+        account: `Room #${s.roomNumber} (${s.guestName || "Guest"})`,
+        nightsStayed: nights > 0 ? `${nights} Night${nights > 1 ? "s" : ""}` : "Walk-In / Add-on",
+        nightsCount: nights,
+        reference: s.orderId || s.id,
+        method: s.settlementMethod || "Cash",
+        amount: getSaleAmountLkr(s)
+      };
+    }),
     ...filteredVendorBills.map((b) => ({
       id: b.id,
       date: b.billDate || "",
       type: "EXPENSE",
       account: `${b.vendorName} • ${b.category}`,
+      nightsStayed: "--",
+      nightsCount: 0,
       reference: b.invoiceNumber || b.id,
       method: b.paymentStatus === "Paid" ? b.paymentMethod : "UNPAID (AP)",
       amount: Number(b.amount) || 0
@@ -5782,11 +5835,21 @@ export default function App() {
 
   // CSV Export Handler for Accountant / Tax Filing
   const handleExportAccountingCSV = () => {
-    const headers = ["Date", "Entry Type", "Account / Description", "Reference", "Payment Status/Method", "Debit (Expense LKR)", "Credit (Income LKR)"];
+    const headers = [
+      "Date",
+      "Entry Type",
+      "Account / Description",
+      "Nights Stayed",
+      "Reference",
+      "Payment Status/Method",
+      "Debit (Expense LKR)",
+      "Credit (Income LKR)"
+    ];
     const rows = ledgerEntries.map((e) => [
       e.date,
       e.type,
       `"${e.account.replace(/"/g, '""')}"`,
+      `"${e.nightsStayed}"`,
       e.reference,
       e.method,
       e.type === "EXPENSE" ? e.amount.toFixed(2) : "0.00",
@@ -5873,20 +5936,23 @@ export default function App() {
 
       {/* ROW 1: EXECUTIVE PROFITABILITY KPI CARDS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Gross Revenue */}
+        {/* Gross Revenue & Room Nights Sold */}
         <div className="bg-white border border-[#E6DFD3] rounded-3xl p-5 shadow-sm">
           <div className="flex justify-between items-center">
             <span className="text-[11px] font-bold uppercase text-slate-400">Gross Settled Revenue</span>
             <span className="text-[10px] font-bold bg-teal-50 text-[#0F766E] px-2 py-0.5 rounded-full">
-              {allSales.length} Invoices
+              {totalRoomsSold} Rooms • {totalNightsSold} Nights
             </span>
           </div>
           <p className="text-2xl font-black text-[#091D26] mt-2 font-mono">
             Rs. {totalRevenueLkr.toLocaleString(undefined, { maximumFractionDigits: 0 })}
           </p>
-          <p className="text-xs font-mono text-slate-500 mt-1">
-            ≈ ${(totalRevenueLkr / usdRate).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
-          </p>
+          <div className="flex justify-between items-center text-[11px] font-mono text-slate-500 mt-1">
+            <span>≈ ${(totalRevenueLkr / usdRate).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD</span>
+            <span className="text-[#0D9488] font-bold">
+              ADR: Rs. {totalNightsSold > 0 ? Math.round(roomRevenueLkr / totalNightsSold).toLocaleString() : 0}/nt
+            </span>
+          </div>
         </div>
 
         {/* Total Operating Expenses */}
@@ -5894,7 +5960,7 @@ export default function App() {
           <div className="flex justify-between items-center">
             <span className="text-[11px] font-bold uppercase text-slate-400">Total Operating Expenses</span>
             <span className="text-[10px] font-bold bg-rose-50 text-rose-700 px-2 py-0.5 rounded-full">
-              Bills + Payroll
+              Bills & Petty Cash
             </span>
           </div>
           <p className="text-2xl font-black text-rose-600 mt-2 font-mono">
@@ -5945,6 +6011,41 @@ export default function App() {
               - Rs. {unpaidPayablesLkr.toLocaleString(undefined, { maximumFractionDigits: 0 })}
             </span>
           </div>
+        </div>
+      </div>
+
+      {/* OCCUPANCY & VOLUME SUMMARY BAR */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white border border-[#E6DFD3] rounded-2xl p-4 flex items-center justify-between shadow-xs">
+          <div>
+            <span className="text-[10px] font-bold uppercase text-slate-400 block">Total Rooms Sold (Checkouts)</span>
+            <span className="text-xl font-black text-[#091D26] font-mono">{totalRoomsSold} Rooms</span>
+          </div>
+          <span className="px-2.5 py-1 rounded-xl bg-teal-50 text-[#0F766E] text-xs font-bold">
+            {allSales.length} Total Invoices
+          </span>
+        </div>
+
+        <div className="bg-white border border-[#E6DFD3] rounded-2xl p-4 flex items-center justify-between shadow-xs">
+          <div>
+            <span className="text-[10px] font-bold uppercase text-slate-400 block">Total Room Nights Sold</span>
+            <span className="text-xl font-black text-[#0D9488] font-mono">{totalNightsSold} Nights</span>
+          </div>
+          <span className="px-2.5 py-1 rounded-xl bg-teal-50 text-[#0F766E] text-xs font-bold">
+            Avg {totalRoomsSold > 0 ? (totalNightsSold / totalRoomsSold).toFixed(1) : "0.0"} nts/stay
+          </span>
+        </div>
+
+        <div className="bg-white border border-[#E6DFD3] rounded-2xl p-4 flex items-center justify-between shadow-xs">
+          <div>
+            <span className="text-[10px] font-bold uppercase text-slate-400 block">Avg. Room Rate (ADR)</span>
+            <span className="text-xl font-black text-[#091D26] font-mono">
+              Rs. {totalNightsSold > 0 ? Math.round(roomRevenueLkr / totalNightsSold).toLocaleString() : 0}
+            </span>
+          </div>
+          <span className="px-2.5 py-1 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold">
+            Per Night Sold
+          </span>
         </div>
       </div>
 
@@ -6217,6 +6318,7 @@ export default function App() {
                 <th className="p-3.5">Date</th>
                 <th className="p-3.5">Type</th>
                 <th className="p-3.5">Account / Description</th>
+                <th className="p-3.5 text-center">Nights Stayed</th>
                 <th className="p-3.5">Ref #</th>
                 <th className="p-3.5">Method / Status</th>
                 <th className="p-3.5 text-right text-rose-700">Debit (Expense)</th>
@@ -6239,6 +6341,15 @@ export default function App() {
                     </span>
                   </td>
                   <td className="p-3.5 font-semibold text-[#091D26]">{entry.account}</td>
+                  <td className="p-3.5 text-center font-mono font-bold text-slate-700">
+                    {entry.nightsStayed !== "--" ? (
+                      <span className="bg-teal-50 text-[#0F766E] px-2 py-0.5 rounded-lg text-[11px]">
+                        {entry.nightsStayed}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400">--</span>
+                    )}
+                  </td>
                   <td className="p-3.5 font-mono text-slate-500">{entry.reference}</td>
                   <td className="p-3.5 text-slate-600">{entry.method}</td>
                   <td className="p-3.5 text-right font-mono font-bold text-rose-600">
@@ -6255,7 +6366,7 @@ export default function App() {
               ))}
               {ledgerEntries.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="p-8 text-center text-slate-400 italic">
+                  <td colSpan={8} className="p-8 text-center text-slate-400 italic">
                     No accounting entries recorded for the selected period.
                   </td>
                 </tr>
