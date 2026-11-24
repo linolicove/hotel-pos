@@ -5745,6 +5745,7 @@ export default function App() {
     const rev = Object.values(salesRecords || {})
       .filter((s) => (s.date || "").startsWith(key))
       .reduce((sum, s) => sum + getSaleAmountLkr(s), 0);
+      
 
     const exp = Object.values(vendorBills || {})
       .filter((b) => (b.billDate || "").startsWith(key) && (accountingIncludeUnpaidBills || b.paymentStatus === "Paid"))
@@ -5754,8 +5755,7 @@ export default function App() {
   });
 
   const maxChartVal = Math.max(10000, ...monthlyTrend.map((m) => Math.max(m.rev, m.exp)));
-  
-  // =========================================================================
+
   // 5. UNIFIED GENERAL LEDGER ENTRIES (Chronological)
   // =========================================================================
   const ledgerEntries = [
@@ -5766,7 +5766,7 @@ export default function App() {
       account: `Room #${s.roomNumber} (${s.guestName || "Guest"})`,
       reference: s.orderId || s.id,
       method: s.settlementMethod || "Cash",
-      amount: Number(s.total) || 0
+      amount: getSaleAmountLkr(s)
     })),
     ...filteredVendorBills.map((b) => ({
       id: b.id,
@@ -5777,7 +5777,6 @@ export default function App() {
       method: b.paymentStatus === "Paid" ? b.paymentMethod : "UNPAID (AP)",
       amount: Number(b.amount) || 0
     }))
-  ].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
 
   // CSV Export Handler for Accountant / Tax Filing
   const handleExportAccountingCSV = () => {
