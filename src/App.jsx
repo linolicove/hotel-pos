@@ -745,6 +745,18 @@ export default function App() {
   const [rooms, setRooms] = useState([]);
   const [inventory, setInventory] = useState(INITIAL_INVENTORY_SEEDS);
   const [staff, setStaff] = useState(INITIAL_STAFF_SEEDS);
+  // --- EMPLOYEE EDIT & DELETE STATE ---
+const [editingEmployee, setEditingEmployee] = useState(null);
+const [editEmployeeForm, setEditEmployeeForm] = useState({
+  name: "",
+  role: "Front Desk Agent",
+  type: "Full-Time",
+  pin: "",
+  phone: "",
+  bankAccount: "",
+  baseSalary: "",
+  allowances: ""
+});
   const [allAttendanceRecords, setAllAttendanceRecords] = useState({});
   const [salesRecords, setSalesRecords] = useState({});
   const [prebookings, setPrebookings] = useState({});
@@ -1398,6 +1410,99 @@ export default function App() {
     if (!isGeneralManager) return;
     if (window.confirm(`Permanently delete vendor bill from "${vendorName}"?`)) {
       await remove(ref(rtdb, `vendor_bills/${billId}`));
+    }
+  };
+  // Open Employee Edit Modal
+  const handleOpenEditEmployee = (emp) => {
+    if (!isGeneralManager) {
+      alert("Access Denied: Only General Manager can edit staff records.");
+      return;
+    }
+    setEditingEmployee(emp);
+    setEditEmployeeForm({
+      name: emp.name || "",
+      role: emp.role || "Front Desk Agent",
+      type: emp.type || "Full-Time",
+      pin: String(emp.pin || ""),
+      phone: emp.phone || "",
+      bankAccount: emp.bankAccount || "",
+      baseSalary: emp.baseSalary ? String(emp.baseSalary) : "",
+      allowances: emp.allowances ? String(emp.allowances) : ""
+    });
+  };
+
+  // Save Updated Employee Details to Firebase RTDB
+  const handleSaveEditedEmployee = async (e) => {
+    e.preventDefault();
+    if (!isGeneralManager || !editingEmployee) return;
+
+    const cleanName = sanitizeInput(editEmployeeForm.name);
+    const cleanPin = String(editEmployeeForm.pin || "").trim();
+
+    if (!cleanName || cleanPin.length < 4) {
+      alert("Please enter a valid Employee Name and at least a 4-digit PIN.");
+      return;
+    }
+
+    // Prevent duplicate PINs across different employees
+    const duplicatePin = (staff || []).find(
+      (s) => s.id !== editingEmployee.id && String(s.pin).trim() === cleanPin
+    );
+    if (duplicatePin) {
+      alert(`PIN "${cleanPin}" is already assigned to ${duplicatePin.name}. Choose a unique PIN.`);
+      return;
+    }
+
+    try {
+      await update(ref(rtdb, `staff/${editingEmployee.id}`), {
+        name: cleanName,
+        role: editEmployeeForm.role || "Front Desk Agent",
+        type: editEmployeeForm.type || "Full-Time",
+        pin: cleanPin,
+        phone: sanitizeInput(editEmployeeForm.phone || ""),
+        bankAccount: sanitizeInput(editEmployeeForm.bankAccount || ""),
+        baseSalary: Number(editEmployeeForm.baseSalary) || 0,
+        allowances: Number(editEmployeeForm.allowances) || 0
+      });
+
+      // If currently logged in as this employee, update active session state
+      if (currentUser?.id === editingEmployee.id) {
+        setCurrentUser((prev) => ({
+          ...prev,
+          name: cleanName,
+          role: editEmployeeForm.role || prev.role,
+          pin: cleanPin
+        }));
+      }
+
+      setEditingEmployee(null);
+    } catch (err) {
+      console.error("Failed to update employee:", err);
+      alert("Error updating employee: " + err.message);
+    }
+  };
+
+  // Permanently Delete Employee from Firebase RTDB
+  const handleDeleteEmployee = async (emp) => {
+    if (!isGeneralManager) {
+      alert("Access Denied: Only General Manager can delete employees.");
+      return;
+    }
+    if (currentUser?.id === emp.id) {
+      alert("You cannot delete the currently logged-in account. Switch to Master PIN first.");
+      return;
+    }
+    if (
+      window.confirm(
+        `Permanently remove "${emp.name}" (${emp.role}) from staff records? This cannot be undone.`
+      )
+    ) {
+      try {
+        await remove(ref(rtdb, `staff/${emp.id}`));
+      } catch (err) {
+        console.error("Failed to delete employee:", err);
+        alert("Error deleting employee: " + err.message);
+      }
     }
   };
 
@@ -7393,14 +7498,26 @@ export default function App() {
                     <FileSpreadsheet className="w-4 h-4 text-[#2DD4BF]" /> Print Audit Report
                   </button>
                   {isGeneralManager && (
-                    <button
-                      type="button"
-                      onClick={() => setShowAddStaffModal(true)}
-                      className="inline-flex items-center gap-2 bg-[#14B8A6] hover:bg-[#0D9488] text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-sm"
-                    >
-                      <UserPlus className="w-4 h-4" /> Add Employee
-                    </button>
-                  )}
+  <div className="flex items-center gap-1.5">
+    <button
+      type="button"
+      onClick={() => handleOpenEditEmployee(emp)}
+      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-teal-50 text-slate-700 hover:text-[#0D9488] text-xs font-bold transition-colors cursor-pointer"
+      title="Edit Employee Details & PIN"
+    >
+      <Edit2 className="w-3.5 h-3.5" /> Edit
+    </button>
+
+    <button
+      type="button"
+      onClick={() => handleDeleteEmployee(emp)}
+      className="p-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-800 transition-colors cursor-pointer"
+      title="Delete Employee"
+    >
+      <Trash2 className="w-3.5 h-3.5" />
+    </button>
+  </div>
+)}
                 </div>
               </div>
 
@@ -10691,6 +10808,160 @@ export default function App() {
               >
                 Save Vendor Bill Record
               </button>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* MODAL: EDIT EMPLOYEE PROFILE & PIN */}
+      {editingEmployee && isGeneralManager && (
+        <div className="fixed inset-0 bg-[#06151E]/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-[#E6DFD3] my-8">
+            <div className="flex justify-between items-center mb-4 pb-2 border-b">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-[#0F766E]">
+                  Staff & Access Management
+                </span>
+                <h3 className="font-bold text-lg text-[#091D26]">
+                  Edit Employee • {editingEmployee.name}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingEmployee(null)}
+                className="text-slate-400 hover:text-black p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditedEmployee} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold mb-1 text-slate-700">Full Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={editEmployeeForm.name}
+                  onChange={(e) => setEditEmployeeForm({ ...editEmployeeForm, name: e.target.value })}
+                  className="w-full border border-slate-300 rounded-xl p-2.5 font-medium"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Role / Position</label>
+                  <select
+                    value={editEmployeeForm.role}
+                    onChange={(e) => setEditEmployeeForm({ ...editEmployeeForm, role: e.target.value })}
+                    className="w-full border border-slate-300 rounded-xl p-2.5 bg-white font-medium"
+                  >
+                    <option value="General Manager">General Manager</option>
+                    <option value="Front Desk Manager">Front Desk Manager</option>
+                    <option value="Front Desk Agent">Front Desk Agent</option>
+                    <option value="Housekeeping">Housekeeping</option>
+                    <option value="Chef / Kitchen">Chef / Kitchen</option>
+                    <option value="Maintenance">Maintenance</option>
+                    <option value="Security">Security</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Login PIN (4+ Digits) *</label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={8}
+                    value={editEmployeeForm.pin}
+                    onChange={(e) =>
+                      setEditEmployeeForm({
+                        ...editEmployeeForm,
+                        pin: e.target.value.replace(/\D/g, "")
+                      })
+                    }
+                    className="w-full border border-slate-300 rounded-xl p-2.5 font-mono font-bold tracking-widest"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Employment Type</label>
+                  <select
+                    value={editEmployeeForm.type}
+                    onChange={(e) => setEditEmployeeForm({ ...editEmployeeForm, type: e.target.value })}
+                    className="w-full border border-slate-300 rounded-xl p-2.5 bg-white font-medium"
+                  >
+                    <option value="Full-Time">Full-Time</option>
+                    <option value="Part-Time">Part-Time</option>
+                    <option value="Contract">Contract</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Phone / WhatsApp</label>
+                  <input
+                    type="text"
+                    placeholder="+94 77 000 0000"
+                    value={editEmployeeForm.phone}
+                    onChange={(e) => setEditEmployeeForm({ ...editEmployeeForm, phone: e.target.value })}
+                    className="w-full border border-slate-300 rounded-xl p-2.5"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Base Salary (LKR)</label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    placeholder="0"
+                    value={editEmployeeForm.baseSalary}
+                    onChange={(e) => setEditEmployeeForm({ ...editEmployeeForm, baseSalary: e.target.value })}
+                    className="w-full border border-slate-300 rounded-xl p-2.5 font-mono font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Allowances (LKR)</label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    placeholder="0"
+                    value={editEmployeeForm.allowances}
+                    onChange={(e) => setEditEmployeeForm({ ...editEmployeeForm, allowances: e.target.value })}
+                    className="w-full border border-slate-300 rounded-xl p-2.5 font-mono font-bold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1 text-slate-700">Bank Account Details</label>
+                <input
+                  type="text"
+                  placeholder="Bank Name & Account Number"
+                  value={editEmployeeForm.bankAccount}
+                  onChange={(e) => setEditEmployeeForm({ ...editEmployeeForm, bankAccount: e.target.value })}
+                  className="w-full border border-slate-300 rounded-xl p-2.5"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingEmployee(null)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 py-3 rounded-xl font-bold text-slate-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-[#0D9488] hover:bg-[#0F766E] text-white py-3 rounded-xl font-bold shadow-md cursor-pointer"
+                >
+                  Save Employee Changes
+                </button>
+              </div>
             </form>
           </div>
         </div>
