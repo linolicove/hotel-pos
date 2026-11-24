@@ -5756,6 +5756,7 @@ export default function App() {
 
   const maxChartVal = Math.max(10000, ...monthlyTrend.map((m) => Math.max(m.rev, m.exp)));
 
+  // =========================================================================
   // 5. UNIFIED GENERAL LEDGER ENTRIES (Chronological)
   // =========================================================================
   const ledgerEntries = [
@@ -5777,6 +5778,7 @@ export default function App() {
       method: b.paymentStatus === "Paid" ? b.paymentMethod : "UNPAID (AP)",
       amount: Number(b.amount) || 0
     }))
+  ].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
 
   // CSV Export Handler for Accountant / Tax Filing
   const handleExportAccountingCSV = () => {
