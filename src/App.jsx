@@ -5656,9 +5656,18 @@ export default function App() {
   });
 
   // Connect Staff Payroll (Monthly salaries of active staff scaled by period)
-  const monthlyPayrollLkr = (staffList || [])
-    .filter((s) => s.status !== "Inactive")
-    .reduce((acc, s) => acc + (Number(s.baseSalary) || 0), 0);
+  const activeStaffArray =
+    typeof staff !== "undefined"
+      ? Array.isArray(staff)
+        ? staff
+        : Object.values(staff || {})
+      : Array.isArray(settings?.staff)
+      ? settings.staff
+      : Object.values(settings?.staff || {});
+
+  const monthlyPayrollLkr = activeStaffArray
+    .filter((s) => s && s.status !== "Inactive")
+    .reduce((acc, s) => acc + (Number(s.baseSalary || s.salary) || 0), 0);
 
   const periodMultiplier =
     accountingPeriod === "ytd"
