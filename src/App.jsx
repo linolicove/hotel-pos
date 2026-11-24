@@ -1884,9 +1884,7 @@ export default function App() {
         }));
         setStaff(staffList);
       } else {
-        const seedStaffMap = {};
-        INITIAL_STAFF_SEEDS.forEach((s) => { seedStaffMap[s.id] = s; });
-        set(staffRef, seedStaffMap);
+        setStaff([]);
       }
       setLoading(false);
     });
@@ -5655,33 +5653,7 @@ export default function App() {
     }
   });
 
-  // Connect Staff Payroll (Monthly salaries of active staff scaled by period)
-  const activeStaffArray =
-    typeof staff !== "undefined"
-      ? Array.isArray(staff)
-        ? staff
-        : Object.values(staff || {})
-      : Array.isArray(settings?.staff)
-      ? settings.staff
-      : Object.values(settings?.staff || {});
-
-  const monthlyPayrollLkr = activeStaffArray
-    .filter((s) => s && s.status !== "Inactive")
-    .reduce((acc, s) => acc + (Number(s.baseSalary || s.salary) || 0), 0);
-
-  const periodMultiplier =
-    accountingPeriod === "ytd"
-      ? now.getMonth() + 1
-      : accountingPeriod === "all"
-      ? Math.max(1, new Set(allSales.map((s) => (s.date || "").slice(0, 7))).size)
-      : 1;
-
-  const estimatedPayrollLkr = monthlyPayrollLkr * periodMultiplier;
-  if (estimatedPayrollLkr > 0) {
-    expenseByCategory["Staff Salaries & Payroll"] = estimatedPayrollLkr;
-  }
-
-  // Connect Petty Cash Disbursements from Cashier Drawer (excluding vendor bills already synced)
+ // Connect Petty Cash Disbursements from Cashier Drawer (excluding vendor bills already synced)
   const pettyCashDisbursementsLkr = (disbursements || [])
     .filter((d) => d.status === "APPROVED" && !String(d.title || "").startsWith("Vendor Bill"))
     .reduce((acc, d) => acc + (Number(d.amount) || 0), 0);
@@ -5690,7 +5662,7 @@ export default function App() {
     expenseByCategory["Cashier Petty Cash"] = pettyCashDisbursementsLkr;
   }
 
-  const totalExpensesLkr = totalVendorExpensesLkr + estimatedPayrollLkr + pettyCashDisbursementsLkr;
+  const totalExpensesLkr = totalVendorExpensesLkr + pettyCashDisbursementsLkr;
 
   // =========================================================================
   // 3. PROFITABILITY & MARGINS
@@ -5711,11 +5683,10 @@ export default function App() {
       .filter((s) => (s.date || "").startsWith(key))
       .reduce((sum, s) => sum + (Number(s.total) || 0), 0);
 
-    const expBills = Object.values(vendorBills || {})
+    const exp = Object.values(vendorBills || {})
       .filter((b) => (b.billDate || "").startsWith(key) && (accountingIncludeUnpaidBills || b.paymentStatus === "Paid"))
       .reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
 
-    const exp = expBills + (rev > 0 || expBills > 0 ? monthlyPayrollLkr : 0);
     return { key, label, rev, exp, profit: rev - exp };
   });
 
