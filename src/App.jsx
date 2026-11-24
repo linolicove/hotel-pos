@@ -5578,6 +5578,47 @@ export default function App() {
     return true;
   };
 
+  // Helper: Extract exact LKR total from any settled invoice record format
+  const getSaleAmountLkr = (sale) => {
+    if (!sale) return 0;
+
+    // 1. Check direct LKR total properties saved at checkout
+    const directVal =
+      Number(sale.totalLkr) ||
+      Number(sale.total) ||
+      Number(sale.grandTotal) ||
+      Number(sale.finalTotal) ||
+      Number(sale.amountLkr) ||
+      Number(sale.amount) ||
+      0;
+
+    if (directVal > 0) {
+      if (sale.currency === "USD" && !sale.totalLkr) {
+        return directVal * usdRate;
+      }
+      return directVal;
+    }
+
+    // 2. Check USD equivalent field if LKR total was 0
+    if (Number(sale.usdEquivalent) > 0) {
+      return Number(sale.usdEquivalent) * (Number(sale.exchangeRate) || usdRate);
+    }
+
+    // 3. Fallback: Sum line items directly from sale.orderItems
+    const items = Array.isArray(sale.orderItems)
+      ? sale.orderItems
+      : Object.values(sale.orderItems || {});
+
+    return items.reduce((sum, itm) => {
+      const val = Number(itm.total) || (Number(itm.unitPrice) || 0) * (Number(itm.quantity) || 1);
+      const desc = String(itm.description || "").toLowerCase();
+      const isUsdItem =
+        itm.currency === "USD" ||
+        (!itm.currency && val < 500 && !desc.includes("minibar") && !desc.includes("rs."));
+      return sum + (isUsdItem ? val * usdRate : val);
+    }, 0);
+  };
+
   // =========================================================================
   // 1. REVENUE ENGINE (Connected to sales_records: Room Stays, Add-ons, Minibar)
   // =========================================================================
@@ -5590,7 +5631,7 @@ export default function App() {
   let cardTransferCollectedLkr = 0;
 
   allSales.forEach((sale) => {
-    const saleTotalLkr = Number(sale.total) || 0;
+    const saleTotalLkr = getSaleAmountLkr(sale);
     if (sale.settlementMethod === "Cash") {
       cashCollectedLkr += saleTotalLkr;
     } else {
@@ -5610,8 +5651,10 @@ export default function App() {
     let rawItemsSumLkr = 0;
     const categorizedItems = items.map((itm) => {
       const desc = String(itm.description || "").toLowerCase();
-      const rawAmt = Number(itm.total) || 0;
-      const isUsdItem = itm.currency === "USD" || (!itm.currency && rawAmt < 500 && !desc.includes("minibar") && !desc.includes("rs."));
+      const rawAmt = Number(itm.total) || (Number(itm.unitPrice) || 0) * (Number(itm.quantity) || 1);
+      const isUsdItem =
+        itm.currency === "USD" ||
+        (!itm.currency && rawAmt < 500 && !desc.includes("minibar") && !desc.includes("rs."));
       const amtLkr = isUsdItem ? rawAmt * usdRate : rawAmt;
       rawItemsSumLkr += amtLkr;
 
@@ -5640,7 +5683,7 @@ export default function App() {
     .reduce((sum, r) => {
       const items = Object.values(r.orderItems || {});
       const roomSum = items.reduce((acc, itm) => {
-        const val = Number(itm.total) || 0;
+        const val = Number(itm.total) || (Number(itm.unitPrice) || 0) * (Number(itm.quantity) || 1);
         const isUsd = itm.currency === "USD" || (!itm.currency && val < 500);
         return acc + (isUsd ? val * usdRate : val);
       }, 0);
@@ -5650,7 +5693,7 @@ export default function App() {
   const totalRevenueLkr = roomRevenueLkr + addOnRevenueLkr + minibarRevenueLkr;
 
   // =========================================================================
-  // 2. EXPENSE ENGINE (Connected to vendor_bills, staff payroll, cashier drawer)
+  // 2. EXPENSE ENGINE (Connected to vendor_bills & cashier drawer)
   // =========================================================================
   const filteredVendorBills = Object.values(vendorBills || {}).filter((b) => {
     if (!matchesPeriod(b.billDate)) return false;
@@ -5673,7 +5716,7 @@ export default function App() {
     }
   });
 
- // Connect Petty Cash Disbursements from Cashier Drawer (excluding vendor bills already synced)
+  // Connect Petty Cash Disbursements from Cashier Drawer (excluding vendor bills already synced)
   const pettyCashDisbursementsLkr = (disbursements || [])
     .filter((d) => d.status === "APPROVED" && !String(d.title || "").startsWith("Vendor Bill"))
     .reduce((acc, d) => acc + (Number(d.amount) || 0), 0);
@@ -5701,7 +5744,7 @@ export default function App() {
 
     const rev = Object.values(salesRecords || {})
       .filter((s) => (s.date || "").startsWith(key))
-      .reduce((sum, s) => sum + (Number(s.total) || 0), 0);
+      .reduce((sum, s) => sum + getSaleAmountLkr(s), 0);
 
     const exp = Object.values(vendorBills || {})
       .filter((b) => (b.billDate || "").startsWith(key) && (accountingIncludeUnpaidBills || b.paymentStatus === "Paid"))
@@ -5711,7 +5754,7 @@ export default function App() {
   });
 
   const maxChartVal = Math.max(10000, ...monthlyTrend.map((m) => Math.max(m.rev, m.exp)));
-
+  
   // =========================================================================
   // 5. UNIFIED GENERAL LEDGER ENTRIES (Chronological)
   // =========================================================================
