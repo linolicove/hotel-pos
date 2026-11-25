@@ -4122,12 +4122,12 @@ const [editEmployeeForm, setEditEmployeeForm] = useState({
 
                         {isGeneralManager && (
                           <button
-                            type="button"
-                            onClick={() => setShowAddBookingModal(true)}
-                            className="bg-[#14B8A6] hover:bg-[#0D9488] active:scale-95 transition-all text-white px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm cursor-pointer"
-                          >
-                            <Plus className="w-4 h-4" /> New Booking
-                          </button>
+  type="button"
+  onClick={() => setShowNewBookingModal(true)}
+  className="inline-flex items-center gap-1.5 bg-[#14B8A6] hover:bg-[#0D9488] text-white px-4 py-2 rounded-full text-xs font-bold shadow-sm transition-all cursor-pointer"
+>
+  <Plus className="w-4 h-4" /> New Booking
+</button>
                         )}
                       </div>
                     </div>
