@@ -1520,7 +1520,7 @@ const [editEmployeeForm, setEditEmployeeForm] = useState({
   const [viewPhotoModalData, setViewPhotoModalData] = useState(null);
 
   // Pre-Booking Creation Modal State
-  const [showAddBookingModal, setShowAddBookingModal] = useState(false);
+  const [showNewBookingModal, setShowNewBookingModal] = useState(false);
   const [newBookingForm, setNewBookingForm] = useState({
     guestName: "",
     guestPhone: "",
@@ -1528,8 +1528,7 @@ const [editEmployeeForm, setEditEmployeeForm] = useState({
     checkInDate: getTodayKey(),
     checkOutDate: new Date(Date.now() + 86400000).toISOString().split("T")[0],
     depositAmount: "0",
-    customNightRate: "", // <-- ADD THIS (Empty = auto-uses room's dynamic rate)
-    totalRate: "18000",
+    totalRate: "",
     discountPercent: "",
     status: "Confirmed",
     notes: ""
@@ -2450,85 +2449,67 @@ const [editEmployeeForm, setEditEmployeeForm] = useState({
     remove(ref(rtdb, `rooms/${roomId}/orderItems/${itemId}`));
   };
 
-  const handleCreatePrebooking = (e) => {
+  const handleCreatePrebooking = async (e) => {
     e.preventDefault();
-    if (!newBookingForm.guestName || !newBookingForm.roomNumber) {
-      alert("Please provide guest name and select a room.");
+    if (!newBookingForm.roomNumber || !newBookingForm.guestName?.trim()) {
+      alert("Please select a Room and enter Guest Name.");
       return;
     }
 
     const targetRoom = rooms.find((r) => String(r.number) === String(newBookingForm.roomNumber));
-    if (!targetRoom) {
-      alert(`Room #${newBookingForm.roomNumber} does not exist.`);
-      return;
-    }
-
-    const bookingId = `BK-${Date.now().toString().slice(-6)}`;
-
-    // Calculate nights accurately from check-in/check-out dates (or fallback to form nights)
     const startMs = new Date(newBookingForm.checkInDate || getTodayKey()).getTime();
     const endMs = new Date(newBookingForm.checkOutDate || getTodayKey()).getTime();
-    const dateDiffNights = Math.round((endMs - startMs) / 86400000);
-    const nights = Math.max(1, dateDiffNights > 0 ? dateDiffNights : parseInt(newBookingForm.nights || 1, 10));
+    const nights = Math.max(1, Math.round((endMs - startMs) / 86400000));
 
-    // Use custom nightly rate entered in totalRate, or default to room's dynamic rate
-    const defaultRoomRate = getDynamicRoomRate(targetRoom, rooms);
-    const baseNightlyRate =
+    const defaultRate = targetRoom ? getDynamicRoomRate(targetRoom, rooms) : 0;
+    const baseNightRate =
       newBookingForm.totalRate !== "" && !isNaN(parseFloat(newBookingForm.totalRate))
         ? Math.max(0, parseFloat(newBookingForm.totalRate))
-        : defaultRoomRate;
+        : defaultRate;
 
-    const discountPct = Math.min(100, Math.max(0, parseFloat(newBookingForm.discountPercent) || 0));
-    const finalNightRate = Number((baseNightlyRate * (1 - discountPct / 100)).toFixed(2));
-    const discountedTotal = Number((finalNightRate * nights).toFixed(2));
+    const discPct = Math.min(100, Math.max(0, parseFloat(newBookingForm.discountPercent) || 0));
+    const finalNightRate = Number((baseNightRate * (1 - discPct / 100)).toFixed(2));
+    const finalTotalRate = Number((finalNightRate * nights).toFixed(2));
 
+    const bookingId = `BK-${Date.now().toString().slice(-6)}`;
     const newBooking = {
       id: bookingId,
+      roomNumber: String(newBookingForm.roomNumber),
       guestName: sanitizeInput(newBookingForm.guestName),
-      guestPhone: sanitizeInput(newBookingForm.guestPhone),
-      roomNumber: sanitizeInput(newBookingForm.roomNumber),
-      checkInDate: newBookingForm.checkInDate,
-      checkOutDate: newBookingForm.checkOutDate,
-      nights: nights,
+      guestPhone: sanitizeInput(newBookingForm.guestPhone || ""),
+      checkInDate: newBookingForm.checkInDate || getTodayKey(),
+      checkOutDate: newBookingForm.checkOutDate || getTodayKey(),
+      nights,
       nightRate: finalNightRate,
-      totalRate: discountedTotal,
-      discountPercent: discountPct,
-      currency: targetRoom.currency || "USD",
-      depositAmount: parseFloat(newBookingForm.depositAmount) || 0,
+      totalRate: finalNightRate,
+      stayTotal: finalTotalRate,
+      discountPercent: discPct,
+      currency: targetRoom?.currency || "USD",
+      depositAmount: Number(parseFloat(newBookingForm.depositAmount) || 0),
       status: newBookingForm.status || "Confirmed",
-      notes: sanitizeInput(newBookingForm.notes),
+      notes: sanitizeInput(newBookingForm.notes || ""),
       createdAt: new Date().toISOString()
     };
 
-    // 1. Save reservation in prebookings
-    set(ref(rtdb, `prebookings/${bookingId}`), newBooking);
-
-    // 2. Lock the room if the check-in is for today
-    const today = getTodayKey();
-    if (newBookingForm.checkInDate === today && targetRoom.status === "available") {
-      update(ref(rtdb, `rooms/${targetRoom.id}`), {
-        status: "maintenance",
-        lockedUntil: newBookingForm.checkOutDate,
-        reservedFor: sanitizeInput(newBookingForm.guestName)
+    try {
+      await set(ref(rtdb, `prebookings/${bookingId}`), newBooking);
+      setShowNewBookingModal(false);
+      setNewBookingForm({
+        guestName: "",
+        guestPhone: "",
+        roomNumber: "",
+        checkInDate: getTodayKey(),
+        checkOutDate: new Date(Date.now() + 86400000).toISOString().split("T")[0],
+        depositAmount: "0",
+        totalRate: "",
+        discountPercent: "",
+        status: "Confirmed",
+        notes: ""
       });
+    } catch (err) {
+      console.error("Failed to save reservation:", err);
+      alert("Error saving reservation: " + err.message);
     }
-
-    setShowAddBookingModal(false);
-    setNewBookingForm({
-      guestName: "",
-      guestPhone: "",
-      roomNumber: "",
-      checkInDate: getTodayKey(),
-      checkOutDate: new Date(Date.now() + 86400000).toISOString().split("T")[0],
-      nights: 1,
-      depositAmount: "0",
-      totalRate: "",
-      discountPercent: "",
-      status: "Confirmed",
-      notes: ""
-    });
-
-    alert(`Reservation saved! Room #${newBookingForm.roomNumber} locked for ${newBooking.guestName} (${newBooking.checkInDate} to ${newBooking.checkOutDate}).`);
   };
 
   const handleDeletePrebooking = (bookingId) => {
@@ -8532,7 +8513,7 @@ const [editEmployeeForm, setEditEmployeeForm] = useState({
       )}
 
       {/* MODAL: CREATE PRE-BOOKING RESERVATION */}
-      {showPrebookingModal && (() => {
+      {showNewBookingModal && (() => {
         const selRoom = rooms.find((r) => String(r.number) === String(newBookingForm.roomNumber));
         const isLocalLkr = selRoom?.currency === "LKR";
         const sym = isLocalLkr ? "Rs. " : "US $";
@@ -8558,7 +8539,7 @@ const [editEmployeeForm, setEditEmployeeForm] = useState({
                 </div>
                 <button
                   type="button"
-                  onClick={() => setShowPrebookingModal(false)}
+                  onClick={() => setShowNewBookingModal(false)}
                   className="text-slate-400 hover:text-black p-1"
                 >
                   <X className="w-5 h-5" />
@@ -8658,7 +8639,7 @@ const [editEmployeeForm, setEditEmployeeForm] = useState({
                   </div>
                 </div>
 
-                {/* Single Custom Nightly Rate, Discount & Deposit Card */}
+                {/* Custom Nightly Rate, Discount & Deposit Card */}
                 <div className="p-3.5 bg-[#FAF9F5] border border-[#E6DFD3] rounded-2xl space-y-3">
                   <div className="flex justify-between items-center">
                     <span className="text-[11px] font-bold uppercase text-slate-600">
