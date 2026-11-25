@@ -8532,229 +8532,238 @@ const [editEmployeeForm, setEditEmployeeForm] = useState({
       )}
 
       {/* MODAL: CREATE PRE-BOOKING RESERVATION */}
-      {showAddBookingModal && (
-        <div className="fixed inset-0 bg-[#06151E]/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-[#E6DFD3] my-8">
-            <div className="flex justify-between items-center mb-4 pb-2 border-b">
-              <div>
-                <span className="text-xs uppercase font-bold text-[#0F766E]">Advance Booking Manifest</span>
-                <h3 className="font-bold text-lg text-[#091D26]">Create Pre-Booking Reservation</h3>
-              </div>
-              <button 
-                type="button" 
-                onClick={() => setShowAddBookingModal(false)} 
-                className="text-slate-400 hover:text-black p-1"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      {showNewBookingModal && (() => {
+        const selRoom = rooms.find((r) => String(r.number) === String(newBookingForm.roomNumber));
+        const isLocalLkr = selRoom?.currency === "LKR";
+        const sym = isLocalLkr ? "Rs. " : "US $";
 
-            <form onSubmit={handleCreatePrebooking} className="space-y-4 text-xs">
-              {/* Single Guest Name */}
-              <div>
-                <label className="block font-semibold mb-1 text-slate-700">Guest Full Name</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Chaithanya P K"
-                  value={newBookingForm.guestName}
-                  onChange={(e) => setNewBookingForm({ ...newBookingForm, guestName: e.target.value })}
-                  className="w-full border rounded-xl p-2.5 font-medium"
-                />
-              </div>
+        const startMs = new Date(newBookingForm.checkInDate || getTodayKey()).getTime();
+        const endMs = new Date(newBookingForm.checkOutDate || getTodayKey()).getTime();
+        const nights = Math.max(1, Math.round((endMs - startMs) / 86400000));
 
-              {/* Contact Phone & Room Selection */}
-              <div className="grid grid-cols-2 gap-3">
+        const baseNightly = parseFloat(newBookingForm.totalRate) || 0;
+        const discPct = Math.min(100, Math.max(0, parseFloat(newBookingForm.discountPercent) || 0));
+        const finalNightly = baseNightly * (1 - discPct / 100);
+        const liveStayTotal = finalNightly * nights;
+
+        return (
+          <div className="fixed inset-0 bg-[#06151E]/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+            <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-[#E6DFD3] my-8">
+              <div className="flex justify-between items-center mb-4 pb-3 border-b border-slate-200">
                 <div>
-                  <label className="block font-semibold mb-1 text-slate-700">Contact Phone</label>
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-[#0F766E]">
+                    Advance Booking Manifest
+                  </span>
+                  <h3 className="font-bold text-xl text-[#091D26]">Create Pre-Booking Reservation</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowNewBookingModal(false)}
+                  className="text-slate-400 hover:text-black p-1"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreatePrebooking} className="space-y-4 text-xs">
+                {/* Guest Full Name */}
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Guest Full Name</label>
                   <input
-                    type="tel"
+                    type="text"
                     required
-                    placeholder="+91 20 ..."
-                    value={newBookingForm.guestPhone}
-                    onChange={(e) => setNewBookingForm({ ...newBookingForm, guestPhone: e.target.value })}
-                    className="w-full border rounded-xl p-2.5 font-medium"
+                    placeholder="e.g. Chaithanya P K"
+                    value={newBookingForm.guestName}
+                    onChange={(e) => setNewBookingForm({ ...newBookingForm, guestName: e.target.value })}
+                    className="w-full border border-slate-300 rounded-xl p-2.5 font-medium"
                   />
                 </div>
-                <div>
-                  <label className="block font-semibold mb-1 text-slate-700">Select Room to Lock</label>
-                  <select
-                    required
-                    value={newBookingForm.roomNumber}
-onChange={(e) => {
-  const selRoom = rooms.find(r => String(r.number) === e.target.value);
-  const baseRate = selRoom ? getDynamicRoomRate(selRoom, rooms) : "";
-  setNewBookingForm({
-    ...newBookingForm,
-    roomNumber: e.target.value,
-    totalRate: baseRate !== "" ? String(baseRate) : ""
-  });
-}}
-                    className="w-full border rounded-xl p-2.5 bg-white font-bold text-slate-800"
-                  >
-                    <option value="">-- Choose Room --</option>
-                    {rooms.map(r => (
-                      <option key={r.id} value={r.number}>
-                        #{r.number} ({r.type})
-                      </option>
-                    ))}
-                  </select>
+
+                {/* Contact Phone & Room Selection */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Contact Phone</label>
+                    <input
+                      type="text"
+                      placeholder="+91 20 ..."
+                      value={newBookingForm.guestPhone}
+                      onChange={(e) => setNewBookingForm({ ...newBookingForm, guestPhone: e.target.value })}
+                      className="w-full border border-slate-300 rounded-xl p-2.5"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Select Room to Lock</label>
+                    <select
+                      required
+                      value={newBookingForm.roomNumber}
+                      onChange={(e) => {
+                        const rmNum = e.target.value;
+                        const rmObj = rooms.find((r) => String(r.number) === String(rmNum));
+                        const defaultRate = rmObj ? getDynamicRoomRate(rmObj, rooms) : "";
+                        setNewBookingForm({
+                          ...newBookingForm,
+                          roomNumber: rmNum,
+                          totalRate: defaultRate !== "" ? String(defaultRate) : ""
+                        });
+                      }}
+                      className="w-full border border-slate-300 rounded-xl p-2.5 bg-white font-bold"
+                    >
+                      <option value="">-- Choose Room --</option>
+                      {rooms.map((r) => (
+                        <option key={r.id} value={r.number}>
+                          #{r.number} — {r.type} ({r.currency === "LKR" ? "Rs." : "$"}
+                          {getDynamicRoomRate(r, rooms)}/nt)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-              </div>
 
-              {/* Custom Nightly Rate, Discount & Live Stay Total */}
-              {(() => {
-                const selRoom = rooms.find((r) => String(r.number) === String(newBookingForm.roomNumber));
-                const isLocalLkr = selRoom?.currency === "LKR";
-                const sym = isLocalLkr ? "Rs. " : "US $";
+                {/* Check-In Date & Check-Out Date */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Check-In Date</label>
+                    <input
+                      type="date"
+                      required
+                      value={newBookingForm.checkInDate}
+                      onChange={(e) => {
+                        const newIn = e.target.value;
+                        const currentOut = newBookingForm.checkOutDate;
+                        const adjustedOut =
+                          !currentOut || currentOut <= newIn
+                            ? new Date(new Date(newIn).getTime() + 86400000).toISOString().split("T")[0]
+                            : currentOut;
+                        setNewBookingForm({
+                          ...newBookingForm,
+                          checkInDate: newIn,
+                          checkOutDate: adjustedOut
+                        });
+                      }}
+                      className="w-full border border-slate-300 rounded-xl p-2.5 font-mono font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700">Check-Out Date</label>
+                    <input
+                      type="date"
+                      required
+                      min={newBookingForm.checkInDate}
+                      value={newBookingForm.checkOutDate}
+                      onChange={(e) =>
+                        setNewBookingForm({ ...newBookingForm, checkOutDate: e.target.value })
+                      }
+                      className="w-full border border-slate-300 rounded-xl p-2.5 font-mono font-bold"
+                    />
+                  </div>
+                </div>
 
-                const startMs = new Date(newBookingForm.checkInDate || getTodayKey()).getTime();
-                const endMs = new Date(newBookingForm.checkOutDate || getTodayKey()).getTime();
-                const nights = Math.max(1, Math.round((endMs - startMs) / 86400000));
+                {/* Single Custom Nightly Rate, Discount & Deposit Card */}
+                <div className="p-3.5 bg-[#FAF9F5] border border-[#E6DFD3] rounded-2xl space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[11px] font-bold uppercase text-slate-600">
+                      Custom Rate & Total ({nights} Night{nights > 1 ? "s" : ""})
+                    </span>
+                    <span className="text-xs font-black text-[#0D9488]">
+                      Stay Total: {sym}
+                      {liveStayTotal.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                      })}
+                    </span>
+                  </div>
 
-                const baseNightly = parseFloat(newBookingForm.totalRate) || 0;
-                const discPct = Math.min(100, Math.max(0, parseFloat(newBookingForm.discountPercent) || 0));
-                const finalNightly = baseNightly * (1 - discPct / 100);
-                const liveStayTotal = finalNightly * nights;
-
-                return (
-                  <div className="p-3.5 bg-[#FAF9F5] border border-[#E6DFD3] rounded-2xl space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[11px] font-bold uppercase text-slate-600">
-                        Custom Rate & Total ({nights} Night{nights > 1 ? "s" : ""}) • Out: {newBookingForm.checkOutDate}
-                      </span>
-                      <span className="text-xs font-black text-[#0D9488]">
-                        Stay Total: {sym}
-                        {liveStayTotal.toLocaleString(undefined, {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2
-                        })}
-                      </span>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="block font-semibold mb-1 text-slate-700">
+                        Night Rate ({isLocalLkr ? "LKR" : "USD"})
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        min="0"
+                        placeholder="0.00"
+                        value={newBookingForm.totalRate}
+                        onChange={(e) =>
+                          setNewBookingForm({ ...newBookingForm, totalRate: e.target.value })
+                        }
+                        className="w-full border border-slate-300 rounded-xl p-2.5 font-bold bg-white"
+                      />
                     </div>
 
-                    <div className="grid grid-cols-3 gap-2">
-                      <div>
-                        <label className="block font-semibold mb-1 text-slate-700">
-                          Night Rate ({isLocalLkr ? "LKR" : "USD"})
-                        </label>
-                        <input
-                          type="number"
-                          step="any"
-                          min="0"
-                          placeholder="0.00"
-                          value={newBookingForm.totalRate}
-                          onChange={(e) =>
-                            setNewBookingForm({ ...newBookingForm, totalRate: e.target.value })
-                          }
-                          className="w-full border border-slate-300 rounded-xl p-2.5 font-bold bg-white"
-                        />
-                      </div>
+                    <div>
+                      <label className="block font-semibold mb-1 text-purple-800">Discount (%)</label>
+                      <input
+                        type="number"
+                        step="any"
+                        min="0"
+                        max="100"
+                        placeholder="0"
+                        value={newBookingForm.discountPercent || ""}
+                        onChange={(e) =>
+                          setNewBookingForm({ ...newBookingForm, discountPercent: e.target.value })
+                        }
+                        className="w-full border border-purple-200 bg-purple-50/40 rounded-xl p-2.5 font-bold text-purple-900"
+                      />
+                    </div>
 
-                      <div>
-                        <label className="block font-semibold mb-1 text-purple-800">Discount (%)</label>
-                        <input
-                          type="number"
-                          step="any"
-                          min="0"
-                          max="100"
-                          placeholder="0"
-                          value={newBookingForm.discountPercent}
-                          onChange={(e) =>
-                            setNewBookingForm({ ...newBookingForm, discountPercent: e.target.value })
-                          }
-                          className="w-full border border-purple-200 bg-purple-50/40 rounded-xl p-2.5 font-bold text-purple-900"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block font-semibold mb-1 text-slate-700">
-                          Deposit ({isLocalLkr ? "LKR" : "USD"})
-                        </label>
-                        <input
-                          type="number"
-                          step="any"
-                          min="0"
-                          placeholder="0.00"
-                          value={newBookingForm.depositAmount}
-                          onChange={(e) =>
-                            setNewBookingForm({ ...newBookingForm, depositAmount: e.target.value })
-                          }
-                          className="w-full border border-slate-300 rounded-xl p-2.5 font-bold text-emerald-700 bg-white"
-                        />
-                      </div>
+                    <div>
+                      <label className="block font-semibold mb-1 text-slate-700">
+                        Deposit ({isLocalLkr ? "LKR" : "USD"})
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        min="0"
+                        placeholder="0"
+                        value={newBookingForm.depositAmount}
+                        onChange={(e) =>
+                          setNewBookingForm({ ...newBookingForm, depositAmount: e.target.value })
+                        }
+                        className="w-full border border-slate-300 rounded-xl p-2.5 font-bold text-emerald-700 bg-white"
+                      />
                     </div>
                   </div>
-                );
-              })()}
-
-              {/* Departure Summary, Deposit & Custom Discount */}
-              <div className="grid grid-cols-3 gap-2 items-center">
-                <div className="p-2.5 bg-slate-100 border border-slate-200 rounded-xl text-[11px] font-mono text-slate-600">
-                  <span className="block text-[9px] uppercase text-slate-400">Departure:</span>
-                  <b className="text-teal-700">{newBookingForm.checkOutDate}</b>
                 </div>
+
+                {/* Booking Status */}
                 <div>
-                  <label className="block font-semibold mb-1 text-slate-700">Deposit Paid (US $)</label>
-                  <input
-                    type="number"
-                    step="any"
-                    value={newBookingForm.depositAmount}
-                    onChange={(e) => setNewBookingForm({ ...newBookingForm, depositAmount: e.target.value })}
-                    className="w-full border rounded-xl p-2.5 font-bold text-emerald-700"
+                  <label className="block font-semibold mb-1 text-slate-700">Booking Status</label>
+                  <select
+                    value={newBookingForm.status}
+                    onChange={(e) => setNewBookingForm({ ...newBookingForm, status: e.target.value })}
+                    className="w-full border border-slate-300 rounded-xl p-2.5 bg-white font-bold"
+                  >
+                    <option value="Confirmed">Confirmed (Lock Room)</option>
+                    <option value="Deposit Paid">Deposit Paid</option>
+                    <option value="Tentative">Tentative</option>
+                  </select>
+                </div>
+
+                {/* Notes */}
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-700">Special Requests / Notes</label>
+                  <textarea
+                    rows={2}
+                    placeholder="e.g. Airport pickup required, late arrival around 9 PM"
+                    value={newBookingForm.notes}
+                    onChange={(e) => setNewBookingForm({ ...newBookingForm, notes: e.target.value })}
+                    className="w-full border border-slate-300 rounded-xl p-2.5"
                   />
                 </div>
-                <div>
-                  <label className="block font-semibold mb-1 text-purple-800">Discount (%)</label>
-                  <input
-                    type="number"
-                    step="any"
-                    min="0"
-                    max="100"
-                    placeholder="e.g. 10"
-                    value={newBookingForm.discountPercent || ""}
-                    onChange={(e) => setNewBookingForm({ ...newBookingForm, discountPercent: e.target.value })}
-                    className="w-full border border-purple-200 bg-purple-50/40 rounded-xl p-2.5 font-bold text-purple-900 focus:outline-none focus:border-purple-500"
-                  />
-                </div>
-              </div>
 
-              {/* Booking Status */}
-              <div>
-                <label className="block font-semibold mb-1 text-slate-700">Booking Status</label>
-                <select
-                  value={newBookingForm.status}
-                  onChange={(e) => setNewBookingForm({ ...newBookingForm, status: e.target.value })}
-                  className="w-full border rounded-xl p-2.5 bg-white font-bold"
+                <button
+                  type="submit"
+                  className="w-full bg-[#14B8A6] hover:bg-[#0D9488] active:scale-[0.98] transition-all text-white font-bold py-3 rounded-xl shadow-md cursor-pointer"
                 >
-                  <option value="Confirmed">Confirmed (Lock Room)</option>
-                  <option value="Deposit Paid">Deposit Paid</option>
-                  <option value="Tentative">Tentative</option>
-                </select>
-              </div>
-
-              {/* Notes */}
-              <div>
-                <label className="block font-semibold mb-1 text-slate-700">Special Requests / Notes</label>
-                <textarea
-                  rows={2}
-                  placeholder="e.g. Airport pickup required, late arrival around 9 PM"
-                  value={newBookingForm.notes}
-                  onChange={(e) => setNewBookingForm({ ...newBookingForm, notes: e.target.value })}
-                  className="w-full border rounded-xl p-2.5"
-                />
-              </div>
-
-              <button 
-                type="submit" 
-                className="w-full bg-[#14B8A6] hover:bg-[#0D9488] active:scale-[0.98] transition-all text-white font-bold py-3 rounded-xl shadow-md cursor-pointer"
-              >
-                Save Advance Reservation & Lock Room
-              </button>
-            </form>
+                  Save Advance Reservation & Lock Room
+                </button>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
-
+        );
+      })()}
+      
       {/* MODAL: SRI LANKA TOURISM / POLICE GUEST REGISTRATION & CHECK-IN */}
       {checkInModalRoom && (
         <div className="fixed inset-0 bg-[#06151E]/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
