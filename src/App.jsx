@@ -8532,7 +8532,7 @@ const [editEmployeeForm, setEditEmployeeForm] = useState({
       )}
 
       {/* MODAL: CREATE PRE-BOOKING RESERVATION */}
-      {showNewBookingModal && (() => {
+      {showPrebookingModal && (() => {
         const selRoom = rooms.find((r) => String(r.number) === String(newBookingForm.roomNumber));
         const isLocalLkr = selRoom?.currency === "LKR";
         const sym = isLocalLkr ? "Rs. " : "US $";
@@ -8558,7 +8558,7 @@ const [editEmployeeForm, setEditEmployeeForm] = useState({
                 </div>
                 <button
                   type="button"
-                  onClick={() => setShowNewBookingModal(false)}
+                  onClick={() => setShowPrebookingModal(false)}
                   className="text-slate-400 hover:text-black p-1"
                 >
                   <X className="w-5 h-5" />
@@ -8763,7 +8763,7 @@ const [editEmployeeForm, setEditEmployeeForm] = useState({
           </div>
         );
       })()}
-      
+
       {/* MODAL: SRI LANKA TOURISM / POLICE GUEST REGISTRATION & CHECK-IN */}
       {checkInModalRoom && (
         <div className="fixed inset-0 bg-[#06151E]/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
