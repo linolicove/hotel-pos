@@ -1528,6 +1528,7 @@ const [editEmployeeForm, setEditEmployeeForm] = useState({
     checkInDate: getTodayKey(),
     checkOutDate: new Date(Date.now() + 86400000).toISOString().split("T")[0],
     depositAmount: "0",
+    customNightRate: "", // <-- ADD THIS (Empty = auto-uses room's dynamic rate)
     totalRate: "18000",
     discountPercent: "",
     status: "Confirmed",
@@ -2456,17 +2457,30 @@ const [editEmployeeForm, setEditEmployeeForm] = useState({
       return;
     }
 
-    const targetRoom = rooms.find(r => String(r.number) === String(newBookingForm.roomNumber));
+    const targetRoom = rooms.find((r) => String(r.number) === String(newBookingForm.roomNumber));
     if (!targetRoom) {
       alert(`Room #${newBookingForm.roomNumber} does not exist.`);
       return;
     }
 
     const bookingId = `BK-${Date.now().toString().slice(-6)}`;
-    const nights = Math.max(1, parseInt(newBookingForm.nights || 1, 10));
-    const baseNightlyRate = parseFloat(newBookingForm.totalRate) || 18;
+
+    // Calculate nights accurately from check-in/check-out dates (or fallback to form nights)
+    const startMs = new Date(newBookingForm.checkInDate || getTodayKey()).getTime();
+    const endMs = new Date(newBookingForm.checkOutDate || getTodayKey()).getTime();
+    const dateDiffNights = Math.round((endMs - startMs) / 86400000);
+    const nights = Math.max(1, dateDiffNights > 0 ? dateDiffNights : parseInt(newBookingForm.nights || 1, 10));
+
+    // Use custom nightly rate entered in totalRate, or default to room's dynamic rate
+    const defaultRoomRate = getDynamicRoomRate(targetRoom, rooms);
+    const baseNightlyRate =
+      newBookingForm.totalRate !== "" && !isNaN(parseFloat(newBookingForm.totalRate))
+        ? Math.max(0, parseFloat(newBookingForm.totalRate))
+        : defaultRoomRate;
+
     const discountPct = Math.min(100, Math.max(0, parseFloat(newBookingForm.discountPercent) || 0));
-    const discountedTotal = (baseNightlyRate * nights) * (1 - discountPct / 100);
+    const finalNightRate = Number((baseNightlyRate * (1 - discountPct / 100)).toFixed(2));
+    const discountedTotal = Number((finalNightRate * nights).toFixed(2));
 
     const newBooking = {
       id: bookingId,
@@ -2476,8 +2490,10 @@ const [editEmployeeForm, setEditEmployeeForm] = useState({
       checkInDate: newBookingForm.checkInDate,
       checkOutDate: newBookingForm.checkOutDate,
       nights: nights,
-      totalRate: Number(discountedTotal.toFixed(2)),
+      nightRate: finalNightRate,
+      totalRate: discountedTotal,
       discountPercent: discountPct,
+      currency: targetRoom.currency || "USD",
       depositAmount: parseFloat(newBookingForm.depositAmount) || 0,
       status: newBookingForm.status || "Confirmed",
       notes: sanitizeInput(newBookingForm.notes),
@@ -2506,7 +2522,7 @@ const [editEmployeeForm, setEditEmployeeForm] = useState({
       checkOutDate: new Date(Date.now() + 86400000).toISOString().split("T")[0],
       nights: 1,
       depositAmount: "0",
-      totalRate: "18",
+      totalRate: "",
       discountPercent: "",
       status: "Confirmed",
       notes: ""
@@ -8565,15 +8581,15 @@ const [editEmployeeForm, setEditEmployeeForm] = useState({
                   <select
                     required
                     value={newBookingForm.roomNumber}
-                    onChange={(e) => {
-                      const selRoom = rooms.find(r => String(r.number) === e.target.value);
-                      const baseRate = selRoom ? Number(selRoom.rate) : 18000;
-                      setNewBookingForm({
-                        ...newBookingForm,
-                        roomNumber: e.target.value,
-                        totalRate: String(baseRate)
-                      });
-                    }}
+onChange={(e) => {
+  const selRoom = rooms.find(r => String(r.number) === e.target.value);
+  const baseRate = selRoom ? getDynamicRoomRate(selRoom, rooms) : "";
+  setNewBookingForm({
+    ...newBookingForm,
+    roomNumber: e.target.value,
+    totalRate: baseRate !== "" ? String(baseRate) : ""
+  });
+}}
                     className="w-full border rounded-xl p-2.5 bg-white font-bold text-slate-800"
                   >
                     <option value="">-- Choose Room --</option>
@@ -8586,44 +8602,90 @@ const [editEmployeeForm, setEditEmployeeForm] = useState({
                 </div>
               </div>
 
-              {/* Check-In Date & Nights Duration */}
-              <div className="grid grid-cols-2 gap-3 items-center">
-                <div>
-                  <label className="block font-semibold mb-1 text-slate-700">Check-In Date</label>
-                  <input
-                    type="date"
-                    required
-                    value={newBookingForm.checkInDate}
-                    onChange={(e) => {
-                      const newIn = e.target.value;
-                      const nights = parseInt(newBookingForm.nights || 1, 10);
-                      const newOut = new Date(new Date(newIn).getTime() + nights * 86400000).toISOString().split("T")[0];
-                      setNewBookingForm({ ...newBookingForm, checkInDate: newIn, checkOutDate: newOut });
-                    }}
-                    className="w-full border rounded-xl p-2.5 font-mono text-xs bg-white font-bold text-slate-800"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1 text-slate-700">Nights Duration</label>
-                  <input
-                    type="number"
-                    min="1"
-                    required
-                    value={newBookingForm.nights || 1}
-                    onChange={(e) => {
-                      const nights = parseInt(e.target.value, 10) || 1;
-                      const checkInTime = new Date(newBookingForm.checkInDate || getTodayKey()).getTime();
-                      const newOut = new Date(checkInTime + nights * 86400000).toISOString().split("T")[0];
-                      setNewBookingForm({ 
-                        ...newBookingForm, 
-                        nights: nights,
-                        checkOutDate: newOut
-                      });
-                    }}
-                    className="w-full border rounded-xl p-2.5 font-bold"
-                  />
-                </div>
-              </div>
+              {/* Custom Nightly Rate, Discount & Live Stay Total */}
+              {(() => {
+                const selRoom = rooms.find((r) => String(r.number) === String(newBookingForm.roomNumber));
+                const isLocalLkr = selRoom?.currency === "LKR";
+                const sym = isLocalLkr ? "Rs. " : "US $";
+
+                const startMs = new Date(newBookingForm.checkInDate || getTodayKey()).getTime();
+                const endMs = new Date(newBookingForm.checkOutDate || getTodayKey()).getTime();
+                const nights = Math.max(1, Math.round((endMs - startMs) / 86400000));
+
+                const baseNightly = parseFloat(newBookingForm.totalRate) || 0;
+                const discPct = Math.min(100, Math.max(0, parseFloat(newBookingForm.discountPercent) || 0));
+                const finalNightly = baseNightly * (1 - discPct / 100);
+                const liveStayTotal = finalNightly * nights;
+
+                return (
+                  <div className="p-3.5 bg-[#FAF9F5] border border-[#E6DFD3] rounded-2xl space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[11px] font-bold uppercase text-slate-600">
+                        Custom Rate & Total ({nights} Night{nights > 1 ? "s" : ""}) • Out: {newBookingForm.checkOutDate}
+                      </span>
+                      <span className="text-xs font-black text-[#0D9488]">
+                        Stay Total: {sym}
+                        {liveStayTotal.toLocaleString(undefined, {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2
+                        })}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="block font-semibold mb-1 text-slate-700">
+                          Night Rate ({isLocalLkr ? "LKR" : "USD"})
+                        </label>
+                        <input
+                          type="number"
+                          step="any"
+                          min="0"
+                          placeholder="0.00"
+                          value={newBookingForm.totalRate}
+                          onChange={(e) =>
+                            setNewBookingForm({ ...newBookingForm, totalRate: e.target.value })
+                          }
+                          className="w-full border border-slate-300 rounded-xl p-2.5 font-bold bg-white"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block font-semibold mb-1 text-purple-800">Discount (%)</label>
+                        <input
+                          type="number"
+                          step="any"
+                          min="0"
+                          max="100"
+                          placeholder="0"
+                          value={newBookingForm.discountPercent}
+                          onChange={(e) =>
+                            setNewBookingForm({ ...newBookingForm, discountPercent: e.target.value })
+                          }
+                          className="w-full border border-purple-200 bg-purple-50/40 rounded-xl p-2.5 font-bold text-purple-900"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block font-semibold mb-1 text-slate-700">
+                          Deposit ({isLocalLkr ? "LKR" : "USD"})
+                        </label>
+                        <input
+                          type="number"
+                          step="any"
+                          min="0"
+                          placeholder="0.00"
+                          value={newBookingForm.depositAmount}
+                          onChange={(e) =>
+                            setNewBookingForm({ ...newBookingForm, depositAmount: e.target.value })
+                          }
+                          className="w-full border border-slate-300 rounded-xl p-2.5 font-bold text-emerald-700 bg-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Departure Summary, Deposit & Custom Discount */}
               <div className="grid grid-cols-3 gap-2 items-center">
