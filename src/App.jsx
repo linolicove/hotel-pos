@@ -8663,7 +8663,7 @@ const [editEmployeeForm, setEditEmployeeForm] = useState({
   type="number"
   step="any"
   min="0"
-  placeholder={String(defaultRoomRate || "0.00")}
+  placeholder="0.00"
   value={newBookingForm.totalRate}
   onChange={(e) =>
     setNewBookingForm((prev) => ({ ...prev, totalRate: e.target.value }))
