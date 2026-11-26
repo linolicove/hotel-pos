@@ -2533,14 +2533,20 @@ const [editEmployeeForm, setEditEmployeeForm] = useState({
       return;
     }
 
-    // Calculate nights from checkInDate and checkOutDate
-    const startMs = new Date(booking.checkInDate || getTodayKey()).getTime();
-    const endMs = new Date(booking.checkOutDate || getTodayKey()).getTime();
-    const calculatedNights = Math.max(1, Math.round((endMs - startMs) / 86400000));
+    // Timezone-safe night calculation from checkInDate and checkOutDate
+    const [inY, inM, inD] = String(booking.checkInDate || getTodayKey()).split("-").map(Number);
+    const [outY, outM, outD] = String(booking.checkOutDate || getTodayKey()).split("-").map(Number);
+    const inUtc = Date.UTC(inY, inM - 1, inD);
+    const outUtc = Date.UTC(outY, outM - 1, outD);
+    const calculatedNights = outUtc > inUtc ? Math.round((outUtc - inUtc) / 86400000) : 1;
 
-    // Calculate nightly rate from totalRate if multi-night, or fallback to dynamic room rate
-    const rawTotal = parseFloat(booking.totalRate) || 0;
-    const perNightRate = rawTotal > 0 ? Number((rawTotal / calculatedNights).toFixed(2)) : getDynamicRoomRate(targetRoom, rooms);
+    // Use the exact per-night rate saved on the pre-booking (do not divide by nights)
+    const perNightRate =
+      Number(booking.nightRate) > 0
+        ? Number(booking.nightRate)
+        : Number(booking.totalRate) > 0
+        ? Number(booking.totalRate)
+        : getDynamicRoomRate(targetRoom, rooms);
 
     // Pre-fill the SLTDA / Police Guest Registration Form
     setGuestForm({
@@ -2554,7 +2560,8 @@ const [editEmployeeForm, setEditEmployeeForm] = useState({
       nextDestination: "",
       nights: booking.nights ? parseInt(booking.nights, 10) : calculatedNights,
       customRate: String(perNightRate),
-      discountPercent: booking.discountPercent ? String(booking.discountPercent) : "",
+      // If nightRate is already stored post-discount, leave discountPercent empty so it isn't discounted twice
+      discountPercent: Number(booking.nightRate) > 0 ? "" : (booking.discountPercent ? String(booking.discountPercent) : ""),
       checkInDate: booking.checkInDate || getTodayKey(),
     });
 
