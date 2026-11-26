@@ -8660,16 +8660,16 @@ const [editEmployeeForm, setEditEmployeeForm] = useState({
                         Night Rate ({isLocalLkr ? "LKR" : "USD"})
                       </label>
                       <input
-                        type="number"
-                        step="any"
-                        min="0"
-                        placeholder="0.00"
-                        value={newBookingForm.totalRate}
-                        onChange={(e) =>
-                          setNewBookingForm({ ...newBookingForm, totalRate: e.target.value })
-                        }
-                        className="w-full border border-slate-300 rounded-xl p-2.5 font-bold bg-white"
-                      />
+  type="number"
+  step="any"
+  min="0"
+  placeholder={String(defaultRoomRate || "0.00")}
+  value={newBookingForm.totalRate}
+  onChange={(e) =>
+    setNewBookingForm((prev) => ({ ...prev, totalRate: e.target.value }))
+  }
+  className="w-full border border-slate-300 rounded-xl p-2.5 font-bold bg-white"
+/>
                     </div>
 
                     <div>
